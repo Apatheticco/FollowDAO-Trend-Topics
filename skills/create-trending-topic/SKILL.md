@@ -155,13 +155,14 @@ description: >
 | 🆕 科技 AI list `2051854001608724654` | 4h，Agent velocity top 5 + recency top 2 |
 | 🆕 投资大师 list `2051856808348987697` | 4h，Agent velocity top 3 + recency top 2 |
 
-#### 🟣 美股 / 跨市场新闻（v1.7.1）
+#### 🟣 美股 / 跨市场新闻（v1.7.2）
 
 | 工具 | 参数 |
 |------|------|
-| `finance_tool_news_general_latest` | 无参 — 拉 FMP 最新一批英文财经/美股快讯，jq 过滤 `publishedDate > last_refresh_ts`，取增量前 20 条 |
+| `search_finance_news` | `keyword="the"`（停用词技巧，相当于不限关键词，按时间倒序拉最新）+ 8 家精选 users + `not_before_ts=last_refresh_ts` + `count=20` |
 
-> v1.7.1 修正：旧方案 `search_finance_news` 依赖 keyword 检索（"AI"/"chip"/"earnings"/"Fed"），关键词偏窄会漏掉重大事件。换用 `finance_tool_news_general_latest` 直接看最新榜，覆盖度更广。`search_finance_news` 仅在 **C 入口检索深挖** 或**突发事件按关键词找证据**时才用。
+> v1.7.2 修正：keyword 必填且 schema 不接受空值，用停用词 `"the"` 当作"无过滤"，让上游按 publishedDate 倒序返回最新一批。这样既保留 8 家精选 users 白名单（控质量），又不会被关键词漏掉主线事件。
+> 突发事件 / C 入口深挖时才换具体 keyword（如 "DeepSeek" / "Hormuz"）。
 
 #### 🏛️ 跨市场价格快照（v1.6 新增 — 宏观传导硬数据）
 
