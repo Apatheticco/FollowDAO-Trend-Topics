@@ -53,6 +53,17 @@ description: >
 
 简报中所有当前价格/涨跌幅，**只能引用 `crypto_realtime_price_batch` 返回的硬数据**。新闻标题、TG 帖子、KOL 推文里的价格描述一律视为"叙事来源"。输出分区：**📊 实时数据** vs **📰 叙事候选**。
 
+### 🔁 价格应急扩列规则（首扫 / 刷新通用）
+
+固定列表 `BTC,ETH,SOL,BNB,XRP,DOGE,HYPE,SUI,LINK,AVAX` 经常漏掉日内主线（实战漏掉 ZEC +30% / WIF +25%）。规则：
+
+1. 跑完第一轮 `crypto_realtime_price_batch` 拿到固定 10 币硬数据
+2. 扫描 hot_news / TG / list_timeline 文本里出现的**单代币涨幅描述**
+3. 任一代币描述涨幅 **≥ +15%** 或 **≤ -15%** 且不在固定列表 → 收集 symbol，**第二轮**再调一次 `crypto_realtime_price_batch(symbols=漏网symbol列表)` 核验
+4. 第二轮硬数据进 📊 实时数据区；新闻里读到的数字只能写在 📰 叙事候选里加 ⚠️ 单源未核
+
+> 铁律：**任何超过 ±15% 的代币若未经第二轮核验，不得写入"实时数据区"**，避免 KOL 数字误传到话题 desc。
+
 ### 🟢 首扫模式（每天早上 1 次，24h 窗口）
 
 **目的**：建立当日全景，覆盖隔夜热点 + 跨市场宏观/美股素材。
@@ -150,7 +161,17 @@ description: >
 |------|------|
 | `search_finance_news` | 智能 keyword（"AI"/"chip"/"earnings"/"Fed"），8 家精选 users，传 `not_before_ts=last_refresh_ts` |
 
-**🚫 刷新模式不跑**：`open_trending_topic_ranks` / `pop_info` / `economic_calendar` / `treasury_rates` / `realtime_price`（gold/spx/DXY/oil — 日内变化纳入加密对照即可）/ `twitter_advanced_search`（仅候选池兜底等级 2 才调）/ `house/senate_latest` / `insider_trading_latest`（首扫已覆盖，刷新不重复）。
+#### 🏛️ 跨市场价格快照（v1.6 新增 — 宏观传导硬数据）
+
+| 工具 | 参数 |
+|------|------|
+| `realtime_price` | `symbol=gold` |
+| `realtime_price` | `symbol=oil` |
+| `realtime_price` | `symbol=DXY` |
+
+> 实战教训：油价破 $100 / DXY 破 98 / 黄金回探都是当日跨市场风险开关，"日内变化不大"的假设会让刷新简报漏掉宏观主线。3 个调用是低成本必要项。
+
+**🚫 刷新模式不跑**：`open_trending_topic_ranks` / `pop_info` / `economic_calendar` / `treasury_rates` / `realtime_price(spx)`（个股榜单刷新不必，跨市场看 DXY/oil/gold 即可）/ `twitter_advanced_search`（仅候选池兜底等级 2 才调）/ `house/senate_latest` / `insider_trading_latest`（首扫已覆盖，刷新不重复）。
 
 **增量过滤铁律**：每次刷新结束写 `/tmp/trend-scout-last-refresh-YYYY-MM-DD.txt`，下次读取并按上表的 `last_refresh_ts` 字段过滤，避免"刷新读到首扫已读内容"的硬伤。
 
@@ -164,9 +185,28 @@ description: >
 - **绝对保护**：`createdAt` 在过去 **30 分钟内**的推文，无论 velocity 多低都必须进候选池
 - 合并去重，最终 10 条
 
-调用 Agent 子进程时**必须在 prompt 里明确**这套规则，否则 Agent 默认回退到 engagement DESC。
+⚠️ **list_timeline schema 限制**：MCP 只接受 `listId` + `cursor`，**不接受时间窗参数**。Agent 子进程必须自己按 `createdAt > last_refresh_ts` 过滤。
 
-### TG Consensus 后处理（必做）
+#### Agent 子进程 Prompt 模板（必用）
+
+```
+调用 twitter_list_timeline(listId="<LIST_ID>")，对返回的推文按以下规则筛选 top 10：
+
+1. 时间过滤：createdAt > <LAST_REFRESH_TS>（unix 秒）— 早于此时间的全部丢弃
+2. 双轨制：
+   - Velocity 轨：(likes + 2*retweets + 0.5*replies) / max(hours_since_post, 0.25) 降序取 top 7
+   - Recency 轨：createdAt 降序取 top 3
+3. 绝对保护：createdAt 在过去 30 分钟内的推文，无论 velocity 多低都必须保留
+4. 合并去重，输出 10 条 — 每条只回传：text、author、likeCount、retweetCount、replyCount、viewCount、createdAt、tweet_url
+
+不要按 engagement DESC 排序。不要返回 full_content / 媒体链接 / 完整 raw json。
+```
+
+直接把 LIST_ID 和 LAST_REFRESH_TS 替换到 prompt 里。三栈 list 各跑一次。
+
+### TG Consensus 后处理（按量触发）
+
+> ⚙️ **跳过条件（v1.6）**：本轮拉到的 TG feed 总条数 **< 20** 时跳过 cashtag 共识聚合（样本不足，跑出来都是 B-tier 噪音）。直接进 PolyBeats 抽取 + Twitter 比对即可。
 
 拉到 TG 数据后**不要直接进候选池**，先做共识聚合：
 
@@ -279,6 +319,19 @@ list_trending_topics(start_date=今日, end_date=今日, status=0, limit=50)
 | （刷新模式额外）首扫已有但价格/持仓有重大新进展 | 📈 升温 | 建议 update 而非新建 |
 
 仅 🆕 可建 进入第 0b 评分。
+
+### 🚦 升温硬规则（v1.6 新增 — 强制 update 提示）
+
+去重时若 🟰 重叠已发的话题主标的当日涨幅 vs **创建时**已偏差 ≥ **10%**（绝对值），**必须**主动调用 `update_trending_topic` 同步：
+
+| 偏差幅度 | 操作 |
+|---------|------|
+| ≥ 10% 但 ≤ 25% | 必须 update title（数据点更新到当前值）+ keywords 不变 |
+| > 25% | 升级为 📈 升温候选，update title + 提示用户是否需重写 desc（desc 不能改 → 严重时撤回重建） |
+
+**实战例**：8749「美股存储概念带飞加密存储赛道」创建时 STORJ 涨幅 X%，刷新时已 +43% — 触发硬规则，必须 update title 反映新涨幅。
+
+**铁律**：不允许"已发布的同主题话题保留旧数据 + 不建议 update + 直接跑下一个候选"的处置方式，会让线上话题持续显示陈旧数字。
 
 ---
 
