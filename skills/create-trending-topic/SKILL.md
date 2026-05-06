@@ -155,11 +155,13 @@ description: >
 | 🆕 科技 AI list `2051854001608724654` | 4h，Agent velocity top 5 + recency top 2 |
 | 🆕 投资大师 list `2051856808348987697` | 4h，Agent velocity top 3 + recency top 2 |
 
-#### 🟣 美股 / 跨市场新闻（v1.5）
+#### 🟣 美股 / 跨市场新闻（v1.7.1）
 
 | 工具 | 参数 |
 |------|------|
-| `search_finance_news` | 智能 keyword（"AI"/"chip"/"earnings"/"Fed"），8 家精选 users，传 `not_before_ts=last_refresh_ts` |
+| `finance_tool_news_general_latest` | 无参 — 拉 FMP 最新一批英文财经/美股快讯，jq 过滤 `publishedDate > last_refresh_ts`，取增量前 20 条 |
+
+> v1.7.1 修正：旧方案 `search_finance_news` 依赖 keyword 检索（"AI"/"chip"/"earnings"/"Fed"），关键词偏窄会漏掉重大事件。换用 `finance_tool_news_general_latest` 直接看最新榜，覆盖度更广。`search_finance_news` 仅在 **C 入口检索深挖** 或**突发事件按关键词找证据**时才用。
 
 #### 🏛️ 跨市场价格快照（v1.6 新增 — 宏观传导硬数据）
 
