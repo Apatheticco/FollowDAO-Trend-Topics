@@ -85,15 +85,13 @@ description: >
 | `open_feed_list_trending` | `type=pop_info, count=10` |
 | `crypto_realtime_price_batch` | `BTC,ETH,SOL,BNB,XRP,DOGE,HYPE,SUI,LINK,AVAX` |
 
-#### Wave 2A — 加密交易信号 + TG 情报
+#### Wave 2A — 加密交易信号（推特 list）
 
 | 工具 | 参数 |
 |------|------|
-| `whale_trader_feeds` | `hours=24, limit=30` |
-| `top_traders_live_24h` | `limit=30` |
-| `tg_kol_feeds` | `category=narrative, hours=12, limit=80` |
-| `tg_kol_feeds` | `category=meme, hours=12, limit=100` |
 | `twitter_list_timeline` | `listId=2046422494643687464`，24h；**Agent 子进程**提取 text/author/likeCount/retweetCount/viewCount/createdAt，按 velocity top 15 + recency top 5 取 |
+
+> v2.0 移除：`whale_trader_feeds` / `top_traders_live_24h` / `tg_kol_feeds` 三个信号源（信噪比低 + 被推特 list 覆盖，留下来反而拖慢决策）。
 
 #### 🟣 Wave 2B — 美股 / 投资素材（v1.5 新增 2026-05-06）
 
@@ -140,12 +138,12 @@ description: >
 | `twitter_list_timeline` | `listId=2051856808348987697`（Buffett/Druck/Burry/Cathie/Ackman 等），过去 7d |
 | `finance_tool_institutional_ownership_latest` | **季度初（2/5/8/11 月）追加** — 13F 季度更新 |
 
-执行完 → TG Consensus 后处理 → 进入第 0a 步。
+执行完 → 进入第 0a 步。
 
-**首扫工具 checklist（v1.5，缺一可标记跳过原因）**：
+**首扫工具 checklist（v2.0，缺一可标记跳过原因）**：
 
 ```
-🟢 Wave 1 加密+价格（4）  🟢 Wave 2A 加密信号（5）
+🟢 Wave 1 加密+价格（4）  🟢 Wave 2A 推特 list（1）
 🟣 Wave 2B 美股/投资（4）  🟦 Wave 2C 科技AI（2）
 🏛️ Wave 3 宏观大宗（3）   🔶 Wave 4 投资大师（周一/季度初）
 ```
@@ -162,9 +160,6 @@ description: >
 | `open_feed_news` | `only_important=true, count=20` | 仅刷新模式用 |
 | `open_feed_articles` | `only_important=true` | 仅刷新模式用 |
 | `crypto_realtime_price_batch` | 同上 | 必刷价格 delta |
-| `whale_trader_feeds` | `hours=4, limit=30` | 24h → 4h |
-| `top_traders_live_24h` | `limit=20`，jq 过滤 `created_at > last_refresh_ts` | 取增量 |
-| `tg_kol_feeds` | `hours=4, limit=80`，跑 narrative/meme/trading_signal 三 cat | 12h → 4h，多 trading_signal |
 
 #### 三栈 List Timeline（必跑）
 
@@ -226,21 +221,6 @@ description: >
 
 直接把 LIST_ID 和 LAST_REFRESH_TS 替换到 prompt 里。三栈 list 各跑一次。
 
-### TG Consensus 后处理（按量触发）
-
-> ⚙️ **跳过条件（v1.6）**：本轮拉到的 TG feed 总条数 **< 20** 时跳过 cashtag 共识聚合（样本不足，跑出来都是 B-tier 噪音）。直接进 PolyBeats 抽取 + Twitter 比对即可。
-
-拉到 TG 数据后**不要直接进候选池**，先做共识聚合：
-
-1. 抽取 `$[A-Z0-9]{2,10}` cashtag，关联 username + category
-2. 聚合每个 symbol 的 `distinct_authors` / `categories_hit`
-3. 分档：
-   - **S-tier**：≥2 独立 KOL 且 ≥2 cat → 进候选池
-   - **A-tier**：≥2 独立 KOL 但仅 1 cat（第二人 ≥2 条独立 post） → 候选
-   - **B-tier**：单 KOL 或第二人仅 1 次提及 → 仅记录，不入池
-4. **事件型过滤**：S-tier 若 Top 推文 >50% 来自官方账号且内容是 `launch/airdrop/TGE/mint live` → 判定事件型，**不作叙事选题**
-5. **早期 alpha**：S-tier 但 Twitter 稀疏（<5 推文）= TG 领先，最强抢先窗口
-
 ### 输出格式
 
 **首扫**：
@@ -271,7 +251,7 @@ description: >
 
 | 等级 | 操作 |
 |------|------|
-| 1 | 扩窗：whale 24h→48，TG 12h→24，Twitter 24h→48，重走 Consensus |
+| 1 | 扩窗：Twitter list 24h→48，重跑 velocity+recency 双轨制取 top 15 |
 | 2 | 调 `twitter_advanced_search(query="crypto OR BTC OR ETH lang:zh OR lang:en", queryType="Top")` 兜底 |
 | 3 | 等级 2 仍 <2 条 → 直接告知用户「今日候选池已饱和」，不强行凑数 |
 
