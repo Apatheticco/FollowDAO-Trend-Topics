@@ -3,7 +3,7 @@ name: create-trending-topic
 description: >
   从原始素材或主动扫描热点，自动提取结构化字段，创建 Followin 热点风向标（TrendingTopic），并支持发布。
   三种触发场景：
-  (A) 用户让"扫一下热点 / 找几个话题 / 批量创建今日话题" → 调 Followin/TG/链上/Twitter MCP 主动扫描；
+  (A) 用户让"扫一下热点 / 找几个话题 / 批量创建今日话题" → 调 FollowX MCP（metrics/news/signal/twitter）主动扫描；
   (B) 用户给一段素材（新闻/推文/描述）让创建话题 → 直接进评分；
   (C) 用户给一个标的或一句话（"查一下 REPPO" / "Aave 现在情况"）→ 多源补全资料再评分。
   全流程：采集 → 去重 → 评分 → 字段提取 + 标题优化 → 预览 → 创建 → tag 校验 → 数据核实 → 发布。
@@ -11,25 +11,30 @@ description: >
 
 # 创建热点风向标
 
-## 整体管线
+## 整体管线（v2.2 — 三件套主输出）
 
 ```
 [A 让扫描]    → 第 -1 步：扫描热点（首扫/刷新模式）
 [C 给标的/句子] → 第 -1.5 步：定向检索深挖
                                       ↓
-                第 0a 步：拉过去 24h 已建话题（全状态）→ 数据基底
+                第 0a 步：拉过去 24h 已建话题 → 建索引（symbol/category/keyword）
                                       ↓
-                ┌─ 输出顺序铁律（v1.9）────────────────────┐
-                │ 1) 第 0a.5 步：12h 在审池预过滤        │
-                │    (P0 撤回 / P1 优化发布 / P2 直接发布) │
-                │ 2) 0a 升温硬规则：24h status=0 数据同步 │
-                │ 3) 0a 重叠对照：🟰 已建标记            │
-                │ 4) 0b 新建评分：🆕 候选进入双轴        │
-                └────────────────────────────────────────┘
+                第 0a.5 步：8h 在审池预过滤
                                       ↓
-[B 给素材] ──→ 第 0b 步：双轴准入评分（行情冲击 OR 讨论热度）
+                第 0b 步：四维评分 A/B/C/D（v2.2 — 加稀缺性 + 紧迫性）
                                       ↓
-                第 1 步：字段提取 + 标题优化
+        ╔════════ 🎯 主报告：撤改补三件套（v2.2）═══════════╗
+        ║                                                  ║
+        ║   🆕 补充（最优先 — 首扫 ≥12 / 刷新 ≥8 条）        ║
+        ║   🔧 更新（升温 / 事件升级 / 标题数据脱锚）         ║
+        ║   🚨 撤回（脱锚 / 重复 / 弱主体 / 触类型阈值）      ║
+        ║   ───────────────────────────                    ║
+        ║   🟰 已建覆盖（精简列表，反证差异化）              ║
+        ║   📊 实时数据（fold 收起，供查阅）                ║
+        ║                                                  ║
+        ╚══════════════════════════════════════════════════╝
+                                      ↓
+[B 给素材] ──→ 第 1 步：字段提取 + 标题优化
                                       ↓
                 第 2 步：预览确认（不可跳过）
                                       ↓
@@ -42,9 +47,34 @@ description: >
                 第 5 步：发布评分 → status=0 上线
 ```
 
+### 🎯 v2.2 核心理念
+
+**风向标的本质 = 帮用户决定"今天该补什么话题"**。三件套优先级：
+1. **🆕 补充（最重要）** — 当前缺什么强候选 → 用户最关心
+2. **🔧 更新** — 已建话题如何随事件演进
+3. **🚨 撤回** — 已建话题哪些必须下线
+
+任何扫描的输出**必须**包含完整三件套；如果"🆕 补充"少于硬约束（首扫 12 / 刷新 8），**强制扩窗重扫**直至达标。
+
 ---
 
 ## 第 -1 步：扫描热点（A 入口）
+
+### 🕐 第 0 步铁律：时间校准（v2.1.8 — 每次扫描第一件事）
+
+**铁律**：任何扫描（首扫 / 刷新 / 检索）开始**前**，必须先执行：
+
+```bash
+date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
+```
+
+**理由**：
+- 系统 prompt 提示的"今天日期"可能滞后（实测 5/18 早上还在按 5/14 算）
+- 价格 / 新闻 timestamp 解读、8h / 4h / 24h 窗口判定全部依赖准确"现在"
+- 升温检查（10%/25%/50% 偏差）的"建时 vs 现在"需要正确时间锚点
+- "已建话题 8h 在审池" 的 cutoff 计算依赖现在时间
+
+**违反信号**：发现自己说"今天是 X 日"和 `date` 输出不一致 → 立刻重算所有窗口 + 重新生成简报。
 
 ### 模式自动判断（UTC+8）
 
@@ -57,17 +87,32 @@ description: >
 
 冲突时主动询问。
 
+### ⚠️ FollowX 已知 quirks（v2.1.3 实测）
+
+1. **session 偶发掉线** — `"session not found"` / `"session initialization"` 错误。重试一次通常恢复；连续失败需重启 Claude Code
+2. **`news(asset_type="tradfi")` 偶发返回 0** — 实战出现过 4 次连续 null。**Fallback**：检测 `results=null` 时**自动改用 `news(query="<关键词>", 不传 asset_type, verbosity="concise")` 重试一次**
+3. **`news` 的 `asset_type` 过滤不稳定** — `news(asset_type="crypto", sort_by="popularity", verbosity="concise")` 实测返回 random social 推文（垃圾桶 / 足球 / 美国市长被起诉等），crypto 过滤未应用。**修复**：`sort_by="popularity"` 时**不要传 `verbosity="concise"`**，让走默认 standard / trending 模式才能拿到 `_source: "followin_trending"` 策划数据
+4. **tradfi news 只返回标题** — 不论 `verbosity=concise/standard/detail`，FMP news 通道仅返回 title（266 token / 10 条）。要正文必须改 query 走 opensearch 通道
+5. **首扫 tradfi 数据本质走 FMP/FRED 结构化**：财报日期 / 涨跌榜 / 宏观日历 → 用 `metrics`，不依赖 news 文本（v2.2.7 — signal 在首扫全砍，议员/内部人持仓改由宏观新闻覆盖）
+6. **`metrics` 的 `asset_type` 正常工作**，只有 `news` 端点有上面 quirks 2/3
+7. **`news` 默认 verbosity 是 standard，可能带完整正文** — 单次调用 limit≥20 时容易炸 context（实战 56K 字符）。生产用 `verbosity="concise"` + `limit≤15`
+8. **economic_calendar query 不能依赖字面过滤** — 写"US high impact"它仍会返回 JP/NZ 数据，**Agent 子进程必须自过滤** `country` + `impact`
+9. **`metrics(sort_by=..., asset_type="tradfi")` categories 默认全跑** — 会报 warnings: "macro requires keyword" / "fundamentals requires symbol"。结果正确但输出污染。**修复**：显式传 `categories=["market"]` 收紧
+10. **`metrics(sort_by="change_pct", asset_type="tradfi")` 涨跌榜含大量 leveraged ETF 噪音** — 实测前 10 含 4-5 个 2x/3x ETF（21Shares 2x Long SUI / Direxion Daily MU Bull 2X / GraniteShares 2x Long DELL 等）。**Agent 子进程必须过滤**：排除 name 含 `"2X"` / `"3X"` / `"Long ... ETF"` / `"Bull"` / `"Daily Target"` 等关键词，仅保留个股
+11. **`news(asset_type="tradfi")` FMP 通道偏 WSJ/Bloomberg/Barron's 严肃财经媒体** — 会漏掉 **Reuters 独家 / X 突发 / 中文媒体爆点**等跨界 megaevent。实战 5/14 漏掉 NVIDIA H200 出口许可（10 家中企 / 7.5 万颗上限 / 25% 收入分成）。**修复**：刷新模式必跑 query 兜底通道 `news(query="<当周关键词>", 不传 asset_type, time_range="4h")` 同步抓 Reuters / 中文媒体
+12. **TG `sources=["telegram"]` 实际返回 `tg_kol_feeds` 而非频道结构化数据** — 无 `username` 字段，v2.1.5 设计的"严格白名单 jq 过滤"实测无法直接套用。**临时修复**：用 `_source_quality` 筛 `mid` 以上 + content grep 关键词（"币安将上线" / "Whale Alert" / "巨鲸"）。Meme 打新 cat 实测全是 low quality 个号 spam，**可砍**
+
 ### 价格数据铁律
 
-简报中所有当前价格/涨跌幅，**只能引用 `crypto_realtime_price_batch` 返回的硬数据**。新闻标题、TG 帖子、KOL 推文里的价格描述一律视为"叙事来源"。输出分区：**📊 实时数据** vs **📰 叙事候选**。
+简报中所有当前价格/涨跌幅，**只能引用 `followx.metrics` 返回的硬数据**。新闻标题、TG 帖子、KOL 推文里的价格描述一律视为"叙事来源"。输出分区：**📊 实时数据** vs **📰 叙事候选**。
 
 ### 🔁 价格应急扩列规则（首扫 / 刷新通用）
 
 固定列表 `BTC,ETH,SOL,BNB,XRP,DOGE,HYPE,SUI,LINK,AVAX` 经常漏掉日内主线（实战漏掉 ZEC +30% / WIF +25%）。规则：
 
-1. 跑完第一轮 `crypto_realtime_price_batch` 拿到固定 10 币硬数据
-2. 扫描 hot_news / TG / list_timeline 文本里出现的**单代币涨幅描述**
-3. 任一代币描述涨幅 **≥ +15%** 或 **≤ -15%** 且不在固定列表 → 收集 symbol，**第二轮**再调一次 `crypto_realtime_price_batch(symbols=漏网symbol列表)` 核验
+1. 跑完第一轮 `followx.metrics(keywords=[...], asset_type="crypto")` 拿到固定 10 币硬数据
+2. 扫描 news / TG / twitter 文本里出现的**单代币涨幅描述**
+3. 任一代币描述涨幅 **≥ +15%** 或 **≤ -15%** 且不在固定列表 → 收集 symbol，**第二轮**再调一次 `followx.metrics(keywords=漏网symbol列表, asset_type="crypto")` 核验
 4. 第二轮硬数据进 📊 实时数据区；新闻里读到的数字只能写在 📰 叙事候选里加 ⚠️ 单源未核
 
 > 铁律：**任何超过 ±15% 的代币若未经第二轮核验，不得写入"实时数据区"**，避免 KOL 数字误传到话题 desc。
@@ -80,73 +125,190 @@ description: >
 
 | 工具 | 参数 |
 |------|------|
-| `open_trending_topic_ranks` | `count=5, lang=zh-cn` ⚠️ count ≤ 5 |
-| `open_feed_list_trending` | `type=hot_news, count=15`（只取 title+content） |
-| `open_feed_list_trending` | `type=pop_info, count=10` |
-| `crypto_realtime_price_batch` | `BTC,ETH,SOL,BNB,XRP,DOGE,HYPE,SUI,LINK,AVAX` |
+| `followx.news` | `time_range="1d", sort_by="popularity", asset_type="crypto", limit=20` — 24h 加密热门 |
+| `followx.news` | `time_range="1d", sort_by="time", categories=["market"], asset_type="crypto", limit=15` — 加密时间序快讯 |
+| `followx.metrics` | `keywords=["BTC","ETH","SOL","BNB","XRP","DOGE","HYPE","SUI","LINK","AVAX"], asset_type="crypto"` |
 
-#### Wave 2A — 加密交易信号（推特 list）
+#### Wave 2A — 加密交易信号（推特 list + KOL + TG 频道）
 
 | 工具 | 参数 |
 |------|------|
-| `twitter_list_timeline` | `listId=2046422494643687464`，24h；**Agent 子进程**提取 text/author/likeCount/retweetCount/viewCount/createdAt，按 velocity top 15 + recency top 5 取 |
+| `followx.twitter` | `action="list_timeline", list_id="2046422494643687464"`；**Agent 子进程**提取 text/author/likeCount/retweetCount/viewCount/createdAt，按 velocity top 15 + recency top 5 取 |
+| **`followx.news` TG 频道扫描** | 见下方 **「📡 TG 频道扫描范式（v2.1.5）」**，5 个 category 并行 |
 
-> v2.0 移除：`whale_trader_feeds` / `top_traders_live_24h` / `tg_kol_feeds` 三个信号源（信噪比低 + 被推特 list 覆盖，留下来反而拖慢决策）。
+> **v2.2.7**：Wave 2A 不再跑 `signal(kol_call)` —— 个人 TA 喊单噪音多、与 TG「交易信号」cat 重复，已砍。
 
-#### 🟣 Wave 2B — 美股 / 投资素材（v1.5 新增 2026-05-06）
+> v2.1.5 加 TG 频道扫描，覆盖 trend-scout v1.6.8 验证过的链上巨鲸 bot 信号源（PolyBeats_Bot / OnchainData / Whale_Alert / CoinbobAI 等）。
+> v2.0 移除：`whale_trader_feeds` / `top_traders_live_24h` / `tg_kol_feeds`（旧 MCP 信噪比低）。
 
-> 让宏观、美股财报、议员/内部人持仓异动都进入热点风向标候选池。
+##### 📡 TG 频道扫描范式（v2.1.5）
+
+**风向标场景的 category 矩阵**（精简到 5 个，去掉资讯聚合 / 项目研究 / 宏观研判 — 这些 Wave 1/2B/3 已覆盖）：
+
+| 模式 | 扫的 category | 用途 |
+|------|--------------|------|
+| 🟢 首扫 (1d) | 交易信号 / 实盘跟踪 / 链上数据 / 叙事追踪 / Meme 打新 | 5 个并行 |
+| 🔵 刷新 (4h) | 交易信号 / 实盘跟踪 | **2 个并行**（v2.1.7 砍 Meme 打新 — 实测全 spam）|
+| 🔴 突发 | 按事件匹配 1-3 个 category | 定向 |
+
+**调用范式（首扫 5 路并行）**：
+```python
+parallel for cat in ["交易信号","实盘跟踪","链上数据","叙事追踪","Meme 打新"]:
+    followx.news(
+        query=cat,
+        sources=["telegram"],
+        time_range="1d",
+        limit=15,
+        source_lang="zh-cn",
+        sort_by="popularity",   # 首扫按热度；刷新改 "time"
+        verbosity="standard"    # 显式 standard 避免 concise 自动 trim
+    )
+```
+
+**子进程 jq 后处理（2 步精简）**：
+```bash
+# Step 1 严格白名单（只保留数据 bot，砍掉个号 spam）
+jq '[.results[] | select(
+  .username | test("PolyBeats_Bot|OnchainData|Whale_Alert|CoinbobAI"; "i")
+)]' "$FILE" > /tmp/tg-step1.json
+
+# Step 2 同 username 去重（每个 bot 保留最新 ≤3 条）
+jq '[group_by(.username)[] | sort_by(-.published_ts) | .[0:3]] | flatten' \
+   /tmp/tg-step1.json > /tmp/tg-clean.json
+
+# 输出格式：[quality] @username | time | content[0:160]
+jq -r '.[] | "[\(._source_quality // "low")] @\(.username) | \((.published_ts/1000) | strftime("%m/%d %H:%M")) | \(.content | gsub("\n";" ") | .[0:160])"' \
+   /tmp/tg-clean.json | head -25
+```
+
+**风向标用法**：TG 扫到的**具体链上事件**（巨鲸转账金额、聪明钱仓位变动、meme 早期打新）直接进 0b 双轴评分；**模糊讨论**不进。这一通道补足了 trader_position 数据死角（FollowX 之前 v2.0 移除的 whale_trader_feeds 等价值）。
+
+**避坑**：
+- FollowX session 跑 5-8 calls 易挂 → 5 个 category **必须分 2 批并行**（3+2 或 2+3）
+- `query="<category>"` 必传（不要堆砌关键词），FollowX 已按 category 内建索引
+- `limit=15`/cat 是首扫；刷新 4h 窗口降到 `limit=20` 单批 3 cat
+
+#### 🟣 Wave 2B — 美股 / 投资素材（v2.2.4 — 加板块涨跌扫描）
+
+> 让宏观、美股财报、议员/内部人持仓异动 **+ 美股热门板块涨跌** 都进入热点风向标候选池。
 
 | 工具 | 参数 / 说明 |
 |------|-----------|
-| `finance_tool_earnings_calendar` | **周一必跑**，财报周每天跑 — 拉本周 Beat/Miss 候选 |
-| `finance_tool_biggest_gainers` + `finance_tool_biggest_losers` | 美股异动榜，找加密联动（科技股 / 代币化股 / Crypto Equity） |
-| `finance_tool_house_latest` + `finance_tool_senate_latest` | 议员持仓异动（每日扫，常带政策风向） |
-| `finance_tool_insider_trading_latest` | `count=20` — 高管买卖（聚焦异常大额或方向反转） |
+| `followx.news` | `asset_type="tradfi", time_range="1d", sort_by="time", limit=15, verbosity="concise"` — FMP 策划美股头条（**仅返回标题**，~400 token / 15 条）|
+| `followx.metrics` | `query="earnings calendar this week", categories=["fundamentals"], asset_type="tradfi"` — **周一必跑**，财报周每天跑（FMP calendar 含 estimate/actual/impact）|
+| `followx.metrics` | `sort_by="change_pct", asset_type="tradfi", categories=["market"], limit=15` + 同样 `sort_by="-change_pct"` — 美股涨/跌榜（FMP JSON；⚠️ Agent 子进程过滤 leveraged ETF：排除 name 含 `"2X"/"3X"/"Bull"/"Daily Target"/"Long ... ETF"` 等关键词）|
+| **`followx.metrics` 板块扫描（v2.2.4 新增）** | 见下方「📊 美股板块涨跌矩阵扫描」|
 
-#### 🟦 Wave 2C — 科技 / AI 素材（v1.5 新增）
+> **v2.2.7**：Wave 2B 不再跑 `signal(insider_trading)` —— LASR/WTTR 等小盘内部人交易噪音大、F-InKind 非主动卖出多，议员持仓被宏观新闻覆盖。
 
-| 工具 | 参数 |
-|------|------|
-| `twitter_list_timeline` | `listId=2051854001608724654`（科技 AI + 宏观美股投资 list），24h，Agent velocity top 10 + recency top 3 |
-| `search_finance_news` | 智能 keyword 按当周轮换（"AI" / "chip" / "earnings" / "tariff" / "Fed"），8 家精选 users |
+##### 📊 美股板块涨跌矩阵扫描（v2.2.4 — 首扫必跑）
 
-#### 🏛️ Wave 3 — 宏观 / 大宗（v1.5 新增）
+风向标常漏掉**子板块异动**（如 5/18 存储 + 光通信集体崩盘只看大盘看不出来）。必须扫 8 大热门板块代表股：
 
-| 工具 | 参数 |
-|------|------|
-| `finance_tool_economic_calendar` | 一天跑一次即可。⚠️ 全球全量 7000+ 条 / 1.5M 字符，**必须 Agent 子进程**只取 `impact="High"` 且 `country="US"/"CN"/"EU"` |
-| `finance_tool_treasury_rates` | 10Y/2Y 收益率，判断利率环境 |
-| `realtime_price` × 4 | `gold` / `spx` / `DXY` / `oil` — 大宗 + 美股全景（**iTick 经常 401，必走 fallback 链**） |
-| `fred_get_series`（按需） | `DGS10` / `CPIAUCSL` / `UNRATE` 等关键宏观点位 |
-
-**🛟 跨市场价格 Fallback 链（v1.9 新增）**：
-
-| 主调 | Primary 失败时的 Fallback |
+| 板块 | 代表股票（3-4 个，按权重）|
 |------|--------------------------|
-| `realtime_price(gold)` | `crypto_realtime_price_batch(symbols=XAUT,PAXG)` → 链上挂钩代币 |
-| `realtime_price(spx)` | `finance_tool_quote(symbol=SPY)` 或 `finance_tool_batch_quote(symbols=SPY,QQQ)` |
-| `realtime_price(DXY)` | `fred_get_series(series_id=DTWEXBGS)` 美元指数官方 |
-| `realtime_price(oil)` | `finance_tool_batch_commodity_quotes(symbols=USOUSD,UKOUSD)` |
+| **AI 算力 / GPU** | `NVDA,AMD,AVGO,TSM` |
+| **AI 应用 / 大科技** | `MSFT,GOOGL,META,AAPL` |
+| **存储 / 内存** | `MU,SNDK,WDC,STX` |
+| **光通信 / 网络** | `LITE,AAOI,GLW,COHR` |
+| **半导体设备** | `ASML,AMAT,LRCX,KLAC` |
+| **加密概念股** | `CRCL,COIN,MSTR,GEMI` |
+| **量化交易 / Fintech** | `HOOD,SOFI,PLTR,IBKR` |
+| **航天 / 国防** | `RKLB,LMT,RTX,BA` |
 
-> 铁律：Primary 失败时必须跑 Fallback；Fallback 仍失败再标"⚠️ 数据缺失"。今天 8798/N5 评分受影响就是因为 iTick 401 没走 fallback。
+调用范式：
+```python
+parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
+    followx.metrics(
+        keywords=sector_stocks,  # 4 个一组
+        asset_type="tradfi",
+        categories=["market"]
+    )
+```
+
+**输出判定**：每个板块若有 ≥2 个标的同向 >3% 涨/跌 → 板块异动信号 → 进 0b 评分作板块候选话题（如本次 R-Mem 存储+光通信回调）。
+
+#### 🟦 Wave 2C — 科技 / AI 素材（v2.1.1 修订）
+
+| 工具 | 参数 |
+|------|------|
+| `followx.twitter` | `action="list_timeline", list_id="2051854001608724654"`（科技 AI + 宏观美股投资 list），Agent velocity top 10 + recency top 3 |
+| `followx.metrics` | `keywords=["NVDA","AAPL","TSLA","MSFT","META","GOOGL","AMZN","AVGO","AMD","PLTR"], asset_type="tradfi"` — 7 大科技 + AI/半导体当前股价 + 涨跌幅 |
+
+#### 🏛️ Wave 3 — 宏观 / 大宗（v1.5，v2.1 大幅简化）
+
+| 工具 | 参数 |
+|------|------|
+| `followx.metrics` | `query="economic calendar this week US high impact", categories=["macro"]` — 一天一次。⚠️ 实测 query 字面过滤不生效，会混入 JP/NZ；**Agent 子进程必须自过滤** `country in ["US","CN","EU"]` 且 `impact="High"` |
+| `followx.metrics` | `keywords=["10Y","2Y","DGS10"], categories=["macro"]` — 国债收益率 |
+| `followx.metrics` | `keywords=["gold","spx","DXY","oil"], asset_type="tradfi"` — 大宗 + 美股全景（**单次四合一**） |
+| `followx.metrics` | `keywords=["CPIAUCSL","UNRATE"], categories=["macro"]`（按需）— 关键宏观点位 |
+
+**🛟 跨市场价格 Fallback 链（v2.1 — FollowX 内部已统一，仍保留兜底）**：
+
+| 主调失败 | Fallback |
+|---------|----------|
+| `metrics(keywords=["gold"], tradfi)` | `metrics(keywords=["XAUT","PAXG"], crypto)` → 链上挂钩代币 |
+| `metrics(keywords=["spx"], tradfi)` | `metrics(keywords=["SPY","QQQ"], tradfi)` |
+| `metrics(keywords=["DXY"], tradfi)` | `metrics(keywords=["DTWEXBGS"], macro)` 美元指数官方 |
+| `metrics(keywords=["oil"], tradfi)` | `metrics(keywords=["USOUSD","UKOUSD"], tradfi)` |
+
+> 铁律：Primary 失败时必须跑 Fallback；Fallback 仍失败再标"⚠️ 数据缺失"。
 
 #### 🔶 Wave 4 — 投资大师专项（仅周一 / 季度初）
 
 | 工具 | 参数 |
 |------|------|
-| `twitter_list_timeline` | `listId=2051856808348987697`（Buffett/Druck/Burry/Cathie/Ackman 等），过去 7d |
-| `finance_tool_institutional_ownership_latest` | **季度初（2/5/8/11 月）追加** — 13F 季度更新 |
+| `followx.twitter` | `action="list_timeline", list_id="2051856808348987697"`（Buffett/Druck/Burry/Cathie/Ackman 等）|
+
+> **v2.2.7**：Wave 4 不再跑 `signal(institutional)` —— 13F 是季度滞后数据，对日级别风向标价值低。
+
+#### 🔍 Wave 5 — 二线候选 query 兜底（v2.2 新增 — 为达到 ≥12 候选硬约束）
+
+风向标常漏掉**链上细节 / 上币公告 / 解锁 / 财库 / 鲸鱼**等二线信号。Wave 1-4 偏主线，必须加 query 兜底扫这些维度：
+
+| query | 用途 |
+|-------|------|
+| `news(query="鲸鱼 巨鲸 whale transfer 大额转账", time_range="1d", limit=15)` | 链上鲸鱼异动 |
+| `news(query="binance coinbase listing delisting 上币 下架", time_range="1d", limit=10)` | 交易所公告 |
+| `news(query="unlock 解锁 vesting 财库 treasury", time_range="1d", limit=10)` | 解锁 + 财库 |
+| `news(query="ETF inflow outflow 净流入 流出", time_range="1d", limit=10)` | ETF 资金流向 |
+
+并行 4 调用（v2.2.7 — `signal(trader_position)` 已砍：同一鲸鱼仓位反复加减仓产生大量低价值 spam）。
 
 执行完 → 进入第 0a 步。
 
-**首扫工具 checklist（v2.0，缺一可标记跳过原因）**：
+**首扫工具 checklist（v2.2，缺一可标记跳过原因）**：
 
 ```
-🟢 Wave 1 加密+价格（4）  🟢 Wave 2A 推特 list（1）
-🟣 Wave 2B 美股/投资（4）  🟦 Wave 2C 科技AI（2）
-🏛️ Wave 3 宏观大宗（3）   🔶 Wave 4 投资大师（周一/季度初）
+🟢 Wave 1 加密+价格（3 — news popularity + news time + metrics 10币）
+🟢 Wave 2A 加密信号（1 + 5 TG cat — twitter list + TG 5 路并行；v2.2.7 砍 signal kol_call）
+🟣 Wave 2B 美股投资（3 + 板块矩阵 — FMP 头条 + earnings + 涨跌榜 + 8 板块涨跌；v2.2.7 砍 signal insider）
+🟦 Wave 2C 科技AI（2 — twitter list + 7 大科技股价）
+🏛️ Wave 3 宏观大宗（3-4 — calendar + rates + 跨市场 + 可选 FRED 点位）
+🔶 Wave 4 投资大师（周一/季度初；v2.2.7 砍 signal institutional）
+🔍 Wave 5 二线 query 兜底（v2.2.7 — 4 个 query：鲸鱼/上币/解锁/ETF 流向；trader_position 已砍）
 ```
+
+### 🚨 v2.2.4 强制铁律：Twitter list + TG 频道不可跳过
+
+实战教训（5/19）：跑首扫时漏掉 Twitter list 和 TG 频道扫描 → **直接缺 5+ 强候选**（Google×Blackstone / 马斯克 OpenAI 败诉 / 黄仁勋 Computex / 韩国零售融资 / Pumpfun 抛售）。这些 megaevent 只在 Twitter list + TG bot 出现，新闻通道捞不到。
+
+**强制清单**（首扫每次必跑，违反 = 简报不合规）：
+
+| 信号源 | 调用 | 漏扫后果 |
+|--------|------|---------|
+| **主 list（加密交易）** `2046422494643687464` | `twitter(action="list_timeline")` | 漏 KOL 喊单 / 链上深挖 / 实时事件 |
+| **科技 AI list** `2051854001608724654` | 同上 | 漏 AI 巨头动作 / 半导体板块叙事 |
+| **投资大师 list** `2051856808348987697` | 同上（周一/季度初）| 漏 Buffett/Burry/Cathie 13F + 观点 |
+| **TG 5 cat（交易信号/实盘跟踪/链上数据/叙事追踪/Meme 打新）** | `news(sources=["telegram"], query=<cat>)` 并行 | 漏链上巨鲸 / 项目方抛压 / 板块综述早期信号 |
+
+**强制扫描的执行格式**：
+- 首扫批 1（5 calls 并行）：主 list + AI list + 大师 list + TG cat1 + TG cat2
+- 首扫批 2（3 calls 并行）：TG cat3 + cat4 + cat5（v2.2.7 — signal 全部砍）
+- 任何一批失败 → **重试 1 次，仍失败标"⚠️ Wave 2A/TG 部分失败"**，不能直接进 0b
+
+**候选数量铁律**：跑完上述 Wave 后，进 0b 评分前**点候选数 P0+P1 ≥ 12**；不足则**强制扩窗**（再加 query 多组关键词 / TG 加 cat），直至达标或确认"今日候选池饱和"。
 
 ### 🔵 刷新模式（日内每 2-4h，4h 窗口）
 
@@ -156,39 +318,88 @@ description: >
 
 | 工具 | 参数 | 与首扫差异 |
 |------|------|----------|
-| `open_feed_list_trending` | `type=hot_news, count=15` | 同 |
-| `open_feed_news` | `only_important=true, count=20` | 仅刷新模式用 |
-| `open_feed_articles` | `only_important=true` | 仅刷新模式用 |
-| `crypto_realtime_price_batch` | 同上 | 必刷价格 delta |
+| `followx.news` | `time_range="4h", sort_by="time", categories=["market"], asset_type="crypto", limit=20` | 4h 窗口替代 hot_news |
+| `followx.news` | `time_range="4h", sort_by="time", categories=["fundamentals","event"], limit=15` | 替代 only_important news + articles |
+| `followx.metrics` | 固定 10 币 + 漏网核验 | 必刷价格 delta |
 
 #### 三栈 List Timeline（必跑）
 
 | List | 参数 |
 |------|------|
-| 主 list `2046422494643687464` | 4h，Agent velocity top 7 + recency top 3，<30min 硬保留，取 10 条 |
-| 🆕 科技 AI list `2051854001608724654` | 4h，Agent velocity top 5 + recency top 2 |
-| 🆕 投资大师 list `2051856808348987697` | 4h，Agent velocity top 3 + recency top 2 |
+| 主 list `2046422494643687464` | `followx.twitter(action="list_timeline")`，4h，Agent velocity top 7 + recency top 3，<30min 硬保留，取 10 条 |
+| 🆕 科技 AI list `2051854001608724654` | 同上，4h，Agent velocity top 5 + recency top 2 |
+| 🆕 投资大师 list `2051856808348987697` | 同上，4h，Agent velocity top 3 + recency top 2 |
 
-#### 🟣 美股 / 跨市场新闻（v1.7.2）
+#### 📡 TG 频道扫描（v2.1.7 — 刷新 2 路并行）
+
+```python
+parallel for cat in ["交易信号","实盘跟踪"]:
+    followx.news(
+        query=cat, sources=["telegram"], time_range="4h",
+        limit=20, source_lang="zh-cn",
+        sort_by="time",          # 刷新看时效
+        verbosity="standard"
+    )
+```
+后处理见 Wave 2A「TG 频道扫描范式」。**刷新砍 3 个 cat**：
+- ❌ 链上数据（与 signal 重复，且 4h 增量稀疏）
+- ❌ 叙事追踪（媒体型，FMP 通道已覆盖）
+- ❌ **Meme 打新**（v2.1.7 — 实测全 low quality 个号 spam，无白名单字段过滤，价值极低）
+
+#### 🟣 美股 / 跨市场新闻（v2.1.7 — 双通道兜底）
+
+| 工具 | 参数 | 作用 |
+|------|------|------|
+| `followx.news` | `asset_type="tradfi", time_range="4h", sort_by="time", limit=15, verbosity="concise"` | FMP 严肃财经头条（WSJ/Bloomberg/Barron's）— 标题流，~300 token |
+| **`followx.news` query 兜底**（v2.1.7 新增） | `query="<当周 tech/政策关键词>", time_range="4h", sort_by="time", limit=10, verbosity="concise"` — **不传 asset_type** | 抓 Reuters 独家 / 中文媒体爆点 / X 突发，弥补 FMP 通道盲区 |
+
+**query 兜底关键词模板**（每天根据热点轮换）：
+
+| 当周热点 | query |
+|---------|-------|
+| 中美 AI 博弈 / 芯片出口（如 H200）| `"NVIDIA AMD chip China Trump tariff Huawei"` |
+| Fed 主席换届 / 通胀 | `"Powell Warsh Fed Chair CPI PPI inflation"` |
+| 地缘冲突 / 油价 | `"Iran Hormuz oil OPEC Brent ceasefire"` |
+| 财报周 | `"earnings beat miss EPS guidance Q1 Q2"` |
+| 政策立法 | `"CLARITY GENIUS SEC stablecoin Tillis Alsobrooks"` |
+
+> 🐛 **v2.1.7 实战教训（2026-05-14）**：刷新模式只跑 `asset_type="tradfi"` 通道时**漏掉 H200 出口许可 megaevent**（路透社独家 + 中文媒体爆点）。FMP 通道偏严肃财经媒体，**漏掉 Reuters / X / 中文媒体**这类跨界新闻。query 兜底通道是必跑项。
+
+#### 🔍 Wave 5 — 二线 query 兜底（v2.2 — 刷新精简版，3 路并行）
+
+刷新模式为达到候选池硬约束 ≥8 条，仍需扫二线维度但比首扫精简：
+
+| query | 用途 |
+|-------|------|
+| `news(query="鲸鱼 巨鲸 whale 大额转账 链上", time_range="4h", limit=10)` | 4h 链上鲸鱼增量 |
+| `news(query="listing delisting 上币 下架 binance coinbase", time_range="4h", limit=8)` | 4h 交易所公告 |
+| `news(query="ETF 净流入 流出 inflow outflow", time_range="4h", limit=8)` | 4h ETF 资金流向 |
+
+刷新砍掉首扫的 trader_position + 解锁/财库 query（4h 内增量稀疏）。
+
+**候选数量铁律（刷新模式）**：跑完上述工具后 P0+P1 候选 ≥ 8 才能进 0b；不足则**单独跑 5 个不同 query 关键词**扩窗。
+| `followx.metrics` | `sort_by="change_pct", asset_type="tradfi", limit=10` + `sort_by="-change_pct"` — 4h 内涨/跌榜结构化（可选，财报周必跑）|
+
+> v2.1.1：tradfi news 仅返回标题（FMP 通道）。需要正文 → 改 `news(query="<事件>")` 不传 asset_type。突发事件 / C 入口才走 query 路径（如 `"DeepSeek"` / `"Hormuz"`）。
+> ⚠️ 实测有偶发 `results=null`，触发 fallback：改 `news(query="stock market earnings Fed", verbosity="concise", limit=15)` 重试。
+
+#### 🏛️ 跨市场价格快照（v1.6，v2.1 单次调用）
 
 | 工具 | 参数 |
 |------|------|
-| `search_finance_news` | `keyword="the"`（停用词技巧，相当于不限关键词，按时间倒序拉最新）+ 8 家精选 users + `not_before_ts=last_refresh_ts` + `count=20` |
+| `followx.metrics` | `keywords=["gold","oil","DXY"], asset_type="tradfi"` — 一次拉齐三件套 |
 
-> v1.7.2 修正：keyword 必填且 schema 不接受空值，用停用词 `"the"` 当作"无过滤"，让上游按 publishedDate 倒序返回最新一批。这样既保留 8 家精选 users 白名单（控质量），又不会被关键词漏掉主线事件。
-> 突发事件 / C 入口深挖时才换具体 keyword（如 "DeepSeek" / "Hormuz"）。
+> 实战教训：油价破 $100 / DXY 破 98 / 黄金回探都是当日跨市场风险开关，"日内变化不大"的假设会让刷新简报漏掉宏观主线。v2.1 由 `followx.metrics` 单次返回。
 
-#### 🏛️ 跨市场价格快照（v1.6 新增 — 宏观传导硬数据）
-
-| 工具 | 参数 |
-|------|------|
-| `realtime_price` | `symbol=gold` |
-| `realtime_price` | `symbol=oil` |
-| `realtime_price` | `symbol=DXY` |
-
-> 实战教训：油价破 $100 / DXY 破 98 / 黄金回探都是当日跨市场风险开关，"日内变化不大"的假设会让刷新简报漏掉宏观主线。3 个调用是低成本必要项。
-
-**🚫 刷新模式不跑**：`open_trending_topic_ranks` / `pop_info` / `economic_calendar` / `treasury_rates` / `realtime_price(spx)`（个股榜单刷新不必，跨市场看 DXY/oil/gold 即可）/ `twitter_advanced_search`（仅候选池兜底等级 2 才调）/ `house/senate_latest` / `insider_trading_latest`（首扫已覆盖，刷新不重复）。
+**🚫 刷新模式不跑**（v2.1.6 — `signal` 全部砍）：
+- Wave 1 popularity 热门榜（首扫已覆盖）
+- economic_calendar / 国债收益率 / metrics(keywords=["spx"])（跨市场看 DXY/oil/gold 即可）
+- 候选池兜底等级 2 的 `followx.twitter(action="search")`（仅低候选时调）
+- **`followx.signal` 全 4 个 category（kol_call / trader_position / insider_trading / institutional）全部不跑**
+  - `trader_position` 4h 内同地址重复污染（实测 1 倍杠杆原油 4h 内 11 条加仓 / 麻吉大哥 4-7 次 ETH 多调整都是 spam 级）
+  - `kol_call` 4h 内信号稀疏（<6 条），且已被 TG 频道扫描"交易信号"/"实盘跟踪" cat 覆盖
+  - `insider_trading` / `institutional` 数据日级别变化，4h 无增量
+  - **特殊情况例外**：用户明确说"看鲸鱼" / "看议员交易" 才单独跑 signal
 
 **增量过滤铁律**：每次刷新结束写 `/tmp/trend-scout-last-refresh-YYYY-MM-DD.txt`，下次读取并按上表的 `last_refresh_ts` 字段过滤，避免"刷新读到首扫已读内容"的硬伤。
 
@@ -202,12 +413,12 @@ description: >
 - **绝对保护**：`createdAt` 在过去 **30 分钟内**的推文，无论 velocity 多低都必须进候选池
 - 合并去重，最终 10 条
 
-⚠️ **list_timeline schema 限制**：MCP 只接受 `listId` + `cursor`，**不接受时间窗参数**。Agent 子进程必须自己按 `createdAt > last_refresh_ts` 过滤。
+⚠️ **list_timeline schema 限制**：`followx.twitter` 只接受 `list_id` + `cursor`，**不接受时间窗参数**（与旧 MCP 一致）。Agent 子进程必须自己按 `createdAt > last_refresh_ts` 过滤。
 
 #### Agent 子进程 Prompt 模板（必用）
 
 ```
-调用 twitter_list_timeline(listId="<LIST_ID>")，对返回的推文按以下规则筛选 top 10：
+调用 followx.twitter(action="list_timeline", list_id="<LIST_ID>")，对返回的推文按以下规则筛选 top 10：
 
 1. 时间过滤：createdAt > <LAST_REFRESH_TS>（unix 秒）— 早于此时间的全部丢弃
 2. 双轨制：
@@ -221,29 +432,33 @@ description: >
 
 直接把 LIST_ID 和 LAST_REFRESH_TS 替换到 prompt 里。三栈 list 各跑一次。
 
-### 输出格式
+### 输出格式（v2.2 — 撤改补三件套统一）
 
-**首扫**：
-```
-📊 实时数据
-- BTC $X (±%)  ETH $X (±%)  ...
+**首扫 + 刷新通用主报告**（见第 0b 步 "输出格式" 详细模板）：
 
-📰 叙事候选
-🔥 强候选（行情 A≥2 或 热度 B≥2）
-1. [事件] — 来源 — A=x B=y — 多源：[✅/⚠️]
-⚠️ 弱候选（A<2 且 B<2）
-🛑 一票否决（站队/投顾/未证实）
+```
+═══ 风向标 [首扫/刷新] 日报 — [时间戳 UTC+8] ═══
+
+🆕 必须补充（首扫 ≥12 / 刷新 ≥8，按 A+B+C+D 总分降序）
+  P0 (≥8): ...
+  P1 (6-7): ...
+  P2 (4-5): ...
+
+🔧 必须更新
+  ID  当前标题 → 新标题   原因：升温/事件升级/数据脱锚
+
+🚨 必须撤回
+  ID  原因：反向脱锚/重复/弱主体/类型阈值/时效过期
+
+─────────────────
+🟰 重叠已建（精简，反证差异化）
+📊 实时数据（fold 收起）
 ```
 
-**刷新**：
-```
-📡 刷新扫描（距首扫 Xh / 距上次刷新 Yh）
-💰 价格 Δ：BTC $X→$Y (±Δ%)  ...
-🆕 新增候选：...
-📈 升温候选：...
-🟰 重叠已建（不重建，建议 update）：...
-🛑 一票否决：...
-```
+**简报不合规检测**：
+- 🆕 候选数 < 硬约束 → 必须扩窗重扫
+- 漏掉 🔧 或 🚨 → 必须补完整三件套
+- 候选无"vs 已建 ID 差异锚点" → 不合格
 
 ### 🚨 候选池兜底（3 级）
 
@@ -252,7 +467,7 @@ description: >
 | 等级 | 操作 |
 |------|------|
 | 1 | 扩窗：Twitter list 24h→48，重跑 velocity+recency 双轨制取 top 15 |
-| 2 | 调 `twitter_advanced_search(query="crypto OR BTC OR ETH lang:zh OR lang:en", queryType="Top")` 兜底 |
+| 2 | 调 `followx.twitter(action="search", query="crypto OR BTC OR ETH lang:zh OR lang:en", query_type="Top")` 兜底 |
 | 3 | 等级 2 仍 <2 条 → 直接告知用户「今日候选池已饱和」，不强行凑数 |
 
 ---
@@ -269,8 +484,8 @@ description: >
 
 | 路径 | 触发 | 并行调用工具 |
 |------|------|------------|
-| **代币深挖** | 单一符号 / `$XXX` | `crypto_realtime_price_batch` + `open_feed_list_tag(type=key_events)` + `open_feed_list_tag(type=news)` + `open_feed_list_tag_opinions` + `twitter_advanced_search(query="$SYMBOL", Top)` + `market_analyst`（可选）|
-| **关键词深挖** | 项目/公司/事件/人名 | `open_search_feed(type=all, sort=time, count=30)` + `open_search_feed(type=flash, count=15)` + `twitter_advanced_search(Latest)` + `twitter_advanced_search(Top)` |
+| **代币深挖** | 单一符号 / `$XXX` | `followx.metrics(keywords=[SYMBOL], asset_type="crypto", query="近 7d 走势 + 技术读")` + `followx.news(query="$SYMBOL", time_range="1d", sort_by="time", limit=20)` + `followx.news(query="$SYMBOL", sources=["twitter"], time_range="1d", limit=15)` + `followx.signal(keywords=[SYMBOL], categories=["kol_call","trader_position"], time_range="1d")` |
+| **关键词深挖** | 项目/公司/事件/人名 | `followx.news(query=KEYWORD, time_range="1d", sort_by="time", verbosity="concise", limit=15)` + `followx.news(query=KEYWORD, sources=["twitter"], sort_by="popularity", limit=10)` + `followx.twitter(action="search", query=KEYWORD, query_type="Top")` — **不传 asset_type**（query 自然分流） |
 | **混合** | 既有标的也有主题 | 两路都跑 |
 
 ### 关键词搜索策略
@@ -318,15 +533,46 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 >   - `status=3` 已隐藏 → 标记为"曾经建过"，新建前需说明差异化角度
 > - **铁律**：**任何向用户输出的"推荐选题列表"前**，必须先跑这一步并在简报里展示 🟰 / 📈 / 🆕 三类标记，不允许跳过。
 
-### 输出顺序（不可跳过）
+### 输出顺序（v2.2 — 撤改补三件套）
 
 ```
 1. 调 list_trending_topics(过去 24h, 全状态)
-2. 候选 vs 已建做一一比对
-3. 简报输出区先列：🟰 重叠已建（不再推荐）
-4. 再列 📈 升温候选（建议 update 现有话题）
-5. 最后才是 🆕 新建候选（进入第 0b 评分）
+2. **建索引**：按 symbol / keyword / event_type 分桶（供差异化前置判断）
+3. 候选 vs 已建做一一比对，每条候选标注：
+   - 🟰 重叠已建（不重建）/ 与 ID xxxx 的事件维度差异
+   - 🔧 升温更新（已建话题数据脱锚 ≥10%）
+   - 🆕 新建候选（带 vs 已建 ID 的差异锚点）
+4. 输出三件套主报告（v2.2）：
+   - 🆕 补充（首扫 ≥12 / 刷新 ≥8 条）
+   - 🔧 更新
+   - 🚨 撤回（含 0a.5 输出）
+   - 🟰 已建覆盖（精简）+ 📊 数据（折叠）
 ```
+
+### 0a 索引建立（v2.2 新增 — 差异化前置）
+
+拉到 list 后，按 3 个维度建索引：
+
+```python
+existing_topics_index = {
+    "by_symbol": {"BTC": [8915, 9114, 9120, 9129], "ETH": [9111, 9131, 9133], ...},
+    "by_keyword": {"CLARITY": [8975, 9109], "CPI": [8965], ...},
+    "by_event_type": {
+        "price_breach": [8915, 9129],     # 价格突破/跌破
+        "etf_flow": [9111, 9114],         # ETF 资金流
+        "whale_action": [9115, 9131],     # 鲸鱼/链上转账
+        "earnings": [8957, 9019],         # 财报
+        "regulation": [8975, 9012, 9020], # 监管立法
+        "listing": [9007, 9008, 9039],    # 上币/下架
+        "macro": [8965, 9022]             # 宏观数据
+    }
+}
+```
+
+每条新候选评分时，**先查索引 → 得到 C 稀缺性分**：
+- 同 symbol + 同 event_type ≥3 条 → C=0
+- 同 symbol 或 同 event_type 1-2 条 → C=1
+- 完全无重叠 → C=2
 
 ### 去重判定
 
@@ -341,7 +587,17 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 
 ### 🚦 升温硬规则（v1.9 升级 — >25% 自动撤回）
 
-去重时若 🟰 重叠已发的话题主标的当日涨幅 vs **创建时**已偏差 ≥ **10%**（绝对值），**必须**主动处置：
+**⏰ v2.2.6 适用范围铁律**：升温硬规则**只适用于「过去 24h 内创建」的 status=0 话题**。
+
+| 话题年龄 | 数据脱锚处置 |
+|---------|------------|
+| **≤ 24h** | 走下方升温硬规则（update title / 撤回）|
+| **> 24h（老话题）** | **不 update 老话题**，老话题保持历史原貌；当前行情 → **新建一条话题** |
+
+> 理由：老话题（如 12 天前的 8864 ZEC $604）已积累自己的 heat / source_count，强行改标题追新价会破坏历史一致性、且老话题的发布时点语境已变。当前行情应由**新话题**承接。
+> 实战例（2026-05-21）：8864 ZEC 5/9 创建 $604 → 5/21 ZEC $678。**错误做法**：把 8864 改成 $678；**正确做法**：8864 保持 $604 原貌，新建 9213「ZEC 24h +18% 站上 $678」。
+
+去重时若 🟰 重叠已发的话题（**且 ≤24h**）主标的当日涨幅 vs **创建时**已偏差 ≥ **10%**（绝对值），**必须**主动处置：
 
 | 偏差幅度 | 操作 |
 |---------|------|
@@ -361,13 +617,13 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 
 ---
 
-## 第 0a.5 步：过去 12h 审核中话题预过滤（v1.8 新增 — 2026-05-07）
+## 第 0a.5 步：过去 8h 审核中话题预过滤（v1.8 新增 — 2026-05-07）
 
 > **立意**：很多自动入池的 status=2 审核中话题质量参差，得在新建候选之前先把它们梳一遍——能优化的优化、不达标的撤回、强候选的优先发布——避免新建话题挤掉已有的强素材。
 
 ### 触发条件
 
-每次扫描热点完成（首扫 / 刷新 / 检索）后，**第 0a 拉到的列表里**只要有 `status=2 审核中` 且 `created_at >= now - 12h` 的话题 —— **必须先走 0a.5**，再进 0b。
+每次扫描热点完成（首扫 / 刷新 / 检索）后，**第 0a 拉到的列表里**只要有 `status=2 审核中` 且 `created_at >= now - 8h` 的话题 —— **必须先走 0a.5**，再进 0b。
 
 ### 三档处置
 
@@ -416,7 +672,7 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 ### 输出格式（v1.9 — P0/P1/P2/P3 优先级排序）
 
 ```
-🟡 过去 12h 在审池预过滤（共 N 条）
+🟡 过去 8h 在审池预过滤（共 N 条）
 
 🚨 P0 必撤（X 条）  ←— 立即执行，无需复审
 - ID 标题 — 撤回原因（类型/阈值/锚点）
@@ -450,7 +706,7 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 | 步骤 | 对象 | 操作 |
 |------|------|------|
 | 0a 升温硬规则 | **status=0 已发布**话题，主体仍成立但数据偏差 ≥10% | update title 同步数据 |
-| 0a.5 预过滤 | **status=2 审核中** 12h 内话题，可整体重判 | 撤回 / 优化发布 / 直接发布 / 保留观察 |
+| 0a.5 预过滤 | **status=2 审核中** 8h 内话题，可整体重判 | 撤回 / 优化发布 / 直接发布 / 保留观察 |
 
 ### 流程位置
 
@@ -458,14 +714,39 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 
 ---
 
-## 第 0b 步：双轴准入评分（创建前闸门）
+## 第 0b 步：四维评分（v2.2 — 加稀缺性 + 紧迫性）
 
 热点风向标本质：**对市场行情影响大** 或 **大家讨论度高** 的热点。
-准入采用**双轴主导**：行情冲击力 / 讨论热度，二选一达标即可。
+准入采用**四维评分**（A/B/C/D），主轴 max(A, B) ≥ 2 才进入排序。
 
-### 主轴：必须满足之一（max(A, B) ≥ 2）
+### 🕒 0b.0 时效性硬过滤（v2.2.8 — 评分前必跑）
 
-**A. 行情冲击力（0-3）**
+**铁律**：任何候选进入 A/B/C/D 评分前，必须先核实**核心数据点的 published_ts**——而不是事件本身是否仍"在演进"。
+
+| 模式 | published_ts 上限 | 处置 |
+|------|-----------------|------|
+| 🟢 首扫 | ≤ 24h（即 `now - 86400`）| 超期 → ❌ 直接剔除候选池 |
+| 🔵 刷新 | ≤ 4h（即 `now - 14400`）| 超期 → ❌ 直接剔除 |
+| 🔴 突发 | ≤ 2h | 超期 → ❌ 直接剔除 |
+| 🔍 C 入口检索 | ≤ 1d（默认）| 用户指定窗口为准 |
+
+**核实方法**：
+1. 候选数据来源（news.published_ts / TG.published_ts / twitter.createdAt）必须有 unix 时间戳
+2. 计算 `(now - published_ts) / 3600` 得到小时差
+3. 多源时取**最新**那条作为锚（不是平均）
+
+**两种典型违规（v2.2.8 实战教训）**：
+- ❌「Saylor 说本周买债券非 BTC」首扫时已 24h+，被用户标"时效问题"——单源 published 5/24，5/26 首扫不应进表
+- ❌「中本聪 OG 抛 2650 BTC」5/25 数据，5/26 首扫已 36h+，应直接砍
+
+**例外（仅 1 类可豁免）**：
+- 当前 **status=0 已上线话题的升温/反转**——属于 0a 升温硬规则范畴，不走 0b.0
+
+> 「事件还在演进」不是豁免理由。如果今天有新发展应该用**今日的新数据点**重建候选；只有旧 published 信源 → 直接砍。
+
+### A. 行情冲击力（0-3）
+
+### A. 行情冲击力（0-3）
 
 | 分 | 标准 |
 |---|------|
@@ -474,7 +755,7 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 | 2 | 直接影响某板块/标的（加密/美股/大宗/外汇/利率） |
 | 3 | 全市场级冲击（BTC/ETH/大盘/全板块联动） |
 
-**B. 讨论热度（0-3）**
+### B. 讨论热度（0-3）
 
 | 分 | 标准 |
 |---|------|
@@ -483,24 +764,41 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 | 2 | 圈内热议（多平台/多 KOL 转发） |
 | 3 | 全网爆款/出圈（跨圈层刷屏） |
 
-### 辅助维度（每项 0/1/2，决定优先级）
+### C. 稀缺性（0-2）— v2.2 新增
+
+**衡量"该补这条话题的紧迫度"**：已建话题池里同主题密度越低 → 分越高。
+
+| 分 | 标准 | 检查方法 |
+|---|------|---------|
+| 0 | 同主题已建 ≥3 条 status=0 | 在 0a 索引里按 symbol/keyword grep |
+| 1 | 同主题已建 1-2 条 | 同上 |
+| 2 | 该主题完全未建 / 角度差异 ≥80% | 同上 |
+
+### D. 紧迫性（0-2）— v2.2 新增
+
+**衡量"等多久会失效"**：
+
+| 分 | 标准 |
+|---|------|
+| 0 | 长效话题（解锁周期 / 13F / 季度财报）— 24h+ 仍有效 |
+| 1 | 12-24h 内最佳窗口（财报次日 / 升温事件） |
+| 2 | < 4h 必须建（链上突发 / 政策快讯 / 财报当时 / 巨鲸异动） |
+
+### 综合评分 = A + B + C + D（总分 0-10）
+
+**补充优先级排序**：
+- **总分 ≥ 8** → P0 必建（顶优先级）
+- **总分 6-7** → P1 强建议建
+- **总分 4-5** → P2 待选（看候选池容量）
+- **总分 < 4** → ❌ 不建
+
+### 辅助维度（标注但不入综合分）
 
 - **信号强度**：是否有具体价格/金额/地址/持仓数据
 - **多源验证**：单源 / 双源 / 三源以上
 - **独特角度**：通稿味 / 主流叙事 / 独家视角
-- **时效价值**：> 24h / 6-24h / < 6h
 
-### 决策规则
-
-| 主轴 | 辅助分 | 决策 |
-|------|--------|------|
-| A=3 或 B=3 | 任意 | ✅ 必发，最高优先 |
-| A≥2 且 B≥2 | ≥4 | ✅ 立即创建发布 |
-| A≥2 或 B≥2 | ≥4 | ✅ 创建后正常审核 |
-| A≥2 或 B≥2 | <4 | ⚠️ 创建后留审核观察 |
-| A<2 且 B<2 | 任意 | ❌ 不创建 |
-
-### 一票否决（任一即拒绝）
+### 一票否决（任一即拒绝，不论分数）
 
 - 标题/描述含**明确政治立场或煽动性表达**（仅客观叙述事件 + 写明市场传导路径**不算**站队）
 - 含**未经证实**的重大指控
@@ -509,15 +807,127 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 
 > 关键区分：宏观/地缘/美股/AI 议题本身不是禁区，写法客观就放行。被否决的是**写法**，不是**主题**。
 
-### 输出格式
+### 候选池数量硬约束（v2.2）
+
+| 模式 | 最低 P0+P1 候选数 |
+|------|-----------------|
+| 🟢 首扫 | **≥ 12 条** |
+| 🔵 刷新 | **≥ 8 条** |
+| 🔴 突发 | **≥ 3 条** |
+
+**不足时强制扩窗**（v2.2.7 — signal 已全砍）：
+1. 扩 `news(query=...)` 多组关键词（链上 / 上币 / 解锁 / 财库 / 鲸鱼）
+2. TG 加 cat（链上数据 / 叙事追踪）
+3. 仍不够 → 降到 P2 候选 / 突发模式 P0+P1 ≥ 3 才放行
+
+### 输出格式（v2.2.2 — 三张表标准模板）
+
+主报告 = **三张独立表 + 已建覆盖 + 实时数据折叠 + 一键行动**。
+
+#### 🎯 v2.2.9 简化原则（每次报告必遵守）
+
+**简报只聚焦 4 类内容**，其余 **不提**：
+
+| 类别 | 范围 | 处置 |
+|------|------|------|
+| 🆕 今日新候选 | 24h 内 published 信源 | 进表 1 |
+| 🔥 今日刚建话题 | ≤24h 创建（status=2/0）| 进表 2/3 处置 |
+| 🔧 必须 update | 触发 v2.2.6 升温硬规则（≤24h status=0 数据偏差 ≥10%）| 进表 2 |
+| 🚨 8h 在审池 | created_at ≥ now - 8h 且 status=2 | **每次报告强制扫描并列出处置（必出现在表 3）**|
+
+**不提 / 不 push 的**：
+- **status=0 已上线** 且 **>24h 老话题**：不动、不 update、不提（除非反向脱锚 >50% 强制撤）
+- **status=2 审核中** 且 **>8h 创建**：从简报剔除、不再 push 发布
+- **status=3 hidden** 已被团队过滤的话题：不重建、不分析
+
+#### 🪦 v2.3.0 自动撤回铁律（status=2 时效过期）
+
+**每次扫描必跑**：拉 status=2 全集合，凡 `created_at < now - 86400`（>24h 仍未发布）→ **自动 `update_trending_topic(status=3)`**，无需用户确认。
+
+| 触发条件 | 操作 |
+|---------|------|
+| status=2 且 created_at >24h | 🪦 自动撤（status=3）|
+| status=2 且 created_at ≤24h | 走 0a.5 处置流程 |
+
+**理由**：审核中超 24h 仍未发布说明已被团队搁置；保留只会让积压列表越滚越长，干扰每日决策。撤了之后历史话题仍可由 list 查询，无信息丢失。
+
+**执行频率**：每次首扫 / 刷新开始时跑一次（在 0a 拉列表后立即清扫，再进 0a.5）。
+
+**目的**：简报只承载今日可决策内容，避免老 backlog 噪音。
 
 ```
-📊 准入评估（共 N 条）
-| # | 摘要 | A | B | 信号 | 多源 | 独特 | 时效 | 决策 |
-| 1 | ... | 3 | 2 | 2 | 2 | 2 | 2 | ✅ 必发 |
-| 2 | ... | 1 | 3 | 2 | 2 | 1 | 2 | ✅ 创建（讨论度驱动） |
-| 3 | ... | 1 | 1 | - | - | - | - | ❌ 双轴均不达标 |
+═══ 风向标 [首扫/刷新] 日报 — [YYYY-MM-DD HH:MM UTC+8] ═══
+
+## 🆕 表 1：必须补充（共 N 条，达标硬约束 ✅/❌）
+
+| 优先级 | R# | 标题 | A | B | C | D | 总 | 差异化 vs 已建 | keywords | 备注 |
+|--------|----|----|---|---|---|---|---|-------------|---------|------|
+| **P0** | R1 | [标题草稿 ≤25 字] | 3 | 3 | 2 | 2 | **10** | 无重叠 / vs 8915 主体不同 | `BTC,比特币,Iran` | <4h 时效 |
+| **P0** | R2 | … | 2 | 2 | 2 | 2 | **8** | … | … | … |
+| P1 | R3 | … | 2 | 2 | 1 | 2 | 7 | … | … | … |
+| P1 | R4 | … | … | | | | … | … | … | … |
+| P2 | R5 | … (候选池容量允许才建) | … | | | | … | … | … | … |
+
+## 🔧 表 2：必须更新（共 M 条）
+
+| ID | 当前标题 | 改为 | 原因 | keywords 改动 |
+|----|---------|------|------|-------------|
+| 8915 | 旧标题 | 新标题 | 升温脱锚 -X% / 事件升级 / 数据陈旧 | 维持 / 加 / 改 |
+
+## 🚨 表 3：撤回 + 在审池处置（共 K 条）
+
+> **v2.2.9 强制铁律**：每次报告必须扫描 `created_at ≥ now - 8h 且 status=2` 的话题，逐条给出 ✅发 / 🟠改 / 🚨撤 / 🟡待核 决策，**不留空**。这是表 3 的核心职责。
+
+| 动作 | ID | 标题 | 原因 / 处置 |
+|------|----|----|-----------|
+| 🚨 撤 | xxxx | … | 反向脱锚 / 重复 / 弱主体 / 类型阈值 / 时效过期 |
+| ✅ 发 | xxxx | … | status=2 → 0 直发（数据齐全）|
+| 🟠 改 | xxxx | … | 标题/keywords 调整后再发 |
+| 🟡 待核 | xxxx | … | 数据需第二源核 / 行情关联待观察 |
+
+─────────────────────────────────────────
+
+## 🟰 重叠已建（不重建，反证差异化）
+
+ID 列表，按主题聚类列出，注明已覆盖的事件维度。
+
+## 📊 实时数据（fold 收起）
+
+加密：BTC $X (±%) / ETH $X (±%) / ...（10 币）
+美股：（首扫含 13 股，刷新可略）
+跨市场：SPX / 黄金 / 油 / DXY
+
+---
+
+## 📋 一键行动
+
 ```
+🚨 P0 全建 (N)：R1 / R2 / ...
+🟠 P1 建 (M)：R3 / R4 / ...
+🔧 update (K)：xxxx
+🚨 撤 (J)：xxxx
+✅ 发 (I)：xxxx
+🟠 改 (H)：xxxx
+```
+```
+
+### 三张表设计原则（v2.2.2）
+
+1. **每张表独立，可单独阅读** — 用户只想看"今天该建什么"时只看表 1
+2. **每条候选必含 7 列**：优先级 / R# / 标题 / A/B/C/D 评分 / 总分 / 差异化锚点 / keywords / 备注
+3. **总分排序** — A+B+C+D 降序，自然把 P0 顶到前面
+4. **差异化锚点必填** — 显式标注 vs 已建 ID + 事件维度差异
+5. **一键行动作收尾** — 把所有动作按类型汇总，方便"全跑"
+
+### 何时合并 / 何时拆分
+
+- 候选 < 5 条 → 三张表合并为一张（紧凑模式）
+- 候选 ≥ 5 条 → 三张独立表（详细模式，默认）
+- 突发事件 < 4h → 简化为"主报告卡片"，只列 P0 候选 + 紧急 update
+
+### 旧版兼容（仅保留作历史参考）
+
+旧版双轴 + 4 辅助维度（A+B + 信号/多源/独特/时效）现已废弃，全部归入 A/B/C/D 四维。
 
 ---
 
@@ -531,40 +941,112 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 - 主体明确（一眼看出什么币/什么事）
 - 最多一个分句
 
+### 🔤 中英混杂规则（v2.2.1 新增）
+
+**默认中文写作**，仅以下情况允许英文：
+
+✅ **允许英文（专有名词）**：
+- 代币 / 股票符号：BTC、ETH、NVDA、AAPL、CRCL、HYPE、SUI、PPI、CPI
+- 公司 / 项目名：Apple、Google、NVIDIA、Coinbase、Circle、ShapeShift、Tether
+- 政策 / 法案名：CLARITY、GENIUS、FOMC
+- 国际机构 / 交易所：Fed、SEC、BlackRock、Binance、Bithumb、KOSPI
+- 人名：Trump、Putin、Powell、Warsh、Saylor、Cathie Wood
+- 单位 / 符号：$、%、Q1、ATH、ETF、IPO、HBM、GPU
+
+❌ **禁止英文（动词 / 形容词 / 状态词）**：
+- ~~risk-off~~ → 避险 / ~~risk-on~~ → 风险偏好回暖
+- ~~markup~~ → 审议 / ~~beat~~ → 超预期 / ~~miss~~ → 不及预期
+- ~~liquidation~~ → 爆仓 / ~~inflow~~ → 净流入 / ~~outflow~~ → 净流出
+- ~~bullish~~ → 看多 / ~~bearish~~ → 看空 / ~~rally~~ → 反弹
+- ~~halt~~ → 停盘 / ~~delist~~ → 下架（如非交易所操作可保留 listing/delisting）
+
+**判定铁律**：英文词如果能用 2-4 个中文字替代且不丢精度 → 必须替换；如果是行业内必须保留原文的术语（如 `Stablecoin Bill` / `13F`）→ 保留。
+
+### 🎯 表达三要求（v2.2.1）
+
+每个标题必须同时满足：
+
+1. **清楚** — 不读 desc 就能看明白主体、动作、数据点
+   - 好：`NVDA 4 天市值新增 1 个 Oracle，盘中破 $222 创新高`
+   - 坏：`NVDA 摸 $222 创年内新高，AI 反扑带飞 TSLA +3.89%`（"反扑带飞"模糊）
+
+2. **吸引力** — 必须有至少一个**吸睛点**：
+   - 量级反差（"4 天 = 1 Oracle 市值" / "彩票流 +73 万倍"）
+   - 戏剧性（"V 形反转" / "失守 $80K" / "财报日 +16%"）
+   - 人物钩子（"黄仁勋随访华破局" / "Cathie Wood 喊 $150 万"）
+   - 极端数据（"24h +263%" / "3 年新高" / "54-45 最分裂投票"）
+   - 板块/标的并列（"AAPL 破 $300、NVDA $227、GOOGL $403"）
+
+3. **精度** — 数据点必须精确到具体值，禁止"暴涨/暴跌/大涨/急跌"等无具体值表达（除非已有具体值 + 形容词作辅助）
+   - 好：`SOL/HYPE 跌超 4%` / `4h 全网爆仓飙至 $5.79 亿`
+   - 坏：`SOL/HYPE 大跌` / `爆仓潮涌现`
+
 详见下文「标题优化方法论」。
 
-### keywords
+### keywords（v2.1.2 — 加中英文别名）
 
-- 用**英文代币符号**全大写（BTC、ETH、AAVE、HYPE）
-- 英文逗号分隔
-- 中文/项目全称对自动 tag 匹配无效
-- **数量硬约束：1-2 个，最多 3**。配角不进 keywords，避免 tag 关联过多导致主体模糊
-- 选择优先级：标题里直接出现的标的 > 行情主线标的 > 板块代表标的
+keywords 同时承担两个职责：
+1. **自动匹配 tag**（只看 ticker / 代币符号）
+2. **内部搜索发现**（用户用中英文项目名搜索话题时命中）
 
-### 宏观/跨市场话题的代币映射（必按顺序判定）
+因此 keywords 应分两档：
 
-| 宏观主题 | 优先 keywords | 已知 tag id |
-|----------|-------------|------------|
-| 黄金 / 金价 | `XAUT,PAXG` | XAUt: 10226 |
-| 原油 / 石油 | `OIL` | CRUDE OIL BRENT: 520979 |
-| **美股 / 个股** | **股票符号本身**（`GOOGL,TSLA,HOOD,COIN,MSTR,MSFT,AMZN,META,NVDA,AAPL` 等） | **GOOGL: 522630**，TSLA: 528245；其余 `open_search_feed(keyword=symbol)` 查 |
-| **港股 / 中概** | 股票符号或港股代码（`9988,3690,9618` 或 `BABA,JD,PDD`） | 多数无挂钩代币 → `open_search_feed(keyword=代码)` 查；无则 fallback BTC/ETH |
-| AI 板块 | `WLD,FET,RNDR,TAO` 选 1-2 | WLD: 248008, FET: 10201 |
-| 外汇 / DXY | 涉事货币挂钩代币 | — |
-| 美债 / 利率 / FOMC | `BTC` 或 `ETH`（风险资产联动） | BTC: 10006, ETH: 10007 |
-| 联储/CPI/非农/纯宏观 | `BTC` 或 `ETH` | 同上 |
+**第一档：ticker / 代币符号（必含 1-2 个）** — 触发自动 tag 匹配
+- 加密：全大写代币符号（BTC、ETH、AAVE、HYPE、CRCLX、NVDAX 等）
+- 美股 / 跨市场：股票符号本身（NVDA、CRCL、TSLA、COIN、MSTR 等）
+
+**第二档：项目英中文别名（建议 1-3 个）** — 提升搜索发现
+- 项目英文官方名（NVIDIA / Circle Internet Group / Apple / Tether）
+- 中文常用名（英伟达 / 苹果 / 比特币 / 以太坊 / 黄金）
+- 强相关具体概念名（USDC / CPI / PPI / 通胀 / 加密概念股 等）
+
+**🚫 禁用笼统统称**：`山寨币` / `加密` / `加密货币` / `概念` / `板块` / `代币` / `数字资产` / `市场` 等过于宽泛的词不进 keywords。搜索价值低且污染 tag 关联。
+
+**总量控制**：3-5 个（ticker 1-2 + 别名 1-3）；英文逗号分隔
+
+**实战例**：
+| 主标的 | keywords |
+|--------|---------|
+| NVDA AI 反扑 | `NVDAX,NVDA,NVIDIA,英伟达` |
+| CRCL 财报 | `CRCLX,CRCL,Circle,USDC` |
+| AAPL 财报 | `AAPLon,AAPL,Apple,苹果` |
+| TSLA 拉升 | `TSLAX,TSLA,Tesla,特斯拉` |
+| INTC × Apple 代工 | `INTC,Intel,英特尔,Apple,苹果`（INTC 无代币化版） |
+| BTC 8.2万 | `BTC,比特币,Bitcoin` |
+| ETH 巨鲸转账 | `ETH,以太坊,Ethereum` |
+| 黄金 ATH | `XAUT,PAXG,黄金,Gold` |
+| 美联储 / 利率 | `BTC,比特币,美联储,Fed,利率` |
+
+> ⚠️ **铁律**：第一档 ticker 必含且**不超过 2 个**，避免 tag 关联过多冲淡主体；第二档别名是辅助，不要堆砌（≤3 个）。
+
+### 宏观/跨市场话题的代币映射（v2.1.2 — 美股优先走代币化股票 tag）
+
+| 宏观主题 | 优先 keywords（ticker） | 别名（中英文） | 已知 tag id |
+|----------|---------------------|-------------|------------|
+| 黄金 / 金价 | `XAUT,PAXG` | `黄金,Gold` | XAUt: 10226 |
+| 原油 / 石油 | `OIL` | `原油,WTI,Brent` | CRUDE OIL BRENT: 520979 |
+| **美股 / 个股** | **代币化股票优先**（`NVDAX,CRCLX,AAPLon,TSLAX,GOOGLX,COINX,MSTRX` 等） | 原股票符号 + 项目中英文名 | NVDAX: 522527, CRCLX: 522611, AAPLon: 546230, INTC: 548353；其余调 `followx.metrics(keywords=["XXXX","XXXon"])` 查 |
+| **港股 / 中概** | 股票符号或港股代码（`9988,3690,9618` 或 `BABA,JD,PDD`） | 公司中英文名 | 多数无挂钩代币 → `followx.news(query=代码)` 查；无则 fallback BTC/ETH |
+| AI 板块 | `WLD,FET,RNDR,TAO` 选 1-2 | `AI,人工智能` | WLD: 248008, FET: 10201 |
+| 外汇 / DXY | 涉事货币挂钩代币 | `美元,DXY,USDT` | — |
+| 美债 / 利率 / FOMC | `BTC` 或 `ETH`（风险资产联动） | `美联储,Fed,利率` | BTC: 10006, ETH: 10007 |
+| 联储/CPI/非农/纯宏观 | `BTC` 或 `ETH` | `CPI,通胀,非农` | 同上 |
 
 **判定流程（必按顺序）**：
-1. **先查标的库里是否有挂钩代币 / 代币化股票** —— 美股/大宗/黄金优先用挂钩代币，不确定时调 `open_search_feed(keyword="$SYMBOL")` 查
-2. 无挂钩但与某加密板块强联动 → 用板块代表代币
-3. 纯宏观无板块联动 → 用 BTC / ETH
+1. **优先查代币化股票（XXX + X / on 后缀）** —— 美股 ticker 加 `X` 或 `on` 试调 `followx.metrics(keywords=["NVDAX","NVDAon"], asset_type=不传)`，命中则用代币化 ticker 做 tag
+2. 无代币化股票 → 用原股票符号 + 手动绑 tag id（如 GOOGL → 522630）
+3. 无挂钩但与某加密板块强联动 → 用板块代表代币
+4. 纯宏观无板块联动 → 用 BTC / ETH
 
-> ⚠️ **铁律**：第 1 档判定**必须先做**。失误案例：8581 Google 财报误用 WLD/FET（板块代表），实际应当用 `GOOGL` + 手动绑 522630。**不要跳过第 1 档**。
+> ⚠️ **铁律**：第 1 档代币化股票判定**必须先做**。
+> - ✅ 成功案例（v2.1.2）：8957 CRCL 财报 → `CRCLX (522611)`；8958 NVDA 新高 → `NVDAX (522527)`
+> - ❌ 失误案例：8581 Google 财报误用 WLD/FET（板块代表），实际应当用 `GOOGLX` 或 `GOOGL` + 手动绑 522630
 
-### desc
+### desc（v2.1.1 — 创建时不写）
 
-- 1-3 句话补充背景、数据、意义
-- ≤ 200 字
+- **创建话题不传 desc**（`create_trending_topic` 调用时省略 `desc` 字段）
+- 理由：desc 后续无法 update（`update_trending_topic` 不支持改 desc），且话题前台展示主要靠 title + tag + keywords，desc 只增加创建摩擦
+- 历史背景信息全部压进 title（≤25 字硬约束）+ keywords 即可
 
 ### topic_type
 
@@ -646,7 +1128,6 @@ list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 st
 （备选：{次优 1-2 条}）
 关键词：{keywords}
 类型：{topic_type_label}（{topic_type}）
-描述：{desc}
 
 确认创建？回复"确认"或"好"即可。
 ```
@@ -679,13 +1160,13 @@ ID：{id}
 
 ## 🛡️ 第 4.5 步：数据核实（强制，发布前必过）
 
-**铁律**：每条话题创建后、发布前**必须**逐条核对 desc/title 中的所有数据点。**不可跳过**。
+**铁律**：每条话题创建后、发布前**必须**逐条核对 title 中的所有数据点（v2.1.1：不再写 desc，仅核 title）。**不可跳过**。
 
 ### 核实清单
 
 | 数据类型 | 核实方法 | 不达标处置 |
 |---------|---------|-----------|
-| **价格 / 涨跌幅** | 重新调 `crypto_realtime_price_batch` 拿最新值 | 偏差 > 0.5% → update |
+| **价格 / 涨跌幅** | 重新调 `followx.metrics(keywords=[SYMBOL])` 拿最新值 | 偏差 > 0.5% → update |
 | **涨跌幅时间窗口** | 检查"X%"前是否标明窗口（24h/周内/月内） | 模糊 → 必须明确 |
 | **链上持仓 / 金额** | 时效检查：数据是否仍代表当前状态 | 老数据需标"截至 X 日" |
 | **第三方机构数据** | ≥2 源交叉，或注明来源（"据 SoSoValue"） | 单源未标 → 加来源 |
@@ -703,12 +1184,12 @@ ID：{id}
 
 ### 🚀 批量数据核实路径（v1.9 新增）
 
-当 0a.5 一次审 ≥ 5 条话题时，**禁止**逐条跑 4.5（每条都调一次 `crypto_realtime_price_batch` 是浪费）。改走批量路径：
+当 0a.5 一次审 ≥ 5 条话题时，**禁止**逐条跑 4.5（每条都调一次 `followx.metrics` 是浪费）。改走批量路径：
 
 **Step 1 批量价格核实**（一次性）：
 ```
 收集所有候选标的的 token symbols（去重 → list）
-→ 一次调 crypto_realtime_price_batch(symbols=union_list)
+→ 一次调 followx.metrics(keywords=union_list, asset_type="crypto")
 → 再分发到每条话题做偏差比对
 ```
 - 标的数 ≤ 20 → 一次调用解决
@@ -717,7 +1198,7 @@ ID：{id}
 **Step 2 批量多源核验**：
 ```
 对所有"宣称 +X% 上线 / 合作"的关键数据
-→ 并行调 N 次 open_search_feed(keyword=symbol/event_name) 取 24h 内 multi-source
+→ 并行调 N 次 followx.news(query=symbol/event_name, time_range="1d", limit=10) 取多源
 → 标"✅ 多源" / "⚠️ 单源未核" / "🔴 多源核验失败 → 走撤回"
 ```
 
@@ -792,7 +1273,7 @@ ID：{id}
 | 同时手动绑 tag + 改 keywords | 传两者，**以 `tags` 为准**（不会被 keywords 自动覆盖）—— 美股/大宗等修正标准操作 |
 | 改状态 | `title` + `status`（0=发布, 1=初始化, 2=审核中, 3=隐藏） |
 
-> ⚠️ `update_trending_topic` **不能改 desc**。desc 错严重 → 走撤回重建。
+> ⚠️ `update_trending_topic` **不能改 desc**（v2.1.1 起创建话题不写 desc，此限制不再实际影响流程）。
 
 ### 工具速查
 
@@ -804,16 +1285,31 @@ ID：{id}
 
 ### 已知 tag id 速查
 
+**加密原生**
 | 标的 | tag id |
 |------|--------|
 | BTC | 10006 |
 | ETH | 10007 |
-| XAUt（黄金） | 10226 |
-| OIL（原油） | 520979 |
-| GOOGL | 522630 |
-| TSLA | 528245 |
-| WLD | 248008 |
-| FET | 10201 |
+| SOL（Solana） | 10012 |
 | DOGE | 10015 |
 | AAVE | 10052 |
-| SOL（Solana） | 10012 |
+| ONDO | 352019 |
+| ZEC | 10058 |
+| WLD | 248008 |
+| FET | 10201 |
+| XAUt（黄金） | 10226 |
+| OIL（原油） | 520979 |
+
+**代币化美股 / 跨市场（v2.1.2 优先用此类）**
+| 标的 | tag id | 备注 |
+|------|--------|------|
+| **NVDAX** | 522527 | NVIDIA 代币化 |
+| **CRCLX** | 522611 | Circle 代币化 |
+| **AAPLon** | 546230 | Apple 代币化（Ondo 发行）|
+| **SPY-X** | 522609 | S&P 500 ETF 代币化 |
+| **QQQ-X** | 522709 | NASDAQ-100 ETF 代币化 |
+| INTC | 548353 | Intel（无代币化版，原票 tag）|
+| GOOGL | 522630 | Google（无代币化版查到）|
+| TSLA | 528245 | Tesla（无代币化版查到，可试 TSLAX）|
+
+> 找新美股 tag：`followx.metrics(keywords=["XXXX","XXXX X","XXXXon"])` 三种后缀试一次，命中即用，否则原 ticker + 手动绑。
