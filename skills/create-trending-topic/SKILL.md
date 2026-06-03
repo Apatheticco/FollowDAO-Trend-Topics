@@ -3,7 +3,7 @@ name: create-trending-topic
 description: >
   从原始素材或主动扫描热点，自动提取结构化字段，创建 Followin 热点风向标（TrendingTopic），并支持发布。
   三种触发场景：
-  (A) 用户让"扫一下热点 / 找几个话题 / 批量创建今日话题" → 调 FollowX MCP（metrics/news/signal/twitter）主动扫描；
+  (A) 用户让"扫一下热点 / 找几个话题 / 批量创建今日话题" → 调 Followin MCP（metrics/news/signal/twitter）主动扫描；
   (B) 用户给一段素材（新闻/推文/描述）让创建话题 → 直接进评分；
   (C) 用户给一个标的或一句话（"查一下 REPPO" / "Aave 现在情况"）→ 多源补全资料再评分。
   全流程：采集 → 去重 → 评分 → 字段提取 + 标题优化 → 预览 → 创建 → tag 校验 → 数据核实 → 发布。
@@ -87,32 +87,28 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 
 冲突时主动询问。
 
-### ⚠️ FollowX 已知 quirks（v2.1.3 实测）
+### ⚠️ Followin 已知 quirks（v2.3.1 实测，对齐线上 schema）
 
 1. **session 偶发掉线** — `"session not found"` / `"session initialization"` 错误。重试一次通常恢复；连续失败需重启 Claude Code
-2. **`news(asset_type="tradfi")` 偶发返回 0** — 实战出现过 4 次连续 null。**Fallback**：检测 `results=null` 时**自动改用 `news(query="<关键词>", 不传 asset_type, verbosity="concise")` 重试一次**
-3. **`news` 的 `asset_type` 过滤不稳定** — `news(asset_type="crypto", sort_by="popularity", verbosity="concise")` 实测返回 random social 推文（垃圾桶 / 足球 / 美国市长被起诉等），crypto 过滤未应用。**修复**：`sort_by="popularity"` 时**不要传 `verbosity="concise"`**，让走默认 standard / trending 模式才能拿到 `_source: "followin_trending"` 策划数据
-4. **tradfi news 只返回标题** — 不论 `verbosity=concise/standard/detail`，FMP news 通道仅返回 title（266 token / 10 条）。要正文必须改 query 走 opensearch 通道
-5. **首扫 tradfi 数据本质走 FMP/FRED 结构化**：财报日期 / 涨跌榜 / 宏观日历 → 用 `metrics`，不依赖 news 文本（v2.2.7 — signal 在首扫全砍，议员/内部人持仓改由宏观新闻覆盖）
-6. **`metrics` 的 `asset_type` 正常工作**，只有 `news` 端点有上面 quirks 2/3
-7. **`news` 默认 verbosity 是 standard，可能带完整正文** — 单次调用 limit≥20 时容易炸 context（实战 56K 字符）。生产用 `verbosity="concise"` + `limit≤15`
-8. **economic_calendar query 不能依赖字面过滤** — 写"US high impact"它仍会返回 JP/NZ 数据，**Agent 子进程必须自过滤** `country` + `impact`
-9. **`metrics(sort_by=..., asset_type="tradfi")` categories 默认全跑** — 会报 warnings: "macro requires keyword" / "fundamentals requires symbol"。结果正确但输出污染。**修复**：显式传 `categories=["market"]` 收紧
-10. **`metrics(sort_by="change_pct", asset_type="tradfi")` 涨跌榜含大量 leveraged ETF 噪音** — 实测前 10 含 4-5 个 2x/3x ETF（21Shares 2x Long SUI / Direxion Daily MU Bull 2X / GraniteShares 2x Long DELL 等）。**Agent 子进程必须过滤**：排除 name 含 `"2X"` / `"3X"` / `"Long ... ETF"` / `"Bull"` / `"Daily Target"` 等关键词，仅保留个股
-11. **`news(asset_type="tradfi")` FMP 通道偏 WSJ/Bloomberg/Barron's 严肃财经媒体** — 会漏掉 **Reuters 独家 / X 突发 / 中文媒体爆点**等跨界 megaevent。实战 5/14 漏掉 NVIDIA H200 出口许可（10 家中企 / 7.5 万颗上限 / 25% 收入分成）。**修复**：刷新模式必跑 query 兜底通道 `news(query="<当周关键词>", 不传 asset_type, time_range="4h")` 同步抓 Reuters / 中文媒体
-12. **TG `sources=["telegram"]` 实际返回 `tg_kol_feeds` 而非频道结构化数据** — 无 `username` 字段，v2.1.5 设计的"严格白名单 jq 过滤"实测无法直接套用。**临时修复**：用 `_source_quality` 筛 `mid` 以上 + content grep 关键词（"币安将上线" / "Whale Alert" / "巨鲸"）。Meme 打新 cat 实测全是 low quality 个号 spam，**可砍**
+2. **🚫 `news` 端点无 `sort_by` 也无 `categories`** — 传了报 `MCP error -32602: unexpected additional properties`。`news` 只认 `query / sources / asset_type / time_range / limit / verbosity / source_lang / search_depth`。**排序/分类靠 query 措辞 + time_range，不靠参数**（旧版 skill 里所有 `news(sort_by=, categories=)` 写法已失效）
+3. **🚫 `metrics` 无 `sort_by`（但有 `categories`）** — 涨跌榜/movers 用 `metrics(query="biggest gainers" / "涨幅榜" / "market movers", asset_type, categories=["market"], min_market_cap=1000000000)`。`min_market_cap=1e9` 同时滤掉 penny stock + 大部分 2x/3x leveraged ETF 噪音
+4. **`news(asset_type="tradfi")` 偶发返回 0** — Fallback：检测 `results=null` 时改用 `news(query="<关键词>", 不传 asset_type, verbosity="concise")` 重试一次
+5. **tradfi news 只返回标题** — FMP news 通道仅返回 title（~266 token / 10 条）。要正文改 `query` 走 opensearch 通道
+6. **`news` 默认 verbosity=standard 带完整正文** — limit≥20 易炸 context（实战 56K 字符）。生产用 `verbosity="concise"` + `limit≤15`
+7. **`news(asset_type="tradfi")` FMP 偏 WSJ/Bloomberg/Barron's** — 漏 **Reuters 独家 / X 突发 / 中文媒体爆点**。修复：刷新必跑 query 兜底 `news(query="<当周关键词>", 不传 asset_type, time_range="4h")`（实战 5/14 漏 NVIDIA H200 出口许可）
+8. **TG `sources=["telegram"]` 返回 `tg_kol_feeds`** — 字段为 `tg_category / author_name / content / _source_quality / published_ts`，**无 `username`**。过滤用 `author_name` 或直接按 `tg_category` + content grep（"币安将上线" / "Whale Alert" / "巨鲸"）。Meme 打新 cat 全 low-quality spam，**可砍**
 
 ### 价格数据铁律
 
-简报中所有当前价格/涨跌幅，**只能引用 `followx.metrics` 返回的硬数据**。新闻标题、TG 帖子、KOL 推文里的价格描述一律视为"叙事来源"。输出分区：**📊 实时数据** vs **📰 叙事候选**。
+简报中所有当前价格/涨跌幅，**只能引用 `followin.metrics` 返回的硬数据**。新闻标题、TG 帖子、KOL 推文里的价格描述一律视为"叙事来源"。输出分区：**📊 实时数据** vs **📰 叙事候选**。
 
 ### 🔁 价格应急扩列规则（首扫 / 刷新通用）
 
 固定列表 `BTC,ETH,SOL,BNB,XRP,DOGE,HYPE,SUI,LINK,AVAX` 经常漏掉日内主线（实战漏掉 ZEC +30% / WIF +25%）。规则：
 
-1. 跑完第一轮 `followx.metrics(keywords=[...], asset_type="crypto")` 拿到固定 10 币硬数据
+1. 跑完第一轮 `followin.metrics(keywords=[...], asset_type="crypto")` 拿到固定 10 币硬数据
 2. 扫描 news / TG / twitter 文本里出现的**单代币涨幅描述**
-3. 任一代币描述涨幅 **≥ +15%** 或 **≤ -15%** 且不在固定列表 → 收集 symbol，**第二轮**再调一次 `followx.metrics(keywords=漏网symbol列表, asset_type="crypto")` 核验
+3. 任一代币描述涨幅 **≥ +15%** 或 **≤ -15%** 且不在固定列表 → 收集 symbol，**第二轮**再调一次 `followin.metrics(keywords=漏网symbol列表, asset_type="crypto")` 核验
 4. 第二轮硬数据进 📊 实时数据区；新闻里读到的数字只能写在 📰 叙事候选里加 ⚠️ 单源未核
 
 > 铁律：**任何超过 ±15% 的代币若未经第二轮核验，不得写入"实时数据区"**，避免 KOL 数字误传到话题 desc。
@@ -125,16 +121,16 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 
 | 工具 | 参数 |
 |------|------|
-| `followx.news` | `time_range="1d", sort_by="popularity", asset_type="crypto", limit=20` — 24h 加密热门 |
-| `followx.news` | `time_range="1d", sort_by="time", categories=["market"], asset_type="crypto", limit=15` — 加密时间序快讯 |
-| `followx.metrics` | `keywords=["BTC","ETH","SOL","BNB","XRP","DOGE","HYPE","SUI","LINK","AVAX"], asset_type="crypto"` |
+| `followin.news` | `time_range="1d", asset_type="crypto", limit=20` — 24h 加密热门 |
+| `followin.news` | `query="crypto market news", asset_type="crypto", time_range="1d", limit=15` — 加密时间序快讯（news 无 categories，用 query 措辞）|
+| `followin.metrics` | `keywords=["BTC","ETH","SOL","BNB","XRP","DOGE","HYPE","SUI","LINK","AVAX"], asset_type="crypto"` |
 
 #### Wave 2A — 加密交易信号（推特 list + KOL + TG 频道）
 
 | 工具 | 参数 |
 |------|------|
-| `followx.twitter` | `action="list_timeline", list_id="2046422494643687464"`；**Agent 子进程**提取 text/author/likeCount/retweetCount/viewCount/createdAt，按 velocity top 15 + recency top 5 取 |
-| **`followx.news` TG 频道扫描** | 见下方 **「📡 TG 频道扫描范式（v2.1.5）」**，5 个 category 并行 |
+| `followin.twitter` | `action="list_timeline", list_id="2046422494643687464"`；**Agent 子进程**提取 text/author/likeCount/retweetCount/viewCount/createdAt，按 velocity top 15 + recency top 5 取 |
+| **`followin.news` TG 频道扫描** | 见下方 **「📡 TG 频道扫描范式（v2.1.5）」**，5 个 category 并行 |
 
 > **v2.2.7**：Wave 2A 不再跑 `signal(kol_call)` —— 个人 TA 喊单噪音多、与 TG「交易信号」cat 重复，已砍。
 
@@ -154,38 +150,36 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 **调用范式（首扫 5 路并行）**：
 ```python
 parallel for cat in ["交易信号","实盘跟踪","链上数据","叙事追踪","Meme 打新"]:
-    followx.news(
-        query=cat,
+    followin.news(
+        query=cat,            # query=category，Followin 已内建 category 索引
         sources=["telegram"],
         time_range="1d",
         limit=15,
         source_lang="zh-cn",
-        sort_by="popularity",   # 首扫按热度；刷新改 "time"
-        verbosity="standard"    # 显式 standard 避免 concise 自动 trim
+        verbosity="standard"  # 显式 standard 避免 concise 自动 trim
     )
 ```
 
 **子进程 jq 后处理（2 步精简）**：
+> ⚠️ TG 返回字段为 `tg_category / author_name / content / _source_quality / published_ts`，**无 `username`**。过滤/去重一律用 `author_name`。结果路径可能是 `.results` 或 `.results.articles`，先 `.results.articles // .results` 兜底。
 ```bash
-# Step 1 严格白名单（只保留数据 bot，砍掉个号 spam）
-jq '[.results[] | select(
-  .username | test("PolyBeats_Bot|OnchainData|Whale_Alert|CoinbobAI"; "i")
-)]' "$FILE" > /tmp/tg-step1.json
-
-# Step 2 同 username 去重（每个 bot 保留最新 ≤3 条）
-jq '[group_by(.username)[] | sort_by(-.published_ts) | .[0:3]] | flatten' \
+ROWS='(.results.articles // .results)'
+# Step 1 白名单（按 author_name 保留数据 bot，砍个号 spam）
+jq "[$ROWS[] | select(.author_name | test(\"PolyBeats|OnchainData|Whale_Alert|CoinbobAI\"; \"i\"))]" \
+   "$FILE" > /tmp/tg-step1.json
+# Step 2 同 author_name 去重（每源最新 ≤3 条）
+jq '[group_by(.author_name)[] | sort_by(-.published_ts) | .[0:3]] | flatten' \
    /tmp/tg-step1.json > /tmp/tg-clean.json
-
-# 输出格式：[quality] @username | time | content[0:160]
-jq -r '.[] | "[\(._source_quality // "low")] @\(.username) | \((.published_ts/1000) | strftime("%m/%d %H:%M")) | \(.content | gsub("\n";" ") | .[0:160])"' \
+# 输出：[quality] @author | time | content[0:160]
+jq -r '.[] | "[\(._source_quality // "low")] @\(.author_name) | \((.published_ts/1000)|strftime("%m/%d %H:%M")) | \(.content|gsub("\n";" ")|.[0:160])"' \
    /tmp/tg-clean.json | head -25
 ```
 
-**风向标用法**：TG 扫到的**具体链上事件**（巨鲸转账金额、聪明钱仓位变动、meme 早期打新）直接进 0b 双轴评分；**模糊讨论**不进。这一通道补足了 trader_position 数据死角（FollowX 之前 v2.0 移除的 whale_trader_feeds 等价值）。
+**风向标用法**：TG 扫到的**具体链上事件**（巨鲸转账金额、聪明钱仓位变动、meme 早期打新）直接进 0b 双轴评分；**模糊讨论**不进。这一通道补足了 trader_position 数据死角（Followin 之前 v2.0 移除的 whale_trader_feeds 等价值）。
 
 **避坑**：
-- FollowX session 跑 5-8 calls 易挂 → 5 个 category **必须分 2 批并行**（3+2 或 2+3）
-- `query="<category>"` 必传（不要堆砌关键词），FollowX 已按 category 内建索引
+- Followin session 跑 5-8 calls 易挂 → 5 个 category **必须分 2 批并行**（3+2 或 2+3）
+- `query="<category>"` 必传（不要堆砌关键词），Followin 已按 category 内建索引
 - `limit=15`/cat 是首扫；刷新 4h 窗口降到 `limit=20` 单批 3 cat
 
 #### 🟣 Wave 2B — 美股 / 投资素材（v2.2.4 — 加板块涨跌扫描）
@@ -194,10 +188,10 @@ jq -r '.[] | "[\(._source_quality // "low")] @\(.username) | \((.published_ts/10
 
 | 工具 | 参数 / 说明 |
 |------|-----------|
-| `followx.news` | `asset_type="tradfi", time_range="1d", sort_by="time", limit=15, verbosity="concise"` — FMP 策划美股头条（**仅返回标题**，~400 token / 15 条）|
-| `followx.metrics` | `query="earnings calendar this week", categories=["fundamentals"], asset_type="tradfi"` — **周一必跑**，财报周每天跑（FMP calendar 含 estimate/actual/impact）|
-| `followx.metrics` | `sort_by="change_pct", asset_type="tradfi", categories=["market"], limit=15` + 同样 `sort_by="-change_pct"` — 美股涨/跌榜（FMP JSON；⚠️ Agent 子进程过滤 leveraged ETF：排除 name 含 `"2X"/"3X"/"Bull"/"Daily Target"/"Long ... ETF"` 等关键词）|
-| **`followx.metrics` 板块扫描（v2.2.4 新增）** | 见下方「📊 美股板块涨跌矩阵扫描」|
+| `followin.news` | `asset_type="tradfi", time_range="1d", limit=15, verbosity="concise"` — FMP 策划美股头条（**仅返回标题**，~400 token / 15 条）|
+| `followin.metrics` | `query="earnings calendar this week", categories=["fundamentals"], asset_type="tradfi"` — **周一必跑**，财报周每天跑（FMP calendar 含 estimate/actual/impact）|
+| `followin.metrics` | 涨榜 `query="biggest gainers", asset_type="tradfi", categories=["market"], min_market_cap=1000000000`；跌榜 `query="top losers", ...` — 美股涨/跌榜（`min_market_cap=1e9` 已滤 penny + 多数 2x/3x ETF；残留 leveraged ETF 仍可 Agent 子进程过滤 name 含 `"2X"/"3X"/"Bull"`）|
+| **`followin.metrics` 板块扫描（v2.2.4 新增）** | 见下方「📊 美股板块涨跌矩阵扫描」|
 
 > **v2.2.7**：Wave 2B 不再跑 `signal(insider_trading)` —— LASR/WTTR 等小盘内部人交易噪音大、F-InKind 非主动卖出多，议员持仓被宏观新闻覆盖。
 
@@ -219,7 +213,7 @@ jq -r '.[] | "[\(._source_quality // "low")] @\(.username) | \((.published_ts/10
 调用范式：
 ```python
 parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
-    followx.metrics(
+    followin.metrics(
         keywords=sector_stocks,  # 4 个一组
         asset_type="tradfi",
         categories=["market"]
@@ -232,19 +226,19 @@ parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
 
 | 工具 | 参数 |
 |------|------|
-| `followx.twitter` | `action="list_timeline", list_id="2051854001608724654"`（科技 AI + 宏观美股投资 list），Agent velocity top 10 + recency top 3 |
-| `followx.metrics` | `keywords=["NVDA","AAPL","TSLA","MSFT","META","GOOGL","AMZN","AVGO","AMD","PLTR"], asset_type="tradfi"` — 7 大科技 + AI/半导体当前股价 + 涨跌幅 |
+| `followin.twitter` | `action="list_timeline", list_id="2051854001608724654"`（科技 AI + 宏观美股投资 list），Agent velocity top 10 + recency top 3 |
+| `followin.metrics` | `keywords=["NVDA","AAPL","TSLA","MSFT","META","GOOGL","AMZN","AVGO","AMD","PLTR"], asset_type="tradfi"` — 7 大科技 + AI/半导体当前股价 + 涨跌幅 |
 
 #### 🏛️ Wave 3 — 宏观 / 大宗（v1.5，v2.1 大幅简化）
 
 | 工具 | 参数 |
 |------|------|
-| `followx.metrics` | `query="economic calendar this week US high impact", categories=["macro"]` — 一天一次。⚠️ 实测 query 字面过滤不生效，会混入 JP/NZ；**Agent 子进程必须自过滤** `country in ["US","CN","EU"]` 且 `impact="High"` |
-| `followx.metrics` | `keywords=["10Y","2Y","DGS10"], categories=["macro"]` — 国债收益率 |
-| `followx.metrics` | `keywords=["gold","spx","DXY","oil"], asset_type="tradfi"` — 大宗 + 美股全景（**单次四合一**） |
-| `followx.metrics` | `keywords=["CPIAUCSL","UNRATE"], categories=["macro"]`（按需）— 关键宏观点位 |
+| `followin.metrics` | `query="economic calendar this week US high impact", categories=["macro"]` — 一天一次。⚠️ 实测 query 字面过滤不生效，会混入 JP/NZ；**Agent 子进程必须自过滤** `country in ["US","CN","EU"]` 且 `impact="High"` |
+| `followin.metrics` | `keywords=["10Y","2Y","DGS10"], categories=["macro"]` — 国债收益率 |
+| `followin.metrics` | `keywords=["gold","spx","DXY","oil"], asset_type="tradfi"` — 大宗 + 美股全景（**单次四合一**） |
+| `followin.metrics` | `keywords=["CPIAUCSL","UNRATE"], categories=["macro"]`（按需）— 关键宏观点位 |
 
-**🛟 跨市场价格 Fallback 链（v2.1 — FollowX 内部已统一，仍保留兜底）**：
+**🛟 跨市场价格 Fallback 链（v2.1 — Followin 内部已统一，仍保留兜底）**：
 
 | 主调失败 | Fallback |
 |---------|----------|
@@ -259,7 +253,7 @@ parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
 
 | 工具 | 参数 |
 |------|------|
-| `followx.twitter` | `action="list_timeline", list_id="2051856808348987697"`（Buffett/Druck/Burry/Cathie/Ackman 等）|
+| `followin.twitter` | `action="list_timeline", list_id="2051856808348987697"`（Buffett/Druck/Burry/Cathie/Ackman 等）|
 
 > **v2.2.7**：Wave 4 不再跑 `signal(institutional)` —— 13F 是季度滞后数据，对日级别风向标价值低。
 
@@ -318,15 +312,15 @@ parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
 
 | 工具 | 参数 | 与首扫差异 |
 |------|------|----------|
-| `followx.news` | `time_range="4h", sort_by="time", categories=["market"], asset_type="crypto", limit=20` | 4h 窗口替代 hot_news |
-| `followx.news` | `time_range="4h", sort_by="time", categories=["fundamentals","event"], limit=15` | 替代 only_important news + articles |
-| `followx.metrics` | 固定 10 币 + 漏网核验 | 必刷价格 delta |
+| `followin.news` | `query="crypto market", asset_type="crypto", time_range="4h", limit=20` | 4h 加密时序快讯 |
+| `followin.news` | `query="listing unlock hack SEC ETF 上线 解锁", time_range="4h", limit=15` | 4h 基本面/事件（news 无 categories，用 query 覆盖）|
+| `followin.metrics` | 固定 10 币 + 漏网核验 | 必刷价格 delta |
 
 #### 三栈 List Timeline（必跑）
 
 | List | 参数 |
 |------|------|
-| 主 list `2046422494643687464` | `followx.twitter(action="list_timeline")`，4h，Agent velocity top 7 + recency top 3，<30min 硬保留，取 10 条 |
+| 主 list `2046422494643687464` | `followin.twitter(action="list_timeline")`，4h，Agent velocity top 7 + recency top 3，<30min 硬保留，取 10 条 |
 | 🆕 科技 AI list `2051854001608724654` | 同上，4h，Agent velocity top 5 + recency top 2 |
 | 🆕 投资大师 list `2051856808348987697` | 同上，4h，Agent velocity top 3 + recency top 2 |
 
@@ -334,10 +328,10 @@ parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
 
 ```python
 parallel for cat in ["交易信号","实盘跟踪"]:
-    followx.news(
+    followin.news(
         query=cat, sources=["telegram"], time_range="4h",
         limit=20, source_lang="zh-cn",
-        sort_by="time",          # 刷新看时效
+                 # 刷新看时效
         verbosity="standard"
     )
 ```
@@ -350,8 +344,8 @@ parallel for cat in ["交易信号","实盘跟踪"]:
 
 | 工具 | 参数 | 作用 |
 |------|------|------|
-| `followx.news` | `asset_type="tradfi", time_range="4h", sort_by="time", limit=15, verbosity="concise"` | FMP 严肃财经头条（WSJ/Bloomberg/Barron's）— 标题流，~300 token |
-| **`followx.news` query 兜底**（v2.1.7 新增） | `query="<当周 tech/政策关键词>", time_range="4h", sort_by="time", limit=10, verbosity="concise"` — **不传 asset_type** | 抓 Reuters 独家 / 中文媒体爆点 / X 突发，弥补 FMP 通道盲区 |
+| `followin.news` | `asset_type="tradfi", time_range="4h", limit=15, verbosity="concise"` | FMP 严肃财经头条（WSJ/Bloomberg/Barron's）— 标题流，~300 token |
+| **`followin.news` query 兜底**（v2.1.7 新增） | `query="<当周 tech/政策关键词>", time_range="4h", limit=10, verbosity="concise"` — **不传 asset_type** | 抓 Reuters 独家 / 中文媒体爆点 / X 突发，弥补 FMP 通道盲区 |
 
 **query 兜底关键词模板**（每天根据热点轮换）：
 
@@ -378,7 +372,7 @@ parallel for cat in ["交易信号","实盘跟踪"]:
 刷新砍掉首扫的 trader_position + 解锁/财库 query（4h 内增量稀疏）。
 
 **候选数量铁律（刷新模式）**：跑完上述工具后 P0+P1 候选 ≥ 8 才能进 0b；不足则**单独跑 5 个不同 query 关键词**扩窗。
-| `followx.metrics` | `sort_by="change_pct", asset_type="tradfi", limit=10` + `sort_by="-change_pct"` — 4h 内涨/跌榜结构化（可选，财报周必跑）|
+| `followin.metrics` | `query="biggest gainers" / "top losers", asset_type="tradfi", categories=["market"], min_market_cap=1000000000` — 4h 内涨/跌榜（可选，财报周必跑）|
 
 > v2.1.1：tradfi news 仅返回标题（FMP 通道）。需要正文 → 改 `news(query="<事件>")` 不传 asset_type。突发事件 / C 入口才走 query 路径（如 `"DeepSeek"` / `"Hormuz"`）。
 > ⚠️ 实测有偶发 `results=null`，触发 fallback：改 `news(query="stock market earnings Fed", verbosity="concise", limit=15)` 重试。
@@ -387,15 +381,15 @@ parallel for cat in ["交易信号","实盘跟踪"]:
 
 | 工具 | 参数 |
 |------|------|
-| `followx.metrics` | `keywords=["gold","oil","DXY"], asset_type="tradfi"` — 一次拉齐三件套 |
+| `followin.metrics` | `keywords=["gold","oil","DXY"], asset_type="tradfi"` — 一次拉齐三件套 |
 
-> 实战教训：油价破 $100 / DXY 破 98 / 黄金回探都是当日跨市场风险开关，"日内变化不大"的假设会让刷新简报漏掉宏观主线。v2.1 由 `followx.metrics` 单次返回。
+> 实战教训：油价破 $100 / DXY 破 98 / 黄金回探都是当日跨市场风险开关，"日内变化不大"的假设会让刷新简报漏掉宏观主线。v2.1 由 `followin.metrics` 单次返回。
 
 **🚫 刷新模式不跑**（v2.1.6 — `signal` 全部砍）：
 - Wave 1 popularity 热门榜（首扫已覆盖）
 - economic_calendar / 国债收益率 / metrics(keywords=["spx"])（跨市场看 DXY/oil/gold 即可）
-- 候选池兜底等级 2 的 `followx.twitter(action="search")`（仅低候选时调）
-- **`followx.signal` 全 4 个 category（kol_call / trader_position / insider_trading / institutional）全部不跑**
+- 候选池兜底等级 2 的 `followin.twitter(action="search")`（仅低候选时调）
+- **`followin.signal` 全 4 个 category（kol_call / trader_position / insider_trading / institutional）全部不跑**
   - `trader_position` 4h 内同地址重复污染（实测 1 倍杠杆原油 4h 内 11 条加仓 / 麻吉大哥 4-7 次 ETH 多调整都是 spam 级）
   - `kol_call` 4h 内信号稀疏（<6 条），且已被 TG 频道扫描"交易信号"/"实盘跟踪" cat 覆盖
   - `insider_trading` / `institutional` 数据日级别变化，4h 无增量
@@ -413,12 +407,12 @@ parallel for cat in ["交易信号","实盘跟踪"]:
 - **绝对保护**：`createdAt` 在过去 **30 分钟内**的推文，无论 velocity 多低都必须进候选池
 - 合并去重，最终 10 条
 
-⚠️ **list_timeline schema 限制**：`followx.twitter` 只接受 `list_id` + `cursor`，**不接受时间窗参数**（与旧 MCP 一致）。Agent 子进程必须自己按 `createdAt > last_refresh_ts` 过滤。
+⚠️ **list_timeline schema 限制**：`followin.twitter` 只接受 `list_id` + `cursor`，**不接受时间窗参数**（与旧 MCP 一致）。Agent 子进程必须自己按 `createdAt > last_refresh_ts` 过滤。
 
 #### Agent 子进程 Prompt 模板（必用）
 
 ```
-调用 followx.twitter(action="list_timeline", list_id="<LIST_ID>")，对返回的推文按以下规则筛选 top 10：
+调用 followin.twitter(action="list_timeline", list_id="<LIST_ID>")，对返回的推文按以下规则筛选 top 10：
 
 1. 时间过滤：createdAt > <LAST_REFRESH_TS>（unix 秒）— 早于此时间的全部丢弃
 2. 双轨制：
@@ -467,7 +461,7 @@ parallel for cat in ["交易信号","实盘跟踪"]:
 | 等级 | 操作 |
 |------|------|
 | 1 | 扩窗：Twitter list 24h→48，重跑 velocity+recency 双轨制取 top 15 |
-| 2 | 调 `followx.twitter(action="search", query="crypto OR BTC OR ETH lang:zh OR lang:en", query_type="Top")` 兜底 |
+| 2 | 调 `followin.twitter(action="search", query="crypto OR BTC OR ETH lang:zh OR lang:en", query_type="Top")` 兜底 |
 | 3 | 等级 2 仍 <2 条 → 直接告知用户「今日候选池已饱和」，不强行凑数 |
 
 ---
@@ -484,8 +478,8 @@ parallel for cat in ["交易信号","实盘跟踪"]:
 
 | 路径 | 触发 | 并行调用工具 |
 |------|------|------------|
-| **代币深挖** | 单一符号 / `$XXX` | `followx.metrics(keywords=[SYMBOL], asset_type="crypto", query="近 7d 走势 + 技术读")` + `followx.news(query="$SYMBOL", time_range="1d", sort_by="time", limit=20)` + `followx.news(query="$SYMBOL", sources=["twitter"], time_range="1d", limit=15)` + `followx.signal(keywords=[SYMBOL], categories=["kol_call","trader_position"], time_range="1d")` |
-| **关键词深挖** | 项目/公司/事件/人名 | `followx.news(query=KEYWORD, time_range="1d", sort_by="time", verbosity="concise", limit=15)` + `followx.news(query=KEYWORD, sources=["twitter"], sort_by="popularity", limit=10)` + `followx.twitter(action="search", query=KEYWORD, query_type="Top")` — **不传 asset_type**（query 自然分流） |
+| **代币深挖** | 单一符号 / `$XXX` | `followin.metrics(keywords=[SYMBOL], asset_type="crypto", query="近 7d 走势 + 技术读")` + `followin.news(query="$SYMBOL", time_range="1d", limit=20)` + `followin.news(query="$SYMBOL", sources=["twitter"], time_range="1d", limit=15)` + `followin.signal(keywords=[SYMBOL], categories=["kol_call","trader_position"], time_range="1d")` |
+| **关键词深挖** | 项目/公司/事件/人名 | `followin.news(query=KEYWORD, time_range="1d", verbosity="concise", limit=15)` + `followin.news(query=KEYWORD, sources=["twitter"], limit=10)` + `followin.twitter(action="search", query=KEYWORD, query_type="Top")` — **不传 asset_type**（query 自然分流） |
 | **混合** | 既有标的也有主题 | 两路都跑 |
 
 ### 关键词搜索策略
@@ -1025,15 +1019,15 @@ keywords 同时承担两个职责：
 |----------|---------------------|-------------|------------|
 | 黄金 / 金价 | `XAUT,PAXG` | `黄金,Gold` | XAUt: 10226 |
 | 原油 / 石油 | `OIL` | `原油,WTI,Brent` | CRUDE OIL BRENT: 520979 |
-| **美股 / 个股** | **代币化股票优先**（`NVDAX,CRCLX,AAPLon,TSLAX,GOOGLX,COINX,MSTRX` 等） | 原股票符号 + 项目中英文名 | NVDAX: 522527, CRCLX: 522611, AAPLon: 546230, INTC: 548353；其余调 `followx.metrics(keywords=["XXXX","XXXon"])` 查 |
-| **港股 / 中概** | 股票符号或港股代码（`9988,3690,9618` 或 `BABA,JD,PDD`） | 公司中英文名 | 多数无挂钩代币 → `followx.news(query=代码)` 查；无则 fallback BTC/ETH |
+| **美股 / 个股** | **代币化股票优先**（`NVDAX,CRCLX,AAPLon,TSLAX,GOOGLX,COINX,MSTRX` 等） | 原股票符号 + 项目中英文名 | NVDAX: 522527, CRCLX: 522611, AAPLon: 546230, INTC: 548353；其余调 `followin.metrics(keywords=["XXXX","XXXon"])` 查 |
+| **港股 / 中概** | 股票符号或港股代码（`9988,3690,9618` 或 `BABA,JD,PDD`） | 公司中英文名 | 多数无挂钩代币 → `followin.news(query=代码)` 查；无则 fallback BTC/ETH |
 | AI 板块 | `WLD,FET,RNDR,TAO` 选 1-2 | `AI,人工智能` | WLD: 248008, FET: 10201 |
 | 外汇 / DXY | 涉事货币挂钩代币 | `美元,DXY,USDT` | — |
 | 美债 / 利率 / FOMC | `BTC` 或 `ETH`（风险资产联动） | `美联储,Fed,利率` | BTC: 10006, ETH: 10007 |
 | 联储/CPI/非农/纯宏观 | `BTC` 或 `ETH` | `CPI,通胀,非农` | 同上 |
 
 **判定流程（必按顺序）**：
-1. **优先查代币化股票（XXX + X / on 后缀）** —— 美股 ticker 加 `X` 或 `on` 试调 `followx.metrics(keywords=["NVDAX","NVDAon"], asset_type=不传)`，命中则用代币化 ticker 做 tag
+1. **优先查代币化股票（XXX + X / on 后缀）** —— 美股 ticker 加 `X` 或 `on` 试调 `followin.metrics(keywords=["NVDAX","NVDAon"], asset_type=不传)`，命中则用代币化 ticker 做 tag
 2. 无代币化股票 → 用原股票符号 + 手动绑 tag id（如 GOOGL → 522630）
 3. 无挂钩但与某加密板块强联动 → 用板块代表代币
 4. 纯宏观无板块联动 → 用 BTC / ETH
@@ -1166,7 +1160,7 @@ ID：{id}
 
 | 数据类型 | 核实方法 | 不达标处置 |
 |---------|---------|-----------|
-| **价格 / 涨跌幅** | 重新调 `followx.metrics(keywords=[SYMBOL])` 拿最新值 | 偏差 > 0.5% → update |
+| **价格 / 涨跌幅** | 重新调 `followin.metrics(keywords=[SYMBOL])` 拿最新值 | 偏差 > 0.5% → update |
 | **涨跌幅时间窗口** | 检查"X%"前是否标明窗口（24h/周内/月内） | 模糊 → 必须明确 |
 | **链上持仓 / 金额** | 时效检查：数据是否仍代表当前状态 | 老数据需标"截至 X 日" |
 | **第三方机构数据** | ≥2 源交叉，或注明来源（"据 SoSoValue"） | 单源未标 → 加来源 |
@@ -1184,12 +1178,12 @@ ID：{id}
 
 ### 🚀 批量数据核实路径（v1.9 新增）
 
-当 0a.5 一次审 ≥ 5 条话题时，**禁止**逐条跑 4.5（每条都调一次 `followx.metrics` 是浪费）。改走批量路径：
+当 0a.5 一次审 ≥ 5 条话题时，**禁止**逐条跑 4.5（每条都调一次 `followin.metrics` 是浪费）。改走批量路径：
 
 **Step 1 批量价格核实**（一次性）：
 ```
 收集所有候选标的的 token symbols（去重 → list）
-→ 一次调 followx.metrics(keywords=union_list, asset_type="crypto")
+→ 一次调 followin.metrics(keywords=union_list, asset_type="crypto")
 → 再分发到每条话题做偏差比对
 ```
 - 标的数 ≤ 20 → 一次调用解决
@@ -1198,7 +1192,7 @@ ID：{id}
 **Step 2 批量多源核验**：
 ```
 对所有"宣称 +X% 上线 / 合作"的关键数据
-→ 并行调 N 次 followx.news(query=symbol/event_name, time_range="1d", limit=10) 取多源
+→ 并行调 N 次 followin.news(query=symbol/event_name, time_range="1d", limit=10) 取多源
 → 标"✅ 多源" / "⚠️ 单源未核" / "🔴 多源核验失败 → 走撤回"
 ```
 
@@ -1312,4 +1306,4 @@ ID：{id}
 | GOOGL | 522630 | Google（无代币化版查到）|
 | TSLA | 528245 | Tesla（无代币化版查到，可试 TSLAX）|
 
-> 找新美股 tag：`followx.metrics(keywords=["XXXX","XXXX X","XXXXon"])` 三种后缀试一次，命中即用，否则原 ticker + 手动绑。
+> 找新美股 tag：`followin.metrics(keywords=["XXXX","XXXX X","XXXXon"])` 三种后缀试一次，命中即用，否则原 ticker + 手动绑。
