@@ -29,7 +29,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'   # 必跑，算 cutoff_4h/24h
 | 批 | server | 并发 calls |
 |----|--------|-----------|
 | B0 | console | `list_trending_topics(24h, 全状态, limit=80)` ← 先跑，喂 0a/0a.5/自动撤回 |
-| B1 | followin | 10币 metrics ｜ gold/oil/DXY metrics ｜ news(crypto market 4h) ｜ news(listing/解锁/SEC 4h) ｜ news(tradfi 头条 4h concise) |
+| B1 | followin | 10币 metrics ｜ **跨市场 metrics（金=`XAUT`@crypto / 油+美元=`["CLUSD","DXY"]`@tradfi，见 quirk⑨）** ｜ news(crypto market 4h) ｜ news(listing/解锁/SEC 4h) ｜ news(tradfi 头条 4h concise) |
 | B2 | followin | TG 交易信号 ｜ TG 实盘跟踪 ｜ news(美股 query 兜底, 不传 asset_type) ｜ Wave5 鲸鱼 ｜ Wave5 上币 |
 | B3 | followin | Wave5 ETF 流向 |
 | A1 | Agent×3 | 三栈 list_timeline：主 `2046422494643687464` + 科技AI `2051854001608724654` + 大师 `2051856808348987697`（各一子进程，velocity+recency 双轨，见模板）|
@@ -155,6 +155,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 6. **`news` 默认 verbosity=standard 带完整正文** — limit≥20 易炸 context（实战 56K 字符）。生产用 `verbosity="concise"` + `limit≤15`
 7. **`news(asset_type="tradfi")` FMP 偏 WSJ/Bloomberg/Barron's** — 漏 **Reuters 独家 / X 突发 / 中文媒体爆点**。修复：刷新必跑 query 兜底 `news(query="<当周关键词>", 不传 asset_type, time_range="4h")`（实战 5/14 漏 NVIDIA H200 出口许可）
 8. **TG `sources=["telegram"]` 返回 `tg_kol_feeds`** — 字段为 `tg_category / author_name / content / _source_quality / published_ts`，**无 `username`**。过滤用 `author_name` 或直接按 `tg_category` + content grep（"币安将上线" / "Whale Alert" / "巨鲸"）。Meme 打新 cat 全 low-quality spam，**可砍**
+9. **🚫 大宗裸 keyword 会乱解析成同名股票（2026-06-03 实测）** — `metrics(keywords=["gold"])`→**Barrick Gold 金矿股 $39**、`["oil"]`→油股、`["CL"]`→Colgate 牙膏、`["BZ"]`→看准网中概，全是垃圾值。`query="price now"` **不能修**（数值照错、体积照炸 66K）。**正解 = 用现货符号**：金 `keywords=["XAUT"], asset_type="crypto"`（实测 $4,416/oz，PAXG 同效）｜油 `keywords=["CLUSD"], asset_type="tradfi"`（name="Crude Oil" 实测 WTI $94.95）｜美元 `keywords=["DXY"]`（返回 DXUSD 99.4，无需改）。`USO/BNO` 是油 ETF（追踪但非现货价），仅作兜底
 
 ### 价格数据铁律
 
@@ -293,17 +294,19 @@ parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
 |------|------|
 | `followin.metrics` | `query="economic calendar this week US high impact", categories=["macro"]` — 一天一次。⚠️ 实测 query 字面过滤不生效，会混入 JP/NZ；**Agent 子进程必须自过滤** `country in ["US","CN","EU"]` 且 `impact="High"` |
 | `followin.metrics` | `keywords=["10Y","2Y","DGS10"], categories=["macro"]` — 国债收益率 |
-| `followin.metrics` | `keywords=["gold","spx","DXY","oil"], asset_type="tradfi"` — 大宗 + 美股全景（**单次四合一**） |
+| `followin.metrics` | 大宗+美股全景：`keywords=["CLUSD","DXY","spx"], asset_type="tradfi"`（油/美元/标普）+ 金另调 `keywords=["XAUT"], asset_type="crypto"`。⚠️ **不要用裸 `gold`/`oil`**（见 quirk⑨，会解析成 Barrick 金矿股 / Colgate）|
 | `followin.metrics` | `keywords=["CPIAUCSL","UNRATE"], categories=["macro"]`（按需）— 关键宏观点位 |
 
 **🛟 跨市场价格 Fallback 链（v2.1 — Followin 内部已统一，仍保留兜底）**：
 
-| 主调失败 | Fallback |
+> ⚠️ 主调符号已按 quirk⑨ 校正——**金=`XAUT`(crypto，实测 $4,416/oz)｜油=`CLUSD`(tradfi，实测 WTI $94.95)｜美元=`DXY`(返回 DXUSD)**。下表是这些主调失败时的兜底。
+
+| 主调（已校正） | Fallback |
 |---------|----------|
-| `metrics(keywords=["gold"], tradfi)` | `metrics(keywords=["XAUT","PAXG"], crypto)` → 链上挂钩代币 |
-| `metrics(keywords=["spx"], tradfi)` | `metrics(keywords=["SPY","QQQ"], tradfi)` |
-| `metrics(keywords=["DXY"], tradfi)` | `metrics(keywords=["DTWEXBGS"], macro)` 美元指数官方 |
-| `metrics(keywords=["oil"], tradfi)` | `metrics(keywords=["USOUSD","UKOUSD"], tradfi)` |
+| `metrics(["XAUT"], crypto)` 金 | `metrics(["PAXG"], crypto)` → 另一只链上金 |
+| `metrics(["spx"], tradfi)` | `metrics(["SPY","QQQ"], tradfi)` |
+| `metrics(["DXY"], tradfi)` | `metrics(["DTWEXBGS"], macro)` 美元指数官方 |
+| `metrics(["CLUSD"], tradfi)` 油 | `metrics(["USO","BNO"], tradfi)` → 油 ETF（追踪现货，非现货价）|
 
 > 铁律：Primary 失败时必须跑 Fallback；Fallback 仍失败再标"⚠️ 数据缺失"。
 
@@ -417,7 +420,7 @@ parallel for cat in ["交易信号","实盘跟踪"]:
 
 | 工具 | 参数 |
 |------|------|
-| `followin.metrics` | `keywords=["gold","oil","DXY"], asset_type="tradfi"` — 一次拉齐三件套 |
+| `followin.metrics` | 油+美元：`keywords=["CLUSD","DXY"], asset_type="tradfi"`；金另调 `keywords=["XAUT"], asset_type="crypto"`（裸 gold/oil 会拿到金矿股/牙膏股，见 quirk⑨）|
 
 > 实战教训：油价破 $100 / DXY 破 98 / 黄金回探都是当日跨市场风险开关，"日内变化不大"的假设会让刷新简报漏掉宏观主线。v2.1 由 `followin.metrics` 单次返回。
 
