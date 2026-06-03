@@ -11,6 +11,59 @@ description: >
 
 # 创建热点风向标
 
+---
+
+## ⚡ 执行卡（v2.4 — 每轮照此跑，细节见下方对应章节）
+
+> 90% 的扫描照本卡执行即可；遇到边界/判定再翻下方详章。本卡是「跑什么 + 怎么并行」的**单一事实源**。
+
+### 0. 开跑前（铁律）
+```bash
+date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'   # 必跑，算 cutoff_4h/24h
+```
+判模式：`"早上扫/隔夜更新"`→🟢首扫(24h) ｜ `"刷新/有什么新的"`→🔵刷新(4h) ｜ 模糊：06-10 点首扫、之后刷新 ｜ 今日 status=0 发布 0 条 → 强制首扫。
+
+### 1. 并行批次表（同一格 = 同一 turn 内并发；followin 单批 ≤5 防掉线）
+
+**🔵 刷新（4h）— 3 批 followin + 3 Agent + 1 console**
+| 批 | server | 并发 calls |
+|----|--------|-----------|
+| B0 | console | `list_trending_topics(24h, 全状态, limit=80)` ← 先跑，喂 0a/0a.5/自动撤回 |
+| B1 | followin | 10币 metrics ｜ gold/oil/DXY metrics ｜ news(crypto market 4h) ｜ news(listing/解锁/SEC 4h) ｜ news(tradfi 头条 4h concise) |
+| B2 | followin | TG 交易信号 ｜ TG 实盘跟踪 ｜ news(美股 query 兜底, 不传 asset_type) ｜ Wave5 鲸鱼 ｜ Wave5 上币 |
+| B3 | followin | Wave5 ETF 流向 |
+| A1 | Agent×3 | 三栈 list_timeline：主 `2046422494643687464` + 科技AI `2051854001608724654` + 大师 `2051856808348987697`（各一子进程，velocity+recency 双轨，见模板）|
+
+> 刷新 **不跑** signal（4 cat 全砍）｜不跑 popularity / 国债 / spx ｜±15% 漏网币第二轮核。
+
+**🟢 首扫（24h）= 刷新全部 + 以下，窗口 1d 替换 4h**
+| 追加 | 内容 |
+|------|------|
+| TG 补 3 cat | 链上数据 / 叙事追踪 / Meme 打新（共 5 cat，分 3+2 并行）|
+| Wave2B 美股 | earnings calendar（周一必跑）+ 涨/跌榜 + **8 板块矩阵**（AI算力/大科技/存储/光通信/半导体设备/加密股/Fintech/航天，4 股一组分 2 批）|
+| Wave2C | 科技AI 7 大科技股 metrics |
+| Wave3 宏观 | economic calendar（Agent 自过滤 US/CN/EU+High）+ 国债 + gold/spx/DXY/oil 四合一 |
+| Wave4 | 投资大师 list（仅周一/季初）|
+| Wave5 | 加 解锁/财库 query（共 4 query）|
+
+### 2. 候选处置路由（status × 年龄 → 走哪条规则）
+| status | 年龄 | 处置 |
+|--------|------|------|
+| **0 上线** | ≤24h | 数据偏差 ≥10%→0a 升温 update title；>25%→撤(status=3)；>50% 反向→强撤 |
+| **0 上线** | >24h | **不动不提**；当前行情 → 新建一条（不改老话题）；唯 >50% 反向脱锚强撤 |
+| **2 审核** | ≤8h | 0a.5 预过滤 → ✅发 / 🟠改 / 🚨撤 / 🟡待核（表 3 必列）|
+| **2 审核** | 8–24h | 从简报剔除、不再 push |
+| **2 审核** | >24h | v2.3.0 自动撤(status=3)；命中 >10 条先列清单确认再批撤 |
+| **3 hidden** | — | 不重建、不分析 |
+
+### 3. 评分 → 三件套 → 建/核/发
+- **0b.0 时效硬过滤**：published_ts 超窗（首扫>24h / 刷新>4h）→ 直接砍，不进评分。
+- **四维评分** A 行情冲击(0-3)+B 讨论热(0-3)+C 稀缺(0-2)+D 紧迫(0-2)；max(A,B)≥2 才排序。P0≥8 / P1=6-7 / P2=4-5。
+- **三件套主报告**：🆕表1 补充（首扫目标 12 / 刷新 8，达不到先扩窗，仍不足如实报干轮、不灌水不硬报0）｜🔧表2 更新｜🚨表3 撤回+在审池处置。
+- **建**：预览确认（不可跳过，确认前不调 MCP）→ create（**不传 desc**）→ tag 校验（美股主动手动绑，查速查表）→ **4.5 数据核实**（≥5 条走批量路径：1 次 metrics + 并行多源）→ 发布 status=0。
+
+---
+
 ## 整体管线（v2.2 — 三件套主输出）
 
 ```
@@ -87,23 +140,10 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 
 冲突时主动询问。
 
-### ✅ 每轮必跑清单（照单打勾，禁止凭记忆跳波）
+### ✅ 每轮必跑（照「⚡执行卡 §1 并行批次表」打勾，禁止凭记忆跳波）
 
-> **铁律**：每次首扫/刷新**逐项打勾**，跳过任一项必须在简报里写明"跳过 X，原因 Y"。本清单是防"经验主义简化版"的硬闸。
-
-**刷新（4h）**：
-- [ ] 时间校准 `date`（算 cutoff_4h）
-- [ ] 10 币满拉 `metrics`（BTC..AVAX 全 10 个）+ 文本里 ±15% 漏网二轮核
-- [ ] 加密 news 2 路（market 时序 + listing/事件 query）
-- [ ] **三栈 list_timeline**（主 2046… + 科技AI 2051854… + 投资大师 2051856…）← 最常被漏
-- [ ] TG 2 路（交易信号 / 实盘跟踪）
-- [ ] 美股双通道（tradfi 头条 + query 兜底 Reuters/中文）
-- [ ] Wave5 二线兜底 3 路（鲸鱼 / listing / ETF）
-- [ ] 跨市场 `metrics`（gold/oil/DXY）
-- [ ] 在审池 `list_trending_topics(status=2)` → 0a.5 + v2.3.0 撤回
-- [ ] ❌ **不跑 signal**（4h 重复污染；用户明确"看鲸鱼"才破例）
-
-**首扫（24h）**：上面全部 + Wave1 popularity 热门 + Wave2C 科技AI + Wave3 宏观全量 + Wave4（仅周一/季初）；窗口 1d 替换 4h。
+> **铁律**：跑什么 + 怎么并行 = 顶部「执行卡 §1」**单一事实源**，逐批打勾。跳过任一 call 必须在简报里写明"跳过 X，原因 Y"——这是防"经验主义简化版"的硬闸。
+> 最常被漏：**三栈 list_timeline**（主 2046… / 科技AI 2051854… / 大师 2051856…）。下方各 Wave 章节只补充批次表装不下的判定细节。
 
 ### ⚠️ Followin 已知 quirks（v2.3.1 实测，对齐线上 schema）
 
@@ -290,37 +330,15 @@ parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
 
 执行完 → 进入第 0a 步。
 
-**首扫工具 checklist（v2.2，缺一可标记跳过原因）**：
+> 首扫具体跑哪些批次 / 怎么并发 → 见顶部「⚡执行卡 §1」。下方各 Wave 章节只补判定细节。
 
-```
-🟢 Wave 1 加密+价格（3 — news popularity + news time + metrics 10币）
-🟢 Wave 2A 加密信号（1 + 5 TG cat — twitter list + TG 5 路并行；v2.2.7 砍 signal kol_call）
-🟣 Wave 2B 美股投资（3 + 板块矩阵 — FMP 头条 + earnings + 涨跌榜 + 8 板块涨跌；v2.2.7 砍 signal insider）
-🟦 Wave 2C 科技AI（2 — twitter list + 7 大科技股价）
-🏛️ Wave 3 宏观大宗（3-4 — calendar + rates + 跨市场 + 可选 FRED 点位）
-🔶 Wave 4 投资大师（周一/季度初；v2.2.7 砍 signal institutional）
-🔍 Wave 5 二线 query 兜底（v2.2.7 — 4 个 query：鲸鱼/上币/解锁/ETF 流向；trader_position 已砍）
-```
+### 🚨 强制铁律：Twitter list + TG 频道不可跳过（v2.2.4 实战教训）
 
-### 🚨 v2.2.4 强制铁律：Twitter list + TG 频道不可跳过
+实战教训（5/19）：跑首扫时漏掉 Twitter list 和 TG 频道扫描 → **直接缺 5+ 强候选**（Google×Blackstone / 马斯克 OpenAI 败诉 / 黄仁勋 Computex / 韩国零售融资 / Pumpfun 抛售）。这些 megaevent 只在 Twitter list + TG bot 出现，新闻通道捞不到 → 故执行卡 §1 把三栈 list + TG 列为必跑批次。
 
-实战教训（5/19）：跑首扫时漏掉 Twitter list 和 TG 频道扫描 → **直接缺 5+ 强候选**（Google×Blackstone / 马斯克 OpenAI 败诉 / 黄仁勋 Computex / 韩国零售融资 / Pumpfun 抛售）。这些 megaevent 只在 Twitter list + TG bot 出现，新闻通道捞不到。
+**失败处置**：任一批次失败 → **重试 1 次，仍失败标"⚠️ Wave 2A/TG 部分失败"**，不能直接进 0b。
 
-**强制清单**（首扫每次必跑，违反 = 简报不合规）：
-
-| 信号源 | 调用 | 漏扫后果 |
-|--------|------|---------|
-| **主 list（加密交易）** `2046422494643687464` | `twitter(action="list_timeline")` | 漏 KOL 喊单 / 链上深挖 / 实时事件 |
-| **科技 AI list** `2051854001608724654` | 同上 | 漏 AI 巨头动作 / 半导体板块叙事 |
-| **投资大师 list** `2051856808348987697` | 同上（周一/季度初）| 漏 Buffett/Burry/Cathie 13F + 观点 |
-| **TG 5 cat（交易信号/实盘跟踪/链上数据/叙事追踪/Meme 打新）** | `news(sources=["telegram"], query=<cat>)` 并行 | 漏链上巨鲸 / 项目方抛压 / 板块综述早期信号 |
-
-**强制扫描的执行格式**：
-- 首扫批 1（5 calls 并行）：主 list + AI list + 大师 list + TG cat1 + TG cat2
-- 首扫批 2（3 calls 并行）：TG cat3 + cat4 + cat5（v2.2.7 — signal 全部砍）
-- 任何一批失败 → **重试 1 次，仍失败标"⚠️ Wave 2A/TG 部分失败"**，不能直接进 0b
-
-**候选数量铁律**：跑完上述 Wave 后，进 0b 评分前**点候选数 P0+P1 ≥ 12**；不足则**强制扩窗**（再加 query 多组关键词 / TG 加 cat），直至达标或确认"今日候选池饱和"。
+**候选数量铁律**：跑完执行卡 §1 全部批次后，进 0b 评分前点 P0+P1 候选数（首扫 ≥12 / 刷新 ≥8 为目标）；不足则**先强制扩窗**（加 query 关键词 / TG 加 cat），扩窗后仍不足按 0b「候选池数量目标」如实报干轮。
 
 ### 🔵 刷新模式（日内每 2-4h，4h 窗口）
 
