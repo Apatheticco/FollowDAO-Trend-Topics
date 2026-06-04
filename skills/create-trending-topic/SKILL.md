@@ -156,6 +156,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 7. **`news(asset_type="tradfi")` FMP 偏 WSJ/Bloomberg/Barron's** — 漏 **Reuters 独家 / X 突发 / 中文媒体爆点**。修复：刷新必跑 query 兜底 `news(query="<当周关键词>", 不传 asset_type, time_range="4h")`（实战 5/14 漏 NVIDIA H200 出口许可）
 8. **TG `sources=["telegram"]` 返回 `tg_kol_feeds`** — 字段为 `tg_category / author_name / content / _source_quality / published_ts`，**无 `username`**。过滤用 `author_name` 或直接按 `tg_category` + content grep（"币安将上线" / "Whale Alert" / "巨鲸"）。Meme 打新 cat 全 low-quality spam，**可砍**
 9. **🚫 大宗裸 keyword 会乱解析成同名股票（2026-06-03 实测）** — `metrics(keywords=["gold"])`→**Barrick Gold 金矿股 $39**、`["oil"]`→油股、`["CL"]`→Colgate 牙膏、`["BZ"]`→看准网中概，全是垃圾值。`query="price now"` **不能修**（数值照错、体积照炸 66K）。**正解 = 用现货符号**：金 `keywords=["XAUT"], asset_type="crypto"`（实测 $4,416/oz，PAXG 同效）｜油 `keywords=["CLUSD"], asset_type="tradfi"`（name="Crude Oil" 实测 WTI $94.95）｜美元 `keywords=["DXY"]`（返回 DXUSD 99.4，无需改）。`USO/BNO` 是油 ETF（追踪但非现货价），仅作兜底
+10. **🚫 tradfi `metrics` 多 ticker 必溢出（2026-06-04 实测）** — 板块矩阵传 12 股 + `query="price now"` 仍逐 ticker 返回全 fundamentals → **单次 700K 字符炸 context**（实测 12 股→699K、8 股→644K）。`verbosity="concise"` 不解决（fundamentals 不受其控）。**正解**：① 拆 ≤4 股/批；或 ② 接受溢出存盘后用 python 提 `results.market.snapshot`（字段 `symbol/price/change`，`change` 是绝对 $，涨跌幅自算 `change/(price-change)`）。注意 crypto metrics 不会溢出（只回 snapshot），仅 tradfi 有此结构差异
 
 ### 价格数据铁律
 
@@ -1342,5 +1343,8 @@ ID：{id}
 | **MRVL** | 548352 | Marvell（2026-06 实测确认）|
 | **COHR** | 635980 | Coherent 光通信（2026-06 实测确认）|
 | **SpaceX** | 536083 | SpaceX pre-IPO 代币化（keyword="SpaceX" 可自动命中）|
+| **AVGO** | 550939 / 550614 | Broadcom 代币化（2026-06-04 实测，keyword AVGOX/AVGOon 命中）|
+| **COIN** | 522512 | Coinbase 代币化（COINX，2026-06-04 实测）|
+| **MSTR** | 522610 | Strategy 代币化（MSTRX，2026-06-04 实测）|
 
-> 找新美股 tag：`followin.metrics(keywords=["XXXX","XXXX X","XXXXon"])` 三种后缀试一次，命中即用，否则原 ticker + 手动绑。
+> 找新美股 tag：`update_trending_topic(keywords=["XXX","XXXX","XXXon"])` 加代币化后缀试一次，看返回的 `auto_matched_tags` 即得 tag id，命中即用，否则原 ticker + 手动绑。
