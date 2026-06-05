@@ -29,22 +29,24 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'   # 必跑，算 cutoff_4h/24h
 | 批 | server | 并发 calls |
 |----|--------|-----------|
 | B0 | console | `list_trending_topics(24h, 全状态, limit=80)` ← 先跑，喂 0a/0a.5/自动撤回 |
-| B1 | followin | 10币 metrics ｜ **跨市场 metrics（金=`XAUT`@crypto / 油+美元=`["CLUSD","DXY"]`@tradfi，见 quirk⑨）** ｜ news(crypto market 4h) ｜ news(listing/解锁/SEC 4h) ｜ news(tradfi 头条 4h concise) |
+| B1 | followin | 10币 metrics（**`categories=["market"]`**）｜ 跨市场 metrics（金=`XAUT`@crypto / 油+美元=`["CLUSD","DXY"]`@tradfi，均加 `categories=["market"]`；见 quirk⑨⑩）｜ news(crypto market 4h) ｜ news(listing/解锁/SEC 4h) ｜ news(tradfi 头条 4h concise) |
 | B2 | followin | TG 交易信号 ｜ TG 实盘跟踪 ｜ news(美股 query 兜底, 不传 asset_type) ｜ Wave5 鲸鱼 ｜ Wave5 上币 |
-| B3 | followin | Wave5 ETF 流向 |
-| A1 | Agent×3 | 三栈 list_timeline：主 `2046422494643687464` + 科技AI `2051854001608724654` + 大师 `2051856808348987697`（各一子进程，velocity+recency 双轨，见模板）|
+| A1 | Agent×2 | **刷新只 2 栈**：主 `2046422494643687464` + 科技AI `2051854001608724654`（大师 list 刷新砍——4h 几乎每次"无新推"，移首扫；明确"看大师"才破例）|
 
-> 刷新 **不跑** signal（4 cat 全砍）｜不跑 popularity / 国债 / spx ｜±15% 漏网币第二轮核。
+> 刷新 **砍掉的死调用**（v2.5 实测）：
+> - **Wave5 ETF query 砍** — `spot` 总被解析成 Spotify 股 / degraded；ETF flow 改读 TG 链上 bot（PolyBeats/Database52Hz 稳定回 BTC/ETH/SOL/HYPE netflow），已含在 TG cat 里。
+> - **Wave5 上币 query 刷新砍**（4h 内永远返 9 天前陈旧 HACK ETF），只首扫留。
+> - 不跑 signal（4 cat 全砍）｜不跑 popularity / 国债 / spx ｜±15% 漏网币第二轮核。
 
 **🟢 首扫（24h）= 刷新全部 + 以下，窗口 1d 替换 4h**
 | 追加 | 内容 |
 |------|------|
+| A1 第 3 栈 | **大师 list `2051856808348987697`**（首扫必跑；刷新砍）|
 | TG 补 3 cat | 链上数据 / 叙事追踪 / Meme 打新（共 5 cat，分 3+2 并行）|
-| Wave2B 美股 | earnings calendar（周一必跑）+ 涨/跌榜 + **8 板块矩阵**（AI算力/大科技/存储/光通信/半导体设备/加密股/Fintech/航天，4 股一组分 2 批）|
-| Wave2C | 科技AI 7 大科技股 metrics |
-| Wave3 宏观 | economic calendar（Agent 自过滤 US/CN/EU+High）+ 国债 + gold/spx/DXY/oil 四合一 |
-| Wave4 | 投资大师 list（仅周一/季初）|
-| Wave5 | 加 解锁/财库 query（共 4 query）|
+| Wave2B 美股 | earnings calendar（周一必跑）+ 涨/跌榜 + **8 板块矩阵一次全拉**——加 `categories=["market"]` 后**不溢出、不分批、不用 python 提取**（quirk⑩）|
+| Wave2C | 科技AI 7 大科技股 metrics（`categories=["market"]`）|
+| Wave3 宏观 | economic calendar（**只用 query，不传 keyword 垃圾**，Agent 自过滤 US/CN/EU+High）+ 国债 + gold/spx/DXY/oil（`categories=["market"]`）|
+| Wave5 | 加 上币 + 解锁/财库 query |
 
 ### 2. 候选处置路由（status × 年龄 → 走哪条规则）
 | status | 年龄 | 处置 |
@@ -156,7 +158,10 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 7. **`news(asset_type="tradfi")` FMP 偏 WSJ/Bloomberg/Barron's** — 漏 **Reuters 独家 / X 突发 / 中文媒体爆点**。修复：刷新必跑 query 兜底 `news(query="<当周关键词>", 不传 asset_type, time_range="4h")`（实战 5/14 漏 NVIDIA H200 出口许可）
 8. **TG `sources=["telegram"]` 返回 `tg_kol_feeds`** — 字段为 `tg_category / author_name / content / _source_quality / published_ts`，**无 `username`**。过滤用 `author_name` 或直接按 `tg_category` + content grep（"币安将上线" / "Whale Alert" / "巨鲸"）。Meme 打新 cat 全 low-quality spam，**可砍**
 9. **🚫 大宗裸 keyword 会乱解析成同名股票（2026-06-03 实测）** — `metrics(keywords=["gold"])`→**Barrick Gold 金矿股 $39**、`["oil"]`→油股、`["CL"]`→Colgate 牙膏、`["BZ"]`→看准网中概，全是垃圾值。`query="price now"` **不能修**（数值照错、体积照炸 66K）。**正解 = 用现货符号**：金 `keywords=["XAUT"], asset_type="crypto"`（实测 $4,416/oz，PAXG 同效）｜油 `keywords=["CLUSD"], asset_type="tradfi"`（name="Crude Oil" 实测 WTI $94.95）｜美元 `keywords=["DXY"]`（返回 DXUSD 99.4，无需改）。`USO/BNO` 是油 ETF（追踪但非现货价），仅作兜底
-10. **🚫 tradfi `metrics` 多 ticker 必溢出（2026-06-04 实测）** — 板块矩阵传 12 股 + `query="price now"` 仍逐 ticker 返回全 fundamentals → **单次 700K 字符炸 context**（实测 12 股→699K、8 股→644K）。`verbosity="concise"` 不解决（fundamentals 不受其控）。**正解**：① 拆 ≤4 股/批；或 ② 接受溢出存盘后用 python 提 `results.market.snapshot`（字段 `symbol/price/change`，`change` 是绝对 $，涨跌幅自算 `change/(price-change)`）。注意 crypto metrics 不会溢出（只回 snapshot），仅 tradfi 有此结构差异
+10. **✅ metrics 溢出 + macro 噪音根治：所有价格调用加 `categories=["market"]`（2026-06-05 实测）** — 不传 categories 时，metrics 自动扇出到 macro+fundamentals 两个 bucket：tradfi 逐 ticker 返回全 fundamentals → **2 股就溢出 130K、12 股 700K**；crypto 则混入 ~10 行 macro 噪音（kw_not_canonical + EIA 汽油垃圾）。**加 `categories=["market"]` 锁定只要行情 bucket → 彻底根治**：
+    - tradfi **12 股内联返回不溢出**，且直接带 `change / dayHigh / marketCap / yearHigh`（涨跌幅白送，无需 python 提取）。**板块矩阵 / Wave2C / 涨跌榜全部直接内联跑，旧的"拆批/存盘提取"全废弃。**
+    - crypto 10 币纯 snapshot，零噪音。
+    - **铁律**：`metrics` 凡是拉价格快照（crypto/tradfi/跨市场/板块矩阵），一律带 `categories=["market"]`。仅当真要财报/宏观点位才用 `["fundamentals"]`/`["macro"]`。
 
 ### 价格数据铁律
 
@@ -183,7 +188,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 |------|------|
 | `followin.news` | `time_range="1d", asset_type="crypto", limit=20` — 24h 加密热门 |
 | `followin.news` | `query="crypto market news", asset_type="crypto", time_range="1d", limit=15` — 加密时间序快讯（news 无 categories，用 query 措辞）|
-| `followin.metrics` | `keywords=["BTC","ETH","SOL","BNB","XRP","DOGE","HYPE","SUI","LINK","AVAX"], asset_type="crypto"` |
+| `followin.metrics` | `keywords=["BTC","ETH","SOL","BNB","XRP","DOGE","HYPE","SUI","LINK","AVAX"], asset_type="crypto", categories=["market"]`（quirk⑩：加 market 去 macro 噪音）|
 
 #### Wave 2A — 加密交易信号（推特 list + KOL + TG 频道）
 
@@ -270,14 +275,15 @@ jq -r '.[] | "[\(._source_quality // "low")] @\(.author_name) | \((.published_ts
 | **量化交易 / Fintech** | `HOOD,SOFI,PLTR,IBKR` |
 | **航天 / 国防** | `RKLB,LMT,RTX,BA` |
 
-调用范式：
+调用范式（v2.5：加 `categories=["market"]` 后不溢出 → **一次全拉 28 股，单 call 搞定**，不再分批/python 提取）：
 ```python
-parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
-    followin.metrics(
-        keywords=sector_stocks,  # 4 个一组
-        asset_type="tradfi",
-        categories=["market"]
-    )
+followin.metrics(
+    keywords=[全部 8 板块 ~28 股],
+    asset_type="tradfi",
+    categories=["market"],   # ← 关键：锁 market bucket，否则逐股 fundamentals 炸 700K（quirk⑩）
+    query="price now"
+)
+# 返回直接含 price/change/dayHigh/marketCap，涨跌幅白送
 ```
 
 **输出判定**：每个板块若有 ≥2 个标的同向 >3% 涨/跌 → 板块异动信号 → 进 0b 评分作板块候选话题（如本次 R-Mem 存储+光通信回调）。
@@ -287,15 +293,15 @@ parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
 | 工具 | 参数 |
 |------|------|
 | `followin.twitter` | `action="list_timeline", list_id="2051854001608724654"`（科技 AI + 宏观美股投资 list），Agent velocity top 10 + recency top 3 |
-| `followin.metrics` | `keywords=["NVDA","AAPL","TSLA","MSFT","META","GOOGL","AMZN","AVGO","AMD","PLTR"], asset_type="tradfi"` — 7 大科技 + AI/半导体当前股价 + 涨跌幅 |
+| `followin.metrics` | `keywords=["NVDA","AAPL","TSLA","MSFT","META","GOOGL","AMZN","AVGO","AMD","PLTR"], asset_type="tradfi", categories=["market"]` — 7 大科技股价+涨跌幅（quirk⑩：加 market 不溢出，直接带 change%）|
 
 #### 🏛️ Wave 3 — 宏观 / 大宗（v1.5，v2.1 大幅简化）
 
 | 工具 | 参数 |
 |------|------|
-| `followin.metrics` | `query="economic calendar this week US high impact", categories=["macro"]` — 一天一次。⚠️ 实测 query 字面过滤不生效，会混入 JP/NZ；**Agent 子进程必须自过滤** `country in ["US","CN","EU"]` 且 `impact="High"` |
+| `followin.metrics` | `query="economic calendar this week US high impact", categories=["macro"]` — 一天一次。⚠️ **只用 query，绝不传 keywords**（传 US/nfp/PAYEMS 等会各回 10 条同样的 JP/KR 噪音 = 60-90 行垃圾）；query 字面过滤也不生效，**Agent 子进程自过滤** `country in ["US","CN","EU"]` 且 `impact="High"` |
 | `followin.metrics` | `keywords=["10Y","2Y","DGS10"], categories=["macro"]` — 国债收益率 |
-| `followin.metrics` | 大宗+美股全景：`keywords=["CLUSD","DXY","spx"], asset_type="tradfi"`（油/美元/标普）+ 金另调 `keywords=["XAUT"], asset_type="crypto"`。⚠️ **不要用裸 `gold`/`oil`**（见 quirk⑨，会解析成 Barrick 金矿股 / Colgate）|
+| `followin.metrics` | 大宗+美股全景：`keywords=["CLUSD","DXY","spx"], asset_type="tradfi", categories=["market"]`（油/美元/标普）+ 金另调 `keywords=["XAUT"], asset_type="crypto", categories=["market"]`。⚠️ **不要用裸 `gold`/`oil`**（quirk⑨ 解析成金矿股 / Colgate）；**加 `market`**（quirk⑩ 去 fundamentals 溢出）|
 | `followin.metrics` | `keywords=["CPIAUCSL","UNRATE"], categories=["macro"]`（按需）— 关键宏观点位 |
 
 **🛟 跨市场价格 Fallback 链（v2.1 — Followin 内部已统一，仍保留兜底）**：
@@ -356,13 +362,13 @@ parallel for sector_stocks in [batch1, batch2]:  # 分 2 批避 session 挂
 | `followin.news` | `query="listing unlock hack SEC ETF 上线 解锁", time_range="4h", limit=15` | 4h 基本面/事件（news 无 categories，用 query 覆盖）|
 | `followin.metrics` | 固定 10 币 + 漏网核验 | 必刷价格 delta |
 
-#### 三栈 List Timeline（必跑）
+#### 双栈 List Timeline（刷新必跑；大师栈刷新砍）
 
 | List | 参数 |
 |------|------|
 | 主 list `2046422494643687464` | `followin.twitter(action="list_timeline")`，4h，Agent velocity top 7 + recency top 3，<30min 硬保留，取 10 条 |
 | 🆕 科技 AI list `2051854001608724654` | 同上，4h，Agent velocity top 5 + recency top 2 |
-| 🆕 投资大师 list `2051856808348987697` | 同上，4h，Agent velocity top 3 + recency top 2 |
+| ~~投资大师 list~~ | **刷新砍**（v2.5 — 4h 几乎每次"无新推"，移首扫；明确"看大师"才破例）|
 
 #### 📡 TG 频道扫描（v2.1.7 — 刷新 2 路并行）
 
@@ -399,15 +405,15 @@ parallel for cat in ["交易信号","实盘跟踪"]:
 
 > 🐛 **v2.1.7 实战教训（2026-05-14）**：刷新模式只跑 `asset_type="tradfi"` 通道时**漏掉 H200 出口许可 megaevent**（路透社独家 + 中文媒体爆点）。FMP 通道偏严肃财经媒体，**漏掉 Reuters / X / 中文媒体**这类跨界新闻。query 兜底通道是必跑项。
 
-#### 🔍 Wave 5 — 二线 query 兜底（v2.2 — 刷新精简版，3 路并行）
+#### 🔍 Wave 5 — 二线 query 兜底（v2.5 — 刷新只留 1 路）
 
-刷新模式为接近 8 候选目标，仍需扫二线维度但比首扫精简：
+刷新模式只留鲸鱼一路；上币/ETF 两路实测无效已砍：
 
 | query | 用途 |
 |-------|------|
 | `news(query="鲸鱼 巨鲸 whale 大额转账 链上", time_range="4h", limit=10)` | 4h 链上鲸鱼增量 |
-| `news(query="listing delisting 上币 下架 binance coinbase", time_range="4h", limit=8)` | 4h 交易所公告 |
-| `news(query="ETF 净流入 流出 inflow outflow", time_range="4h", limit=8)` | 4h ETF 资金流向 |
+| ~~上币 query~~ | **砍**（4h 内永远返 9 天前陈旧 HACK ETF）|
+| ~~ETF query~~ | **砍**（`spot` 总解析成 Spotify / degraded）→ ETF flow 改读 **TG 链上 bot**（Database52Hz/PolyBeats 稳定回 BTC/ETH/SOL/HYPE netflow）|
 
 刷新砍掉首扫的 trader_position + 解锁/财库 query（4h 内增量稀疏）。
 
