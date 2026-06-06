@@ -38,15 +38,19 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'   # 必跑，算 cutoff_4h/24h
 > - **Wave5 上币 query 刷新砍**（4h 内永远返 9 天前陈旧 HACK ETF），只首扫留。
 > - 不跑 signal（4 cat 全砍）｜不跑 popularity / 国债 / spx ｜±15% 漏网币第二轮核。
 
-**🟢 首扫（24h）= 刷新全部 + 以下，窗口 1d 替换 4h**
-| 追加 | 内容 |
-|------|------|
-| A1 第 3 栈 | **大师 list `2051856808348987697`**（首扫必跑；刷新砍）|
-| TG 补 3 cat | 链上数据 / 叙事追踪 / Meme 打新（共 5 cat，分 3+2 并行）|
-| Wave2B 美股 | earnings calendar（周一必跑）+ 涨/跌榜 + **8 板块矩阵 28 股拆 3×10 批并行**——`categories=["market"]` 治 token 溢出，但 keywords 硬上限 10（quirk⑩/⑪），仍不用 python 提取 |
-| Wave2C | 科技AI 7 大科技股 metrics（`categories=["market"]`）|
-| Wave3 宏观 | economic calendar（**只用 query，不传 keyword 垃圾**，Agent 自过滤 US/CN/EU+High）+ 国债 + gold/spx/DXY/oil（`categories=["market"]`）|
-| Wave5 | 加 上币 + 解锁/财库 query |
+**🟢 首扫（24h）— 4 波 followin 塞满 + 1 TG 波 + 3 Agent + 1 console（窗口 1d 替换 4h）**
+
+> ⚡ **批次铁律（v2.5.1 — 2026-06-06 复盘：上次 6 波串行跑了 7min）**：每波**严格塞满 5 个 followin**（≤5 防掉线），4 波打完所有价格/news，别欠装、别为 1 个 call 单开一波。spx 必 fail → SPY/QQQ 兜底**预判着塞进 W1**，不要等失败再补一波。
+>
+> | 波 | 5 个并发 followin call | 备注 |
+> |----|----------------------|------|
+> | **W1 价格核心** | ①10币(market) ②金 XAUT(crypto/market) ③油+美元+spx `["CLUSD","DXY","spx"]`(tradfi/market) ④SPY+QQQ+VIX(tradfi/market，spx 兜底**预判直塞**) ⑤crypto market news(1d) | 同波**并行起 A1 三栈 list 子进程**（主/科技AI/大师）|
+> | **W2 事件/链上 news** | ①listing/解锁/SEC/漏洞 news ②tradfi 头条(concise) ③美股 query 兜底(不传 asset_type) ④Wave5 鲸鱼 ⑤Wave5 上币 | 全 news |
+> | **W3 板块+宏观** | ①板块批1[NVDA,AMD,AVGO,TSM,MSFT,GOOGL,META,AAPL,MU,SNDK] ②板块批2[WDC,STX,LITE,AAOI,GLW,COHR,ASML,AMAT,LRCX,KLAC] ③板块批3[CRCL,COIN,MSTR,HOOD,SOFI,PLTR,RKLB,MRVL,**+TSLA,AMZN**] ④econ 日历(macro，只 query) ⑤国债 DGS10/DGS2(macro) | 板块矩阵 3×10（quirk⑪）；批3 补 TSLA/AMZN 即覆盖 Wave2C，**Wave2C 已并入此处，不单跑** |
+> | **W4 扫尾** | ①跌榜 top losers(market) ②earnings 日历(fundamentals，周一/财报周必跑) ③Wave5 解锁/财库 news ④（按需）关键宏观点位 CPI/UNRATE ⑤（按需）±15% 漏网币第二轮核 | 涨榜 `biggest gainers` **默认砍**（penny 垃圾 + 配 min_market_cap 必 source_dead，见 quirk⑪）；按需才补 |
+> | **W-TG** | TG 5 cat（交易信号/实盘跟踪/链上数据/叙事追踪/Meme 打新），分 3+2 并行 | 独立波，与上面任一波之后接着发即可 |
+>
+> A1 第 3 栈 = **大师 list `2051856808348987697`**（首扫必跑；刷新砍）。3 栈子进程 44s 量级是长杆，**必须在 W1 就起**，让它和 W2-W4 并行跑完，别落关键路径末尾。
 
 ### 2. 候选处置路由（status × 年龄 → 走哪条规则）
 | status | 年龄 | 处置 |
