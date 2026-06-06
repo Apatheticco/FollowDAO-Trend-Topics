@@ -43,7 +43,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'   # 必跑，算 cutoff_4h/24h
 |------|------|
 | A1 第 3 栈 | **大师 list `2051856808348987697`**（首扫必跑；刷新砍）|
 | TG 补 3 cat | 链上数据 / 叙事追踪 / Meme 打新（共 5 cat，分 3+2 并行）|
-| Wave2B 美股 | earnings calendar（周一必跑）+ 涨/跌榜 + **8 板块矩阵一次全拉**——加 `categories=["market"]` 后**不溢出、不分批、不用 python 提取**（quirk⑩）|
+| Wave2B 美股 | earnings calendar（周一必跑）+ 涨/跌榜 + **8 板块矩阵 28 股拆 3×10 批并行**——`categories=["market"]` 治 token 溢出，但 keywords 硬上限 10（quirk⑩/⑪），仍不用 python 提取 |
 | Wave2C | 科技AI 7 大科技股 metrics（`categories=["market"]`）|
 | Wave3 宏观 | economic calendar（**只用 query，不传 keyword 垃圾**，Agent 自过滤 US/CN/EU+High）+ 国债 + gold/spx/DXY/oil（`categories=["market"]`）|
 | Wave5 | 加 上币 + 解锁/财库 query |
@@ -159,9 +159,13 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 8. **TG `sources=["telegram"]` 返回 `tg_kol_feeds`** — 字段为 `tg_category / author_name / content / _source_quality / published_ts`，**无 `username`**。过滤用 `author_name` 或直接按 `tg_category` + content grep（"币安将上线" / "Whale Alert" / "巨鲸"）。Meme 打新 cat 全 low-quality spam，**可砍**
 9. **🚫 大宗裸 keyword 会乱解析成同名股票（2026-06-03 实测）** — `metrics(keywords=["gold"])`→**Barrick Gold 金矿股 $39**、`["oil"]`→油股、`["CL"]`→Colgate 牙膏、`["BZ"]`→看准网中概，全是垃圾值。`query="price now"` **不能修**（数值照错、体积照炸 66K）。**正解 = 用现货符号**：金 `keywords=["XAUT"], asset_type="crypto"`（实测 $4,416/oz，PAXG 同效）｜油 `keywords=["CLUSD"], asset_type="tradfi"`（name="Crude Oil" 实测 WTI $94.95）｜美元 `keywords=["DXY"]`（返回 DXUSD 99.4，无需改）。`USO/BNO` 是油 ETF（追踪但非现货价），仅作兜底
 10. **✅ metrics 溢出 + macro 噪音根治：所有价格调用加 `categories=["market"]`（2026-06-05 实测）** — 不传 categories 时，metrics 自动扇出到 macro+fundamentals 两个 bucket：tradfi 逐 ticker 返回全 fundamentals → **2 股就溢出 130K、12 股 700K**；crypto 则混入 ~10 行 macro 噪音（kw_not_canonical + EIA 汽油垃圾）。**加 `categories=["market"]` 锁定只要行情 bucket → 彻底根治**：
-    - tradfi **12 股内联返回不溢出**，且直接带 `change / dayHigh / marketCap / yearHigh`（涨跌幅白送，无需 python 提取）。**板块矩阵 / Wave2C / 涨跌榜全部直接内联跑，旧的"拆批/存盘提取"全废弃。**
+    - tradfi 内联返回不溢出，且直接带 `change / dayHigh / marketCap / yearHigh`（涨跌幅白送，无需 python 提取）。**板块矩阵 / Wave2C / 涨跌榜全部直接内联跑，旧的"存盘提取"全废弃。**
     - crypto 10 币纯 snapshot，零噪音。
     - **铁律**：`metrics` 凡是拉价格快照（crypto/tradfi/跨市场/板块矩阵），一律带 `categories=["market"]`。仅当真要财报/宏观点位才用 `["fundamentals"]`/`["macro"]`。
+11. **🚫 `metrics` keywords 硬上限 = 10 个（2026-06-06 实测）** — 传 >10 个会**静默截断**到前 10 个，只返回 warning `keyword_count_over_max: keywords truncated: N → 10`，**不报错、不补返回**，极易漏数据而不自知。`categories=["market"]`（quirk⑩）只治 token 溢出，**不解此上限**。
+    - **铁律**：板块矩阵（~28 股）等 >10 keywords 的批量价格拉取，**必须拆 ≤10/批 并行**（28 股 = 3×10）。一次只塞 10 个 ticker。
+    - `change` 字段是**绝对额（美元）非百分比**；% 需自算 `change / previousClose`。
+    - 涨榜 `biggest gainers` 配 `min_market_cap=1e9` 实测会 `source_dead:min_market_cap_excluded_all`（gainers 端点 marketCap 字段为 null）→ 涨榜不要传 min_market_cap，penny 噪音靠 Agent 后过滤。
 
 ### 价格数据铁律
 
@@ -275,15 +279,22 @@ jq -r '.[] | "[\(._source_quality // "low")] @\(.author_name) | \((.published_ts
 | **量化交易 / Fintech** | `HOOD,SOFI,PLTR,IBKR` |
 | **航天 / 国防** | `RKLB,LMT,RTX,BA` |
 
-调用范式（v2.5：加 `categories=["market"]` 后不溢出 → **一次全拉 28 股，单 call 搞定**，不再分批/python 提取）：
+调用范式（v2.5.1：加 `categories=["market"]` 后不溢出，但 **`metrics` keywords 硬上限 10 个**（2026-06-06 实测，28→10 静默截断 warning `keyword_count_over_max`）→ 必须**拆 3×10 批并行**，不再 python 提取）：
 ```python
-followin.metrics(
-    keywords=[全部 8 板块 ~28 股],
-    asset_type="tradfi",
-    categories=["market"],   # ← 关键：锁 market bucket，否则逐股 fundamentals 炸 700K（quirk⑩）
-    query="price now"
-)
-# 返回直接含 price/change/dayHigh/marketCap，涨跌幅白送
+# ⚠️ 单 call ≤10 keywords，28 股拆 3 批并行（同一 turn 内 3 call）
+batches = [
+  ["NVDA","AMD","AVGO","TSM","MSFT","GOOGL","META","AAPL","MU","SNDK"],
+  ["WDC","STX","LITE","AAOI","GLW","COHR","ASML","AMAT","LRCX","KLAC"],
+  ["CRCL","COIN","MSTR","HOOD","SOFI","PLTR","RKLB","MRVL"],
+]
+parallel for b in batches:
+    followin.metrics(
+        keywords=b,
+        asset_type="tradfi",
+        categories=["market"],   # ← 锁 market bucket，否则逐股 fundamentals 炸 700K（quirk⑩）
+        query="price now"
+    )
+# 返回直接含 price/change/dayHigh/marketCap，涨跌幅白送（change 是绝对额，% 需 change/previousClose 自算）
 ```
 
 **输出判定**：每个板块若有 ≥2 个标的同向 >3% 涨/跌 → 板块异动信号 → 进 0b 评分作板块候选话题（如本次 R-Mem 存储+光通信回调）。
