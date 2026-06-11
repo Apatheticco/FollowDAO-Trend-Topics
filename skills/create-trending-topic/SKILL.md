@@ -989,7 +989,7 @@ keywords 同时承担两个职责：
 
 **tradfi 域注意**：
 - `topic_type` **忽略**（schema 明文：tradfi 域不生效，传了也无效）
-- tag 走**原生标的**（如 `NVDA,AMD` 原生美股 tag）；**代币化后缀 tag（NVDAX/ORCLX/AVGOX）是 crypto 资产，仅 crypto 域用** —— 别在 tradfi 域绑代币化 tag。⚠️ tradfi 原生美股 tag id 尚未实测建表，首次建 tradfi 话题时记录返回的 `matched_tags` 补速查表。
+- tag **照样走代币化**（NVDAX/ORCLX/AVGOX 等，与 crypto 域**共用**速查表那批代币化 tag id；keywords 自动匹配同样适用）—— tradfi 域≠必须原生 tag。
 - **update 不能改域**（update 的 domain 只是"在哪张表搜"，非迁移）→ 建错域只能 `status=3` 撤了**重建**。
 
 ### topic_type（仅 crypto 域生效）
