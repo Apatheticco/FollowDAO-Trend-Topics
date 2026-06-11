@@ -976,7 +976,23 @@ keywords 同时承担两个职责：
 - 理由：desc 后续无法 update（`update_trending_topic` 不支持改 desc），且话题前台展示主要靠 title + tag + keywords，desc 只增加创建摩擦
 - 历史背景信息全部压进 title（≤25 字硬约束）+ keywords 即可
 
-### topic_type
+### domain — 话题域（v2.5.8 — 2026-06-11 用户要求：create 必显式传，不再默认一律 crypto）
+
+`create_trending_topic` **必传 `domain`**，按**标题主体落点**判定（后端是 crypto / tradfi 双表，系统 `10000001xxx` 批就是 tradfi 自动批）：
+
+| domain | 适用主体 | 例 |
+|--------|---------|----|
+| **`crypto`** | 加密原生标的（BTC/ETH/SOL/山寨/meme/DeFi/链上协议）为主体；或**落点写加密价格**的联动话题 | "CPI 落地 BTC 反弹至 $62.8k"、"芯片崩拖累 BTC" |
+| **`tradfi`** | 纯美股个股/板块（NVDA/ORCL/芯片股/SK海力士）、大宗（原油/黄金）、纯宏观（CPI/Fed/美债/非农，**标题落点非加密**）、外汇 | "甲骨文 Q4 营收超预期"、"美股芯片股集体重挫"、"伊朗封锁霍尔木兹油价 $92"、"美国 CPI 三年首破 4%" |
+
+**灰区判定铁律**：看**标题主语 / 价格落点是谁**——芯片崩盘本身→tradfi；"芯片崩拖累 BTC"落点 BTC→crypto。同一事件不同写法可落不同域。
+
+**tradfi 域注意**：
+- `topic_type` **忽略**（schema 明文：tradfi 域不生效，传了也无效）
+- tag 走**原生标的**（如 `NVDA,AMD` 原生美股 tag）；**代币化后缀 tag（NVDAX/ORCLX/AVGOX）是 crypto 资产，仅 crypto 域用** —— 别在 tradfi 域绑代币化 tag。⚠️ tradfi 原生美股 tag id 尚未实测建表，首次建 tradfi 话题时记录返回的 `matched_tags` 补速查表。
+- **update 不能改域**（update 的 domain 只是"在哪张表搜"，非迁移）→ 建错域只能 `status=3` 撤了**重建**。
+
+### topic_type（仅 crypto 域生效）
 
 - **0 = 主流币**：BTC/ETH 或以其为核心的衍生议题、宏观风险资产联动
 - **1 = 山寨币**：已上主流交易所的非 BTC/ETH 代币（SOL/AAVE/HYPE 等），或链上正式项目
@@ -1057,7 +1073,8 @@ keywords 同时承担两个职责：
 标题：{优化后最强标题}
 （备选：{次优 1-2 条}）
 关键词：{keywords}
-类型：{topic_type_label}（{topic_type}）
+话题域：{domain}（crypto=加密 / tradfi=美股/大宗/宏观）
+类型：{topic_type_label}（{topic_type}）  ← 仅 crypto 域生效
 
 确认创建？回复"确认"或"好"即可。
 ```
@@ -1068,7 +1085,7 @@ keywords 同时承担两个职责：
 
 ## 第 3 步：create_trending_topic
 
-确认后调用 `mcp__console-mcp__create_trending_topic`，成功后展示：
+确认后调用 `mcp__console-mcp__create_trending_topic`（**必显式传 `domain`**——见第 1 步「domain 话题域」段，美股/大宗/纯宏观走 `tradfi`，加密主体走 `crypto`，别再默认 crypto），成功后展示：
 
 ```
 ✅ 话题已创建
