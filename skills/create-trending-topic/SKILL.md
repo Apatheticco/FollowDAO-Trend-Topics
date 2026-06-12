@@ -13,9 +13,9 @@ description: >
 
 ---
 
-## ⚡ 执行卡（v2.4 — 每轮照此跑，细节见下方对应章节）
+## ⚡ 执行卡（每轮照此跑，细节见下方对应章节）
 
-> 90% 的扫描照本卡执行即可；遇到边界/判定再翻下方详章。本卡是「跑什么 + 怎么并行」的**单一事实源**。
+> 90% 的扫描照本卡执行即可；遇到边界/判定再翻下方详章。本卡是「跑什么 + 怎么并行」的**单一事实源**。完整事故经过/实测数据/版本演进归档在同目录 `LESSONS.md`（按需查阅，不随每轮加载）。
 
 ### 0. 开跑前（铁律）
 ```bash
@@ -85,7 +85,7 @@ cat /tmp/trend-scout-last-refresh-*.txt 2>/dev/null | tail -1   # 必跑，上�
 - **收尾必列完整清单（铁律 v2.5.5 + v2.5.9 当前话题全列）**：每轮扫描**结尾固定输出**，不口头带过、不省略。五块：
   1. **三件套全列**：🆕 候选（评分+缺口）｜🔧 待更新｜🚨 待撤/在审处置 —— 干轮如实写"无"，不灌水不硬报 0
   2. **本轮已执行**：建了哪些（ID + **list 实查 status**，别拿 create 返回值；多半已自动上线，见 v2.5.6）/ 改了哪些 / 撤了哪些
-  3. **⏸ 待用户决定**：待批更新 / 待撤；若用户曾要求"留审核"，复查这些是否被自动上线、需不需要 update status=2/3 按回
+  3. **⏸ 待用户决定**：待批更新 / 待撤；若用户曾要求"留审核"，复查这些是否被自动上线、需不需要 update status=2/3 按回。**⏰ 积压标记**：同一待决项跨 2 轮未决 → 标 "⏰积压N轮"；有客观死线的（如"今晚上市"）**置顶标死线 + 给默认建议**，过线后降级为"已过期，不再提"
   4. 不确定的别塞进"已执行"，归到"待决定"
   5. **📋 当前话题完整 list（铁律 v2.5.9 — 2026-06-12 用户反复要"把 list 列清楚"，不止决策项）**：每轮收尾**必附一份基于 B0 实查的当前话题全列**——**按 `domain`(crypto/tradfi) + `status`(0上线/2审核/3隐藏) 分组，把今日相关话题逐条 ID+标题列全**，不是只列三件套涉及的几条。这是"撤改补"之外用户要的「现在线上到底有哪些话题」的全景，**禁止省略成"系统在审一批待你定"一句话带过**。干轮也要列（行情清淡时全 list 照列）。
 
@@ -150,18 +150,9 @@ cat /tmp/trend-scout-last-refresh-*.txt 2>/dev/null | tail -1   # 必跑，上�
 date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 ```
 
-**理由**：
-- 系统 prompt 提示的"今天日期"可能滞后（实测 5/18 早上还在按 5/14 算）
-- 价格 / 新闻 timestamp 解读、8h / 4h / 24h 窗口判定全部依赖准确"现在"
-- 升温检查（10%/25%/50% 偏差）的"建时 vs 现在"需要正确时间锚点
-- "已建话题 8h 在审池" 的 cutoff 计算依赖现在时间
+**理由**：窗口判定（8h/4h/24h cutoff）、升温偏差、在审池年龄全依赖准确"现在"；系统提示的日期可能滞后。发现自述日期与 `date` 不一致 → 立刻重算所有窗口、重发简报。
 
-**违反信号**：发现自己说"今天是 X 日"和 `date` 输出不一致 → 立刻重算所有窗口 + 重新生成简报。
-
-> ⚠️ **bash `date` 不是唯一真值源（v2.5.4 — 2026-06-08 实测）**：会话被 compact 续接后，**沙箱时钟会冻结在快照时刻**，`date` 返回的是旧时间（实测 `date` 说 06-06 14:28，真实已是 06-08 09:26，差 2 天）。
-> - **三角校验**：`date` 输出要和这三个交叉对账 —— ① 系统 `currentDate` 提醒 ② **live MCP twitter 时间戳**（list_timeline 最新推文）③ **价格跳变幅度**（5 "分钟"不可能走出 BTC ±3%）。
-> - **冲突时以 live 数据为准**（MCP/web > bash `date`），立即按真实时间**重算全窗口 + 重拉去重池 B0**（旧 console list 可能已过期数天作废）。
-> - 触发场景：典型是"用户隔几天回来继续同一会话"——`date` 没跟上、去重池过期，最易出"拿 N 天前的池子当当下"的错。
+> ⚠️ **bash `date` 不是唯一真值源（v2.5.4）**：compact 续接后沙箱时钟会冻结在快照时刻（实测差过 2 天）。**三角校验**：`date` ⨯ ① 系统 `currentDate` ② live MCP twitter 时间戳 ③ 价格跳变幅度（5"分钟"走不出 BTC ±3%）。**冲突以 live 数据为准**（MCP/web > bash date），按真实时间重算全窗口 + 重拉 B0。典型触发：隔几天续接同一会话。详见 LESSONS.md。
 
 ### 模式自动判断（UTC+8）
 
@@ -189,19 +180,11 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 6. **`news` 默认 verbosity=standard 带完整正文** — limit≥20 易炸 context（实战 56K 字符）。生产用 `verbosity="concise"` + `limit≤15`
 7. **`news(asset_type="tradfi")` FMP 偏 WSJ/Bloomberg/Barron's** — 漏 **Reuters 独家 / X 突发 / 中文媒体爆点**。修复：刷新必跑 query 兜底 `news(query="<当周关键词>", 不传 asset_type, time_range="4h")`（实战 5/14 漏 NVIDIA H200 出口许可）
 8. **TG `sources=["telegram"]` 返回 `tg_kol_feeds`** — 字段为 `tg_category / author_name / content / _source_quality / published_ts`，**无 `username`**。过滤用 `author_name` 或直接按 `tg_category` + content grep（"币安将上线" / "Whale Alert" / "巨鲸"）。Meme 打新 cat 全 low-quality spam，**可砍**
-9. **🚫 大宗裸 keyword 会乱解析成同名股票（2026-06-03 实测）** — `metrics(keywords=["gold"])`→**Barrick Gold 金矿股 $39**、`["oil"]`→油股、`["CL"]`→Colgate 牙膏、`["BZ"]`→看准网中概，全是垃圾值。`query="price now"` **不能修**（数值照错、体积照炸 66K）。**正解 = 用现货符号**：金 `keywords=["XAUT"], asset_type="crypto"`（实测 $4,416/oz，PAXG 同效）｜油 `keywords=["CLUSD"], asset_type="tradfi"`（name="Crude Oil" 实测 WTI $94.95）｜美元 `keywords=["DXY"]`（返回 DXUSD 99.4，无需改）。`USO/BNO` 是油 ETF（追踪但非现货价），仅作兜底
-10. **✅ metrics 溢出 + macro 噪音根治：所有价格调用加 `categories=["market"]`（2026-06-05 实测）** — 不传 categories 时，metrics 自动扇出到 macro+fundamentals 两个 bucket：tradfi 逐 ticker 返回全 fundamentals → **2 股就溢出 130K、12 股 700K**；crypto 则混入 ~10 行 macro 噪音（kw_not_canonical + EIA 汽油垃圾）。**加 `categories=["market"]` 锁定只要行情 bucket → 彻底根治**：
-    - tradfi 内联返回不溢出，且直接带 `change / dayHigh / marketCap / yearHigh`（涨跌幅白送，无需 python 提取）。**板块矩阵 / Wave2C / 涨跌榜全部直接内联跑，旧的"存盘提取"全废弃。**
-    - crypto 10 币纯 snapshot，零噪音。
-    - **铁律**：`metrics` 凡是拉价格快照（crypto/tradfi/跨市场/板块矩阵），一律带 `categories=["market"]`。仅当真要财报/宏观点位才用 `["fundamentals"]`/`["macro"]`。
-11. **🚫 `metrics` keywords 硬上限 = 10 个（2026-06-06 实测）** — 传 >10 个会**静默截断**到前 10 个，只返回 warning `keyword_count_over_max: keywords truncated: N → 10`，**不报错、不补返回**，极易漏数据而不自知。`categories=["market"]`（quirk⑩）只治 token 溢出，**不解此上限**。
-    - **铁律**：板块矩阵（~28 股）等 >10 keywords 的批量价格拉取，**必须拆 ≤10/批 并行**（28 股 = 3×10）。一次只塞 10 个 ticker。
-    - `change` 字段是**绝对额（美元）非百分比**；% 需自算 `change / previousClose`。
-    - 涨榜 `biggest gainers` 配 `min_market_cap=1e9` 实测会 `source_dead:min_market_cap_excluded_all`（gainers 端点 marketCap 字段为 null）→ 涨榜不要传 min_market_cap，penny 噪音靠 Agent 后过滤；残留 leveraged ETF 过滤 name 含 `"2X"/"3X"/"Bull"`。
-12. **🗓️ econ 日历必须传前瞻日期窗，否则只向后看（2026-06-10 实测）** — `metrics(query="economic calendar...", categories=["macro"])` **默认 `lookback_days=7`，返回的全是过去 7 天的旧数据**（永远捞不到要的那个未来 CPI/PPI）。**正解 = 传 `date_from`=今天、`date_to`=+5d** → 返回前瞻事件（`actual=null` + `estimate` 有值即未公布预期）。**仍不传 keywords**（传 US/nfp/PAYEMS 等会各回 10 条同样的 JP/KR 噪音 = 60-90 行垃圾）；返回仍混大量非美 Low 噪音，**Agent 过滤 `country∈{US,CN,EU}` 且 `impact∈{High,Medium}`**；关键前瞻（如 CPI）偶有未收录，必要时 web 兜。
-13. **🔌 MCP 重连后「数组参数」序列化 bug（2026-06-10 实测）** — followin 服务器**断线重连后**，凡我**显式传数组**的调用（`metrics` 的 `keywords`/`categories`、`news` 的 `sources`）全报 `MCP error -32602: ["X"] has type "string", want array`——harness 把数组编码成了 JSON 字符串。**纯 query（不传数组）的 news/metrics 正常**（服务端自解析），`twitter`(list_id 字符串) 正常。
-    - **本质**：重连后 ToolSearch 回拉的 schema 丢了 `"type":"array"` 标注 → 序列化错。**非服务端宕机、非 skill 错**。
-    - **修复**：重启 followin server / 重开会话即愈。临时绕：价格走「价格源降级梯」（§1 末，okx/web）；TG 暂用纯 query news 捞 social 兜底。
+9. **🚫 大宗裸 keyword 会乱解析成同名股票** — `gold`→Barrick 金矿股、`CL`→Colgate 牙膏；query 措辞修不了。**正解 = 现货符号**：金 `XAUT`@crypto（PAXG 同效）｜油 `CLUSD`@tradfi（name="Crude Oil"）｜美元 `DXY`（返 DXUSD）。`USO/BNO` 油 ETF 仅兜底
+10. **✅ metrics 价格调用一律加 `categories=["market"]`（铁律）** — 不传会扇出 macro+fundamentals：tradfi 2 股即溢出 130K、12 股 700K，crypto 混入 macro 噪音。加了之后 tradfi 内联返回且白送 `change/dayHigh/marketCap/yearHigh`，板块矩阵/涨跌榜全内联跑（旧"存盘提取"废弃）。仅真要财报/宏观点位才用 `["fundamentals"]`/`["macro"]`
+11. **🚫 `metrics` keywords 硬上限 = 10 个** — 超出**静默截断**（仅 warning，不报错不补返回），极易漏数据。>10 必拆 ≤10/批 并行（28 股 = 3×10）。`change` 是**绝对额非百分比**（% = change/previousClose）。涨榜 `biggest gainers` **不要传 min_market_cap**（gainers 端点 marketCap=null 会 source_dead）；penny/leveraged ETF 靠后过滤（name 含 2X/3X/Bull）
+12. **🗓️ econ 日历必须传前瞻日期窗** — 默认 `lookback_days=7` 只向后看，**传 `date_from`=今天、`date_to`=+5d** 才返前瞻（`actual=null`+`estimate` 有值=未公布）。**仍不传 keywords**（传了每个 keyword 各回 10 条 JP/KR 噪音）；Agent 过滤 `country∈{US,CN,EU}` 且 `impact∈{High,Medium}`；关键前瞻偶缺收录，web 兜
+13. **🔌 MCP 重连后「数组参数」序列化 bug** — followin 断线重连后，凡显式传数组的调用报 `["X"] has type "string"`（ToolSearch 回拉 schema 丢 array 标注；非服务端宕机、非 skill 错）。纯 query / twitter(list_id) 正常。**修复 = 重启 followin server / 重开会话**；临时绕：价格走降级梯（okx/web），TG 用纯 query news 兜底
 
 ### 价格数据铁律
 
@@ -209,14 +192,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 
 ### 🔁 价格应急扩列规则（首扫 / 刷新通用）
 
-固定列表 `BTC,ETH,SOL,BNB,XRP,DOGE,HYPE,SUI,LINK,AVAX` 经常漏掉日内主线（实战漏掉 ZEC +30% / WIF +25%）。规则：
-
-1. 跑完第一轮 `followin.metrics(keywords=[...], asset_type="crypto")` 拿到固定 10 币硬数据
-2. 扫描 news / TG / twitter 文本里出现的**单代币涨幅描述**
-3. 任一代币描述涨幅 **≥ +15%** 或 **≤ -15%** 且不在固定列表 → 收集 symbol，**第二轮**再调一次 `followin.metrics(keywords=漏网symbol列表, asset_type="crypto")` 核验
-4. 第二轮硬数据进 📊 实时数据区；新闻里读到的数字只能写在 📰 叙事候选里加 ⚠️ 单源未核
-
-> 铁律：**任何超过 ±15% 的代币若未经第二轮核验，不得写入"实时数据区"**，避免 KOL 数字误传到话题 desc。
+固定 10 币列表常漏日内主线（实战漏 ZEC +30%）。规则：扫描 news/TG/twitter 文本中 **±15% 以上且不在固定列表**的代币 → 收集 symbol 跑**第二轮 metrics 核验**；核验过的进 📊 实时数据区，没核的只能进 📰 叙事候选标 ⚠️ 单源未核。**铁律：未经第二轮核验的 ±15% 代币禁止写入实时数据区**。
 
 ### 🟢 首扫模式 — 判定细节附录
 
@@ -313,7 +289,7 @@ jq -r '.[] | "[\(._source_quality // "low")] @\(.author_name) | \((.published_ts
 
 ### 🚨 强制铁律：Twitter list + TG 频道不可跳过（v2.2.4 实战教训）
 
-实战教训（5/19）：跑首扫时漏掉 Twitter list 和 TG 频道扫描 → **直接缺 5+ 强候选**（Google×Blackstone / 马斯克 OpenAI 败诉 / 黄仁勋 Computex / 韩国零售融资 / Pumpfun 抛售）。这些 megaevent 只在 Twitter list + TG bot 出现，新闻通道捞不到 → 故执行卡 §1 把三栈 list + TG 列为必跑批次。
+实战教训（5/19）：漏掉 Twitter list + TG 扫描直接缺 5+ 强候选——megaevent 常只在 list/TG bot 出现，新闻通道捞不到，故 §1 把三栈 list + TG 列为必跑（详见 LESSONS.md）。
 
 **失败处置**：任一批次失败 → **重试 1 次，仍失败标"⚠️ list/TG 批次部分失败"**，不能直接进 0b。
 
@@ -336,7 +312,7 @@ jq -r '.[] | "[\(._source_quality // "low")] @\(.author_name) | \((.published_ts
 | 财报周 | `"earnings beat miss EPS guidance Q1 Q2"` |
 | 政策立法 | `"CLARITY GENIUS SEC stablecoin Tillis Alsobrooks"` |
 
-> 🐛 **v2.1.7 实战教训（2026-05-14）**：刷新模式只跑 `asset_type="tradfi"` 通道时**漏掉 H200 出口许可 megaevent**（路透社独家 + 中文媒体爆点）。FMP 通道偏严肃财经媒体，**漏掉 Reuters / X / 中文媒体**这类跨界新闻。query 兜底通道是必跑项。
+> 🐛 实战教训（5/14 漏 H200 出口许可）：FMP 通道偏严肃财媒，漏 Reuters/X/中文爆点——query 兜底通道必跑。
 
 **刷新判定要点**：
 - Wave5 只留鲸鱼一路（上币 4h 返陈旧 / ETF `spot`→Spotify，砍）；不跑 trader_position + 解锁/财库（4h 增量稀疏）。
@@ -463,14 +439,7 @@ N：首扫 主15/科技12/大师8；刷新 主10/科技8。三栈 list 各跑一
 list_trending_topics(start_date=昨日, end_date=今日, limit=80)   # 不传 status，覆盖 0/1/2/3 全状态
 ```
 
-> ⚠️ **v1.7 规则收紧（2026-05-06）**：
-> - **窗口**从"今日"扩到**过去 24h 滚动窗口**（昨日 + 今日 → 客户端再按 `created_at >= now - 24h` 过滤）
-> - **状态**从 `status=0` 扩到**全状态**：
->   - `status=0` 正常上线 → 选题位已占用
->   - `status=2` 审核中 → 同样占用，避免重复建
->   - `status=1` 初始化 → 已建未发，仍是占用
->   - `status=3` 已隐藏 → 标记为"曾经建过"，新建前需说明差异化角度
-> - **铁律**：**任何向用户输出的"推荐选题列表"前**，必须先跑这一步并在简报里展示 🟰 / 📈 / 🆕 三类标记，不允许跳过。
+> ⚠️ **v1.7 收紧**：窗口 = 过去 24h 滚动（昨日+今日，再按 `created_at >= now - 24h` 过滤）；状态 = **全状态**（0/2/1 均占选题位；3 = 曾建过，重建需说明差异化角度）。**任何"推荐选题列表"输出前必跑本步**，简报展示 🟰/📈/🆕 标记，不允许跳过。
 
 ### 输出顺序（v2.2 — 撤改补三件套）
 
@@ -535,7 +504,7 @@ existing_topics_index = {
 | **≤ 24h** | 走下方升温硬规则（update title / 撤回）|
 | **> 24h（老话题）** | **不 update 老话题**，老话题保持历史原貌；当前行情 → **新建一条话题** |
 
-> 理由：老话题已积累自己的 heat / source_count，强行改标题追新价会破坏历史一致性。当前行情应由**新话题**承接（例：8864 ZEC 5/9 建 $604，5/21 ZEC $678 时应新建 9213，而非改 8864）。
+> 理由：老话题已积累 heat/source_count，改标题追新价破坏历史一致性；当前行情由**新话题**承接。
 
 去重时若 🟰 重叠已发的话题（**且 ≤24h**）主标的当日涨幅 vs **创建时**已偏差 ≥ **10%**（绝对值），**必须**主动处置：
 
@@ -670,9 +639,7 @@ existing_topics_index = {
 2. 计算 `(now - published_ts) / 3600` 得到小时差
 3. 多源时取**最新**那条作为锚（不是平均）
 
-**两种典型违规（v2.2.8 实战教训）**：
-- ❌「Saylor 说本周买债券非 BTC」首扫时已 24h+，被用户标"时效问题"——单源 published 5/24，5/26 首扫不应进表
-- ❌「中本聪 OG 抛 2650 BTC」5/25 数据，5/26 首扫已 36h+，应直接砍
+**典型违规**：单源 published 已超窗仍进表（5/26 首扫收了 5/24 Saylor 表态、5/25 OG 抛售——均应直接砍）。
 
 **例外（仅 1 类可豁免）**：
 - 当前 **status=0 已上线话题的升温/反转**——属于 0a 升温硬规则范畴，不走 0b.0
@@ -1181,8 +1148,6 @@ ID：{id}
 - 全 🟢 行 → 一次性 batch update status=0
 - 🟡 行 → 单独 update title 后再发
 - 🔴 行 → status=3 撤回
-
-> 实战收益：今天 9 条话题严格走单条 4.5 = 约 9 次价格 API + 9 次多源 API ≈ 18 次调用 + 9 轮等待；批量路径 = 1-2 次价格 + 9 次并行多源 ≈ 总耗时降 70%。
 
 ---
 
