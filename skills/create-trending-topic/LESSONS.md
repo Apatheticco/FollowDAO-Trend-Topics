@@ -78,6 +78,15 @@ v2.5.2 曾断言"create 返回 status=2 = 停在审核"。用户发现话题直�
 - 8801 OpenTrade $1700 万融资：二线 VC（Mercury/Notion）未达升档后 $50M 阈值 → 撤
 - 8782 LAND：贬义指控 + 单源 → 一票否决 + 多源失败 → 撤
 
+## TG 频道降级实测（v2.6.6，2026-06-20）
+
+用户问"TG 来源是不是价值很低"，按"先实测"抽了工作日+周末两批共 ~36 条复核：
+- **裸 feed（空 query / category browse）= 纯 bot 噪音**：爆仓 bot（微额 $50K）、匿名巨鲸流水（Unknown Whale↔Aave，撞链上红线）、喊单/meme shill bot（FalkorDB x8 call、$BULL/$TOESCOIN/$JOBBY）。两批 topic-worthy≈0，工作日非周末假象。
+- **query 模式略好但 ~70% 仍噪音/重复**：捞到 FOMC 加息、STRC 跌破面值、Illinois 加密税、India ED 突袭、CZ 谈代币化——但全被 media/三栈 list 覆盖。
+- **TG 唯一残余独有价值 = 安全/exploit 早警**（Axelar $4.7M 桥被盗、Aztec $2M），偶尔比 media 快几分钟；连这个常规 news 的 `hack exploit` query 也部分覆盖。
+- **真叙事价值在三栈 list 不在 TG**：本会话出真候选（SK 海力士换帅、半导体、MS ETF）全来自 list；5/19 "list+TG 缺 megaevent" 的功劳大概率主要是 list，TG 搭便车被记成必跑。
+- 处置：5-cat browse 全删，只留 1 条 exploit 探针（`query="hack exploit drained bridge vulnerability"`）；强制铁律改为"三栈 list 不可跳过、TG 已降级"；ETF netflow 从 TG bot 改走 media query。
+
 ## 链上候选红线判例（v2.5.7，2026-06-11）
 
 被用户点名整体剔除的两类（"这种类型的完全可以从候选 list 里剔除掉"）：
@@ -107,3 +116,4 @@ v2.5.2 曾断言"create 返回 status=2 = 停在审核"。用户发现话题直�
 | v2.6.3 | 06-17 | 建完保持审核、禁止主动上线（推翻"建完即上线"）|
 | v2.6.4 | 06-18 | 印证型候选回查 + 非美个股价格 WebSearch 兜底（SK 海力士复盘）|
 | v2.6.5 | 06-20 | 时间戳单一 append-only 文件（跨天自陷阱）+ 调研型/建题型意图闸 |
+| v2.6.6 | 06-20 | TG 频道降级：裸 feed 砍、只留 1 条 exploit 探针（工作日+周末实测全 bot 噪音）|

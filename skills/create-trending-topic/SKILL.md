@@ -39,16 +39,16 @@ tail -1 /tmp/trend-scout-last-refresh.txt 2>/dev/null   # 必跑，上轮真实�
 |----|--------|-----------|
 | **B0**（与 B1/A1 同波，**不单开一波**——console 与 followin/Agent 不同服务器、无依赖，只需在 0a 评分前到位）| console | `list_trending_topics(24h, 全状态, limit=80)` |
 | B1 | followin | 10币 metrics（**`categories=["market"]`**）｜ 跨市场 metrics（金=`XAUT`@crypto / 油+美元=`["CLUSD","DXY"]`@tradfi，均加 `categories=["market"]`；见 quirk⑨⑩）｜ news(crypto market 4h) ｜ news(listing/解锁/SEC 4h) ｜ **〔第 5 槽空出，按需补漏网币第二轮核〕** |
-| B2 | followin | TG 交易信号 ｜ TG 实盘跟踪 ｜ news(美股 query 兜底, 不传 asset_type) ｜ Wave5 鲸鱼 ｜ 〔空〕 |
+| B2 | followin | **TG exploit 探针（1 条，v2.6.6）** ｜ news(美股 query 兜底, 不传 asset_type) ｜ Wave5 鲸鱼 ｜ Wave5 上币 ｜ 〔空〕 |
 | A1 | Agent×2（与 B0/B1 同波起）| **刷新只 2 栈**：主 `2046422494643687464` + 科技AI `2051854001608724654`（大师 list 刷新砍——4h 几乎每次"无新推"，移首扫；明确"看大师"才破例）。**子进程 prompt 用精简版**（见 §1 末「子进程范式」）|
 
 > 刷新 **砍掉的死调用**（实测）：
 > - **❌ tradfi 头条 news 砍**（quirk④：`asset_type="tradfi"` 每次返 0；美股 query 兜底已覆盖芯片/宏观头条）。
-> - **❌ Wave5 ETF query 砍** — `spot` 总被解析成 Spotify / degraded；ETF flow 改读 TG 链上 bot（已含在 TG cat 里）。
+> - **❌ Wave5 ETF query 砍** — `spot` 总被解析成 Spotify / degraded；ETF flow 改由 W2 media query 覆盖（`news(query="bitcoin ethereum ETF flows inflow outflow")`，TG bot 已随 v2.6.6 裸 feed 一并砍）。
 > - **❌ Wave5 上币 query 刷新砍**（4h 内永远返 9 天前陈旧 HACK ETF），只首扫留。
 > - 不跑 signal / popularity / 国债 / spx ｜±15% 漏网币第二轮核。
 
-**🟢 首扫（24h）— 4 波 followin 塞满 + 1 TG 波 + 3 Agent + 1 console（窗口 1d 替换 4h）**
+**🟢 首扫（24h）— 4 波 followin 塞满 + 1 TG exploit 探针 + 3 Agent + 1 console（窗口 1d 替换 4h）**
 
 > ⚡ **批次铁律（v2.5.1 — 2026-06-06 复盘：上次 6 波串行跑了 7min）**：每波**严格塞满 5 个 followin**（≤5 防掉线），4 波打完所有价格/news，别欠装、别为 1 个 call 单开一波。spx 必 fail → SPY/QQQ 兜底**预判着塞进 W1**，不要等失败再补一波。
 >
@@ -58,7 +58,7 @@ tail -1 /tmp/trend-scout-last-refresh.txt 2>/dev/null   # 必跑，上轮真实�
 > | **W2 事件/链上 news** | ①listing/解锁/SEC/漏洞 news ②美股 query 兜底(不传 asset_type) ③Wave5 鲸鱼 ④Wave5 上币 ⑤Wave5 解锁/财库 | 全 news；**tradfi 头条已砍**（quirk④ 返 0，②兜底覆盖）|
 > | **W3 板块+宏观** | ①板块批1[NVDA,AMD,AVGO,TSM,MSFT,GOOGL,META,AAPL,MU,SNDK] ②板块批2[WDC,STX,LITE,AAOI,GLW,COHR,ASML,AMAT,LRCX,KLAC] ③板块批3[CRCL,COIN,MSTR,HOOD,SOFI,PLTR,RKLB,MRVL,**+TSLA,AMZN**] ④**econ 日历（前瞻：传 `date_from`=今天 `date_to`=+5d，见 quirk⑫）** ⑤国债 DGS10/DGS2(macro) | 板块矩阵 3×10（quirk⑪）；**⚠️美股时段闸：US 休市/盘前（周末或 ET 收盘后）→ 板块矩阵=上一收盘陈旧，①②③ 跳过标"盘前取上收盘"，开盘后再拉**。批3 补 TSLA/AMZN 覆盖 Wave2C，不单跑 |
 > | **W4 扫尾（多为按需）** | ①跌榜 top losers(market) ②earnings 日历 `query="earnings calendar this week", categories=["fundamentals"], asset_type="tradfi"`（周一/财报周）③（按需）`CPIAUCSL/UNRATE`(macro) 点位 ④（按需）±15% 漏网币第二轮核 | 涨榜 `biggest gainers` **默认砍**（penny + min_market_cap source_dead，quirk⑪）。W4 多数轮无强需求 → **空就并进 W3 或跳过**，别硬塞 |
-> | **W-TG** | TG 5 cat（交易信号/实盘跟踪/链上数据/叙事追踪/Meme 打新），分 3+2 并行 | 独立波 |
+> | **W-TG** | **TG 1 条 exploit 探针**（`query="hack exploit drained bridge vulnerability"`, telegram, 1d）—— v2.6.6 裸 feed 已砍 | 单 call，可并进 W2 空槽，不必单开波 |
 >
 > A1 第 3 栈 = **大师 list `2051856808348987697`**（首扫必跑；刷新砍）。3 栈子进程 ~30-45s 是长杆，**W1 就起**和 W2-W4 并行跑完，别落关键路径末尾。
 >
@@ -184,7 +184,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 5. **tradfi news 只返回标题** — FMP news 通道仅返回 title（~266 token / 10 条）。要正文改 `query` 走 opensearch 通道
 6. **`news` 默认 verbosity=standard 带完整正文** — limit≥20 易炸 context（实战 56K 字符）。生产用 `verbosity="concise"` + `limit≤15`
 7. **`news(asset_type="tradfi")` FMP 偏 WSJ/Bloomberg/Barron's** — 漏 **Reuters 独家 / X 突发 / 中文媒体爆点**。修复：刷新必跑 query 兜底 `news(query="<当周关键词>", 不传 asset_type, time_range="4h")`（实战 5/14 漏 NVIDIA H200 出口许可）
-8. **TG `sources=["telegram"]` 返回 `tg_kol_feeds`** — 字段为 `tg_category / author_name / content / _source_quality / published_ts`，**无 `username`**。过滤用 `author_name` 或直接按 `tg_category` + content grep（"币安将上线" / "Whale Alert" / "巨鲸"）。Meme 打新 cat 全 low-quality spam，**可砍**
+8. **TG `sources=["telegram"]` 返回 `tg_kol_feeds`** — 字段为 `tg_category / author_name / content / _source_quality / published_ts`，**无 `username`**，过滤用 `author_name`。⚠️ **v2.6.6 起 TG 仅保留 1 条 exploit 探针**（裸 feed 实测全 bot 噪音：爆仓/匿名巨鲸/喊单 shill，topic-worthy≈0）；不再跑多 cat browse。
 9. **🚫 大宗裸 keyword 会乱解析成同名股票** — `gold`→Barrick 金矿股、`CL`→Colgate 牙膏；query 措辞修不了。**正解 = 现货符号**：金 `XAUT`@crypto（PAXG 同效）｜油 `CLUSD`@tradfi（name="Crude Oil"）｜美元 `DXY`（返 DXUSD）。`USO/BNO` 油 ETF 仅兜底
 10. **✅ metrics 价格调用一律加 `categories=["market"]`（铁律）** — 不传会扇出 macro+fundamentals：tradfi 2 股即溢出 130K、12 股 700K，crypto 混入 macro 噪音。加了之后 tradfi 内联返回且白送 `change/dayHigh/marketCap/yearHigh`，板块矩阵/涨跌榜全内联跑（旧"存盘提取"废弃）。仅真要财报/宏观点位才用 `["fundamentals"]`/`["macro"]`
 11. **🚫 `metrics` keywords 硬上限 = 10 个** — 超出**静默截断**（仅 warning，不报错不补返回），极易漏数据。>10 必拆 ≤10/批 并行（28 股 = 3×10）。`change` 是**绝对额非百分比**（% = change/previousClose）。涨榜 `biggest gainers` **不要传 min_market_cap**（gainers 端点 marketCap=null 会 source_dead）；penny/leveraged ETF 靠后过滤（name 含 2X/3X/Bull）
@@ -206,27 +206,25 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 > **批次跑什么/怎么并发 = §1 唯一源。** 下方只补 §1 装不下的判定细节（TG 范式 / 板块异动判定 / 价格符号+fallback / Wave5 query）。不再重列批次表。
 > 不跑 `signal`（kol_call/insider/institutional/trader_position 全砍：噪音高、与 TG/news 重复、13F 季度滞后）。
 
-##### 📡 TG 频道扫描范式
+##### 📡 TG 频道扫描范式（v2.6.6 — 2026-06-20 实测降级为单条 exploit 探针）
 
-**风向标场景的 category 矩阵**（精简到 5 个，去掉资讯聚合 / 项目研究 / 宏观研判 — §1 的 W1/W2/W3 已覆盖）：
+> 🔻 **裸 feed TG 已砍（v2.6.6）**：2026-06-20 工作日+周末两批实测，空 query / category browse 的 TG 返回**几乎全是 bot 噪音**——爆仓 bot（微额 $50K）、匿名巨鲸流水（撞链上红线）、喊单/meme shill bot，topic-worthy≈0；少数实质内容（FOMC/STRC/监管）media 与三栈 list 已覆盖。**TG 唯一残余独有价值 = 安全/exploit 早警**（Axelar $4.7M、Aztec $2M 偶尔比 media 快几分钟）。故 5-cat 并行 browse 全删，只留**一条 exploit 探针**；叙事/上币/监管/鲸鱼全交给三栈 list + W2 media query（本就覆盖）。
 
-| 模式 | 扫的 category | 用途 |
-|------|--------------|------|
-| 🟢 首扫 (1d) | 交易信号 / 实盘跟踪 / 链上数据 / 叙事追踪 / Meme 打新 | 5 个并行 |
-| 🔵 刷新 (4h) | 交易信号 / 实盘跟踪 | **2 个并行**（v2.1.7 砍 Meme 打新 — 实测全 spam）|
-| 🔴 突发 | 按事件匹配 1-3 个 category | 定向 |
+| 模式 | TG 调用 | 说明 |
+|------|---------|------|
+| 🟢 首扫 / 🔵 刷新 | **1 条 exploit 探针**（见下） | 不再跑 5-cat / 2-cat browse |
+| 🔴 突发安全事件 | 按标的加 `query` 定向补 | 仅当已知有 hack 在传 |
 
-**调用范式（首扫 5 路并行）**：
+**调用范式（唯一 1 路）**：
 ```python
-parallel for cat in ["交易信号","实盘跟踪","链上数据","叙事追踪","Meme 打新"]:
-    followin.news(
-        query=cat,            # query=category，Followin 已内建 category 索引
-        sources=["telegram"],
-        time_range="1d",
-        limit=15,
-        source_lang="zh-cn",
-        verbosity="standard"  # 显式 standard 避免 concise 自动 trim
-    )
+followin.news(
+    query="hack exploit drained bridge vulnerability stolen funds",
+    sources=["telegram"],
+    time_range="1d",          # 刷新用 "4h"
+    limit=15,
+    verbosity="standard"
+)
+# 命中 exploit/被盗事件 → 进 0b（金额+协议+是否仍在进行）；其余照旧噪音忽略
 ```
 
 **子进程 jq 后处理（2 步精简）**：
@@ -252,10 +250,9 @@ jq -r '.[] | "[\(._source_quality // "low")] @\(.author_name) | \((.published_ts
 > - ✅ **保留进候选的链上事件 = 可识别身份 + 明确叙事/传导意义**：知名实体战略性财库增减持（Bitmine 增持 ETH、MSTR 加仓）、官方/项目方主动操作（解锁、抛售、官方地址异动）、有身份的标志性玩家动作（孙哥提币质押）。
 > - **判定口诀**：问"这条转账/仓位**改变了谁对市场的预期**？"——答不上来（只是流水/赌博）就剔除，答得上来（战略信号/叙事）才进。金额从来不是准入理由。
 
-**避坑**：
-- Followin session 跑 5-8 calls 易挂 → 5 个 category **必须分 2 批并行**（3+2 或 2+3）
-- `query="<category>"` 必传（不要堆砌关键词），Followin 已按 category 内建索引
-- `limit=15`/cat 是首扫；刷新 4h 窗口 `limit=20`、只 2 cat（交易信号/实盘跟踪）单批并行
+**避坑**（v2.6.6 后只剩 1 条 exploit 探针，无需分批）：
+- 探针命中 exploit/被盗 → 先过上方链上红线 + `tg_category/author_name` 字段（无 username）；金额+协议+是否进行中进 0b
+- 上方 jq 白名单后处理对单条探针非必需，但保留以备突发安全事件加 `query` 定向扩量时复用
 
 ##### 📊 美股板块涨跌矩阵 — 8 板块代表股（§1 W3 的 3×10 = 本表高权重子集 +MRVL/TSLA/AMZN；GEMI/IBKR/LMT/RTX/BA 仅按需补拉）
 
@@ -288,26 +285,26 @@ jq -r '.[] | "[\(._source_quality // "low")] @\(.author_name) | \((.published_ts
 
 ##### 🔍 Wave5 二线 query（首扫 3 路 / 刷新只留鲸鱼，与 §1 W2 对齐）
 
-鲸鱼 `news(query="鲸鱼 巨鲸 whale transfer 大额转账", 1d, limit=15)`（刷新版 query 加 `链上`、limit=10）｜上币 `news(query="binance coinbase listing delisting 上币 下架", 1d, limit=10)`｜解锁/财库 `news(query="unlock 解锁 vesting 财库 treasury", 1d, limit=10)`。**ETF 流向路全砍**（首扫刷新都不跑：`spot` 总被解析成 Spotify/degraded，ETF flow 改读 TG 链上 bot——Database52Hz/PolyBeats 稳定回 BTC/ETH/SOL/HYPE netflow）。
+鲸鱼 `news(query="鲸鱼 巨鲸 whale transfer 大额转账", 1d, limit=15)`（刷新版 query 加 `链上`、limit=10）｜上币 `news(query="binance coinbase listing delisting 上币 下架", 1d, limit=10)`｜解锁/财库 `news(query="unlock 解锁 vesting 财库 treasury", 1d, limit=10)`。**ETF 流向 query 路砍**（`spot` 总被解析成 Spotify/degraded）；ETF netflow 改由 media query `news(query="bitcoin ethereum ETF flows inflow outflow")` 覆盖（v2.6.6 起 TG 链上 bot 随裸 feed 一并砍，实测 media 已稳定覆盖 ETF 流向）。
 
 **popularity/无 query 浏览**（`news(asset_type="crypto", time_range="1d", limit=20)` 不传 query 返 trending）：已从必跑砍掉，仅候选不足扩窗时作补充路。
 
 执行完 → 第 0a 步。
 
-### 🚨 强制铁律：Twitter list + TG 频道不可跳过（v2.2.4 实战教训）
+### 🚨 强制铁律：Twitter 三栈 list 不可跳过（v2.2.4 实战教训；TG 已降级 v2.6.6）
 
-实战教训（5/19）：漏掉 Twitter list + TG 扫描直接缺 5+ 强候选——megaevent 常只在 list/TG bot 出现，新闻通道捞不到，故 §1 把三栈 list + TG 列为必跑（详见 LESSONS.md）。
+实战教训（5/19）：漏掉 Twitter list 直接缺 5+ 强候选——megaevent 常只在 list 出现，新闻通道捞不到，故 §1 把**三栈 list 列为必跑**（详见 LESSONS.md）。**TG 已于 v2.6.6 降级**：2026-06-20 实测裸 feed TG 全 bot 噪音（出真候选的是 list，不是 TG），仅保留 1 条 exploit 探针，**不再算"不可跳过"**——三栈 list 才是必跑核心。
 
-**失败处置**：任一批次失败 → **重试 1 次，仍失败标"⚠️ list/TG 批次部分失败"**，不能直接进 0b。
+**失败处置**：任一批次失败 → **重试 1 次，仍失败标"⚠️ list 批次部分失败"**，不能直接进 0b。
 
-**候选数量铁律**：跑完执行卡 §1 全部批次后，进 0b 评分前点 P0+P1 候选数（首扫 ≥12 / 刷新 ≥8 为目标）；不足则**先强制扩窗**（加 query 关键词 / TG 加 cat），扩窗后仍不足按 0b「候选池数量目标」如实报干轮。
+**候选数量铁律**：跑完执行卡 §1 全部批次后，进 0b 评分前点 P0+P1 候选数（首扫 ≥12 / 刷新 ≥8 为目标）；不足则**先强制扩窗**（加 query 关键词 / 三栈 list limit 上调），扩窗后仍不足按 0b「候选池数量目标」如实报干轮。
 
 ### 🔵 刷新模式（日内每 2-4h，4h 窗口）
 
 **目的**：追首扫之后的增量（含跨市场）。
 
-> **刷新模式 — 判定细节附录。** 批次见 §1🔵。下方只补判定：TG 刷新砍 3 cat、query 兜底模板、增量过滤。
-> TG 刷新只 2 cat（交易信号/实盘跟踪）；砍链上数据（与鲸鱼重复）/叙事追踪（媒体型已覆盖）/Meme 打新（全 spam）。后处理见首扫「TG 频道扫描范式」。
+> **刷新模式 — 判定细节附录。** 批次见 §1🔵。下方只补判定：TG exploit 探针、query 兜底模板、增量过滤。
+> TG 刷新同首扫 = 单条 exploit 探针（`query="hack exploit drained bridge vulnerability"`, telegram, 4h）；裸 feed/多 cat browse 已于 v2.6.6 砍。见「TG 频道扫描范式」。
 
 **美股 query 兜底关键词模板**（`news(query=..., 不传 asset_type, time_range="4h")` 抓 Reuters/X/中文爆点，每天按热点轮换）：
 
@@ -726,7 +723,7 @@ existing_topics_index = {
 
 1. **先扩窗**（达不到目标时，必须先做完才能说"不够"）：
    - 扩 `news(query=...)` 多组关键词（链上 / 上币 / 解锁 / 财库 / 鲸鱼）
-   - TG 加 cat（链上数据 / 叙事追踪）；确认执行清单无跳波
+   - 三栈 list 上调 limit / popularity browse 补充路；确认执行清单无跳波
 2. **扩窗后仍不足** → **如实报"干轮"**：列出真实强候选（哪怕 2-3 条），写明"已扩窗，当日增量稀薄"。
    - 🚫 **禁止**为凑数把 P2 噪音抬进 P0/P1，或硬报"0"不扩窗——这两个都是错的。
    - ✅ 正确 = 扩窗尽力 + 诚实呈现真实候选数（行情确实清淡时，3 条强候选 > 12 条注水）。
