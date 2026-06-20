@@ -6,6 +6,7 @@ description: >
   (A) 用户让"扫一下热点 / 找几个话题 / 批量创建今日话题" → 调 Followin MCP（metrics/news/signal/twitter）主动扫描；
   (B) 用户给一段素材（新闻/推文/描述）让创建话题 → 直接进评分；
   (C) 用户给一个标的或一句话（"查一下 REPPO" / "Aave 现在情况"）→ 多源补全资料再评分。
+  ⚠️ 调研型 vs 建题型意图闸（v2.6.5）："看看/有没有 X 话题 / X 板块怎样 / 查一下 X"=**调研型→先 present 数据+评分+去重结论，问一句再建，禁止直接 create**；"建/补一个 X / 把 X 拆成 N 条 / 上线 X"=建题型→按 (B)/(C) 走。（2026-06-20 实测：把"看看 SK 海力士的话题"当建题直接 create，被用户"你创建了个啥"纠正。）
   全流程：采集 → 去重 → 评分 → 字段提取 + 标题优化 → 预览 → 创建 → tag 校验 → 数据核实 → 发布。
 ---
 
@@ -20,11 +21,13 @@ description: >
 ### 0. 开跑前（铁律）
 ```bash
 date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'   # 必跑，算 cutoff_4h/24h
-cat /tmp/trend-scout-last-refresh-*.txt 2>/dev/null | tail -1   # 必跑，上轮真实时间戳
+tail -1 /tmp/trend-scout-last-refresh.txt 2>/dev/null   # 必跑，上轮真实时间戳（单一文件、不带日期，跨天天然连续）
+# 跑完一轮在结尾追加：  echo "$(date +%s)000" >> /tmp/trend-scout-last-refresh.txt
 ```
+> 🗂️ **时间戳用单一 append-only 文件 `/tmp/trend-scout-last-refresh.txt`（铁律 v2.6.5 — 2026-06-20：旧按天命名 `-YYYYMMDD.txt` 跨天会读到当天空文件，算出乱码间隔，本会话连坑 3 次）**：文件名**不带日期**，每轮结尾 `echo "$(date +%s)000" >>` 追加，开跑 `tail -1` 取最后一行。禁止按天分文件、禁止只读当天文件。
 判模式：`"早上扫/隔夜更新"`→🟢首扫(24h) ｜ `"刷新/有什么新的"`→🔵刷新(4h) ｜ 模糊：06-10 点首扫、之后刷新 ｜ 今日 status=0 发布 0 条 → 强制首扫。
 
-> ⏱️ **跨轮间隔禁止凭会话记忆（v2.6.0 — 2026-06-12 实测：差点把昨天数据当"5 分钟前"复用）**：上轮何时跑的，**一律以 `/tmp/trend-scout-last-refresh-*.txt` 最新时间戳 − 当前 date 计算**，"我记得刚跑完"不算数——compact/隔天续接后会话记忆必然失真。
+> ⏱️ **跨轮间隔禁止凭会话记忆（v2.6.0 — 2026-06-12 实测：差点把昨天数据当"5 分钟前"复用）**：上轮何时跑的，**一律以 `/tmp/trend-scout-last-refresh.txt` 最后一行时间戳 − 当前 date 计算**，"我记得刚跑完"不算数——compact/隔天续接后会话记忆必然失真。
 > - 实际间隔 **≤30min** → 可复用上轮价格快照/B0，只补增量
 > - **>30min** → 价格快照重拉
 > - **跨天** → 价格 + B0 去重池**全部作废重拉**（v2.5.4 同源：旧池子当当下是最危险的错）
@@ -323,7 +326,7 @@ jq -r '.[] | "[\(._source_quality // "low")] @\(.author_name) | \((.published_ts
 - 跨市场快照仍刷（油 `CLUSD`/美元 `DXY`/金 `XAUT`，见首扫符号校正）——油破 $100 / DXY 破 98 / 黄金回探是当日风险开关，"日内不大"的假设会漏宏观主线。
 - **不跑 signal（4 cat 全砍）/ popularity（全砍，仅扩窗补充）/ econ日历 / 国债 / spx**；用户明确"看鲸鱼/看议员"才破例单跑 signal。财报周可加跑涨/跌榜。
 - **候选 ≥8 才进 0b**；不足单独跑 5 个 query 扩窗。
-- **增量过滤铁律**：刷新结束写 `/tmp/trend-scout-last-refresh-YYYY-MM-DD.txt`，下次按 `createdAt > last_refresh_ts` 过滤，避免读到首扫已读内容。
+- **增量过滤铁律**：每轮结束 `echo "$(date +%s)000" >> /tmp/trend-scout-last-refresh.txt`（**单一文件、不带日期**，v2.6.5），下次按 `createdAt > last_refresh_ts` 过滤，避免读到上轮已读内容。
 
 ### 推特 L1 排序规则（刷新模式核心）
 
