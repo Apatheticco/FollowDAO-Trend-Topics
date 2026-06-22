@@ -78,6 +78,10 @@ v2.5.2 曾断言"create 返回 status=2 = 停在审核"。用户发现话题直�
 - 8801 OpenTrade $1700 万融资：二线 VC（Mercury/Notion）未达升档后 $50M 阈值 → 撤
 - 8782 LAND：贬义指控 + 单源 → 一票否决 + 多源失败 → 撤
 
+## 非美个股取价降级梯（v2.6.7，2026-06-22）
+
+用户"出一下韩股 SK 海力士话题"，我第一轮只跑 WebSearch（韩媒只回 forecast ₩2,960,213、英文回 06-18 旧值），就下结论"今日实际价取不到"——被用户"不能检索到当前实时价格吗"顶回。按"先实测"把降级梯走到底：`tradingview yahoo_price` SSL EOF 挂、`stockanalysis` 403、Naver 被封，但 **`WebFetch google.com/finance/quote/000660:KRX` 通了**，回 ₩2,943,000 / 前收 ₩2,764,000 / +6.48%（数学自洽、dated 实际成交非 forecast）。教训：`followin 无覆盖 ≠ 全网取不到`，一级失败不等于取不到，降级梯（WebSearch→tradingview→Google Finance WebFetch）必须走到底再认输；forecast 价一律弃用。已写入 SKILL v2.6.7。
+
 ## TG 频道降级实测（v2.6.6，2026-06-20）
 
 用户问"TG 来源是不是价值很低"，按"先实测"抽了工作日+周末两批共 ~36 条复核：
@@ -117,3 +121,4 @@ v2.5.2 曾断言"create 返回 status=2 = 停在审核"。用户发现话题直�
 | v2.6.4 | 06-18 | 印证型候选回查 + 非美个股价格 WebSearch 兜底（SK 海力士复盘）|
 | v2.6.5 | 06-20 | 时间戳单一 append-only 文件（跨天自陷阱）+ 调研型/建题型意图闸 |
 | v2.6.6 | 06-20 | TG 频道降级：裸 feed 砍、只留 1 条 exploit 探针（工作日+周末实测全 bot 噪音）|
+| v2.6.7 | 06-22 | 非美个股取价降级梯（WebSearch→tradingview→Google Finance WebFetch），一级失败不认输 |
