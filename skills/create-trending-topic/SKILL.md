@@ -1095,6 +1095,7 @@ ID：{id}
 - `matched_tags` 为空或不准 → 主动用 `update_trending_topic` 修正
 - 美股/大宗等"非加密原生标的"应**主动**手动绑 tag（不必等用户提示）
 - **🎯 命中过多要收敛（v2.5.7 — 2026-06-11 实测：裸 keywords 常自动命中 3-4 个含泛标签）**：auto-match 返回多个 tag 时，**剔除泛主题标签**（AI / 财报 / 板块 / 概念 等非主体标签），收敛到**主体标的**——**1 标的 1 tag，多标的并列各留 1 个**（如芯片股话题留 NVDA+AMD+AVGO 各 1，去掉指数 tag 和重复版）。指数/概念泛标签除非本身就是话题主体（如纯"纳指大盘"话题）否则去掉。收敛用 `update_trending_topic(tags=[...])` 显式传回（tags 优先级高于 keywords 自动匹配，见速查表）。
+- **🚨 keywords 重匹配静默清 tag 坑（quirk v2.6.9 — 2026-06-25 实测：手绑 MU(550032) 后单独改 keywords，`previous_tags` 直接变 `[]`，手绑 tag 被无声冲掉）**：`update_trending_topic` **只要传了 `keywords`（哪怕没传 `tags`）就触发 tag 重匹配**——auto-match 命中空时**静默清掉已手绑的 tag、不报错**。后果：先手绑 tag、再单独改 keywords，tag 会丢。**铁律**：① "改 keywords" 和 "手绑 tag" 视为有先后依赖——**keywords 必须先改、tag 最后绑**；② **任何带 `keywords` 的 update 之后必复查返回的 tag**（看 `new_tags`/`auto_matched_tags`），空了就立刻 `update_trending_topic(tags=[...])` 单独补绑（**这次只传 tags、不带 keywords**）；③ 若要一步到位，create/update 时**同传 `keywords` + `tags`**（tags 优先级高，见 L1217），别分两步留窗口。
 
 参考：第 1 步「宏观跨市场代币映射」表里的已知 tag id
 
