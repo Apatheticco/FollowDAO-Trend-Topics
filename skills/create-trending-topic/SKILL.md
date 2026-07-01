@@ -1113,6 +1113,10 @@ ID：{id}
 - **🎯 命中过多要收敛（v2.5.7 — 2026-06-11 实测：裸 keywords 常自动命中 3-4 个含泛标签）**：auto-match 返回多个 tag 时，**剔除泛主题标签**（AI / 财报 / 板块 / 概念 等非主体标签），收敛到**主体标的**——**1 标的 1 tag，多标的并列各留 1 个**（如芯片股话题留 NVDA+AMD+AVGO 各 1，去掉指数 tag 和重复版）。指数/概念泛标签除非本身就是话题主体（如纯"纳指大盘"话题）否则去掉。收敛用 `update_trending_topic(tags=[...])` 显式传回（tags 优先级高于 keywords 自动匹配，见速查表）。
 - **🚨 keywords 重匹配静默清 tag 坑（quirk v2.6.9 — 2026-06-25 实测：手绑 MU(550032) 后单独改 keywords，`previous_tags` 直接变 `[]`，手绑 tag 被无声冲掉）**：`update_trending_topic` **只要传了 `keywords`（哪怕没传 `tags`）就触发 tag 重匹配**——auto-match 命中空时**静默清掉已手绑的 tag、不报错**。后果：先手绑 tag、再单独改 keywords，tag 会丢。**铁律**：① "改 keywords" 和 "手绑 tag" 视为有先后依赖——**keywords 必须先改、tag 最后绑**；② **任何带 `keywords` 的 update 之后必复查返回的 tag**（看 `new_tags`/`auto_matched_tags`），空了就立刻 `update_trending_topic(tags=[...])` 单独补绑（**这次只传 tags、不带 keywords**）；③ 若要一步到位，create/update 时**同传 `keywords` + `tags`**（tags 优先级高，见 L1217），别分两步留窗口。
 - **🚨 同名话题无法清理 quirk（v2.7.2 — 2026-06-30 实测：系统批把同一 MSTR 话题刷了 ×18，想批量撤清不掉）**：`update_trending_topic` **只按标题模糊匹配定位，命中多条同名时直接报错** `跨域匹配到多条同名话题`（返回 candidates 列表含 ID+status，但**拒绝执行**），且**没有按 ID 操作的入口**——传 `domain` 也没用（同域多条仍报错）。**后果：系统批刷屏的同名重复，前端工具清不掉**（无可区分标题子串、无 ID 参数）。**处置：只能在收尾列出「系统重复 N 条、工具无法清、建议 dev 后台去重 + 给 update 加 id 参数」**，别反复空试。（与上「系统碎片/重复检测」配套：检测出来 → 能清的清、清不掉的 mark 给 dev。）
+- **🚨 auto-match tag 别假设实体身份 + 通用词名杂 match 坑（quirk v2.7.5 — 2026-07-01 实测：2066 Circle 拿错 tag）**：`create/update` 返回的 `auto_matched_tags` **只是 keyword 命中的 tag id，绝不能"6 位数就假设是某股票 tag"**——必须实测确认它对应哪个实体。**尤其通用词公司名**（Circle / Apple / Meta / Block / Circle 等日常英文词）**极易匹配到同名杂实体**。**验证法（先实测再下结论）**：
+>   - 用**代币化 ticker 后缀探针**（`CRCLX`/`AAPLX`/`NVDAX`）单独跑 keywords，看 `auto_matched_tags` → 这才是正牌代币化 tag（如 Circle 正牌 = `CRCLX`→522611）；
+>   - **原生 ticker（`CRCL`）常匹配空 `[]`**、通用词名（`Circle`）常匹配到**错的同名实体**（如 590864 非 Circle 公司）——两者都不可当准；
+>   - 确认后**手绑正牌 tag**（同传 keywords+tags，tags 优先）。**教训**：2066 我拿 `Circle` 词 match 的 590864 当 CRCL 用、还靠"6 位数=股票"瞎猜，实为杂实体；正牌是 `CRCLX`→522611。性质同 5/14 漏 H200、quirk⑨：**别拿二手推断当实测**。
 
 参考：第 1 步「宏观跨市场代币映射」表里的已知 tag id
 
