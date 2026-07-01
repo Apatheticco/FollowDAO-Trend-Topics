@@ -130,3 +130,4 @@ v2.5.2 曾断言"create 返回 status=2 = 停在审核"。用户发现话题直�
 | v2.7.3 | 07-01 | 检测升级为主动动作：内容重复(含不同标题的同事件) create_at ≤6h 且标题互异可定位 → 主动合并(留最全1条、其余 status=3 下架，如 Circle 合并 10246/48/54→2066、Trump 合并 10247/51→10252)；>6h 或同名重复只列交 dev（用户「≤6h 出现重复内容的合并一下」「固化、升级成主动动作」）|
 | v2.7.4 | 07-01 | keywords 硬上限 4：从"3-5 个"收紧到 **≤4**(主标的 ticker+名 + 最核心 1-2 概念，砍次要实体/同义堆叠)；此前常塞 10-13(如 2066 Circle 塞 11)被用户「keywords 不要超过 4 个」纠。keywords 越少 auto-tag 越准、泛标签越不乱 match|
 | v2.7.5 | 07-01 | auto-match tag 别假设实体身份：6 位数≠必是某股票 tag；通用词公司名(Circle/Apple/Meta)易 match 同名杂实体。验证=代币化 ticker(CRCLX)探针取正牌 tag、原生 ticker(CRCL)常匹配空、通用词(Circle)匹配错实体。2066 我拿 Circle 词 match 的 590864 当 CRCL(实为杂实体)，正牌 CRCLX→522611|
+| v2.7.6 | 07-01 | keywords 禁用统称扩到赛道/板块类：稳定币/DeFi/RWA/L2/meme/AI 等赛道统称一律不进 keywords(判据：能否对应唯一可交易标的，不能就砍)。2066 用「稳定币」被用户「太宽泛」纠→改 Circle,CRCL,OUSD 全具体|
