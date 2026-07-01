@@ -97,7 +97,7 @@ tail -1 /tmp/trend-scout-last-refresh.txt 2>/dev/null   # 必跑，上轮真实�
   - **>8h（哪怕被更新过、只要最后活动仍 >8h）→ 不再考虑 update，直接新建一条**（v2.6.9 — 老话题已积累 heat/历史一致性，>8h 再追改既破坏一致性又内耗；当前催化一律由**新话题**承接。2026-06-25：MU 财报炸裂时我提议 update 22h 前的 1995、>24h 的 1986，被用户顶回"超 8h 就直接创建"）；
   - 8h 内无相关话题 → 直接新建。
   （这是 B/C 素材入口的固定第一步，与扫描模式的 0a 去重同源，但对单素材输入强制前置。同源规则见下方「升温硬规则适用范围」，两处阈值统一为 8h 活动时效。）
-- **建**：预览确认（不可跳过，确认前不调 MCP）→ create（**不传 desc**）→ tag 校验（美股主动手动绑，查速查表）→ **4.5 数据核实**（≥5 条走批量路径：1 次 metrics + 并行多源；**地缘/政策/突发自动加一轮 WebSearch 二次核**，见 v2.5.3）。
+- **建**：预览确认（不可跳过，确认前不调 MCP）→ create（**不传 desc**；**keywords ≤4 个铁律 v2.7.4**——主标的 ticker+名 + 最核心 1-2 概念，砍次要实体/同义堆叠，别再塞 10+）→ tag 校验（美股主动手动绑，查速查表）→ **4.5 数据核实**（≥5 条走批量路径：1 次 metrics + 并行多源；**地缘/政策/突发自动加一轮 WebSearch 二次核**，见 v2.5.3）。
 - **⚠️ status 真相（铁律 v2.5.6 — 2026-06-10 实测推翻 v2.5.2）**：`create_trending_topic` **返回值是 `status=2`，但系统后台会在几分钟内自动把它推到 `status=0` 上线**——**靠"不动"拦不住自动上线**。
   - **报告 status 一律以 `list_trending_topics` 实查为准，禁止拿 create 返回的 `status=2` 当最终态**（这是 v2.5.2 的误判根源：把 create 返回值当成了停驻态）。
   - **要"建完不上线/留审核"，必须建完立刻 `update_trending_topic(status=2)` 主动按住，并隔一会儿 re-list 复查**；若要**确保不出现在前台**，用 `status=3 隐藏`（比 2 更稳，2 仍可能被后台再推）。
@@ -939,7 +939,8 @@ keywords 同时承担两个职责：
 
 **🚫 禁用笼统统称**：`山寨币` / `加密` / `加密货币` / `概念` / `板块` / `代币` / `数字资产` / `市场` 等过于宽泛的词不进 keywords。搜索价值低且污染 tag 关联。
 
-**总量控制**：3-5 个（ticker 1-2 + 别名 1-3）；英文逗号分隔
+**总量控制（铁律 v2.7.4 — 2026-07-01 用户指令：不要超过 4 个）**：**keywords ≤ 4 个**（ticker 1-2 + 别名/核心概念 ≤2-3，合计封顶 4）；英文逗号分隔。
+> ⚠️ **硬上限 4，别再堆 10+**：2026-07-01 前我常塞 10-13 个（如 2066 Circle 塞了 11 个 Circle/CRCL/Open USD/OUSD/稳定币/USDC/Mastercard/Visa/BlackRock/Stripe/罗素指数），被用户「keywords 不要超过 4 个」纠。**只留主标的(ticker+名) + 最核心 1-2 概念**，砍掉次要实体/同义堆叠（如 OUSD 与 Open USD 只留 1、Mastercard/Visa/BlackRock/Stripe 等参与方全砍）。keywords 越少、auto-tag 越准、泛标签越不易乱 match（配合下方 tag 收敛）。**正例**：2066 应为 `Circle,CRCL,OUSD,稳定币`（4 个）。
 
 **实战例**：
 | 主标的 | keywords |
@@ -948,7 +949,7 @@ keywords 同时承担两个职责：
 | CRCL 财报 | `CRCLX,CRCL,Circle,USDC` |
 | AAPL 财报 | `AAPLon,AAPL,Apple,苹果` |
 | TSLA 拉升 | `TSLAX,TSLA,Tesla,特斯拉` |
-| INTC × Apple 代工 | `INTC,Intel,英特尔,Apple,苹果`（INTC 无代币化版） |
+| INTC × Apple 代工 | `INTC,英特尔,Apple,苹果`（4 个封顶；INTC 无代币化版）|
 | BTC 8.2万 | `BTC,比特币,Bitcoin` |
 | ETH 巨鲸转账 | `ETH,以太坊,Ethereum` |
 | 黄金 ATH | `XAUT,PAXG,黄金,Gold` |
