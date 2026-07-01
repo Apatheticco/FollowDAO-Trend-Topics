@@ -131,3 +131,4 @@ v2.5.2 曾断言"create 返回 status=2 = 停在审核"。用户发现话题直�
 | v2.7.4 | 07-01 | keywords 硬上限 4：从"3-5 个"收紧到 **≤4**(主标的 ticker+名 + 最核心 1-2 概念，砍次要实体/同义堆叠)；此前常塞 10-13(如 2066 Circle 塞 11)被用户「keywords 不要超过 4 个」纠。keywords 越少 auto-tag 越准、泛标签越不乱 match|
 | v2.7.5 | 07-01 | auto-match tag 别假设实体身份：6 位数≠必是某股票 tag；通用词公司名(Circle/Apple/Meta)易 match 同名杂实体。验证=代币化 ticker(CRCLX)探针取正牌 tag、原生 ticker(CRCL)常匹配空、通用词(Circle)匹配错实体。2066 我拿 Circle 词 match 的 590864 当 CRCL(实为杂实体)，正牌 CRCLX→522611|
 | v2.7.6 | 07-01 | keywords 禁用统称扩到赛道/板块类：稳定币/DeFi/RWA/L2/meme/AI 等赛道统称一律不进 keywords(判据：能否对应唯一可交易标的，不能就砍)。2066 用「稳定币」被用户「太宽泛」纠→改 Circle,CRCL,OUSD 全具体|
+| v2.7.7 | 07-01 | ≤6h 审核中(status=2)话题质量复审纳入每日固定流程：与 status=0 退场复查配对，每轮按标准审 ≤6h status=2，不合格(A≤1/链上红线/事实红线/灌水)直接 status=3 下架、不留审核池，系统批与自建一视同仁(实测 07-01 09:35 批 7 条全 A≤1 全撤、留 2066)|
