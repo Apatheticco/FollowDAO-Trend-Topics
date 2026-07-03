@@ -27,6 +27,11 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 > 🗂️ **时间戳用单一 append-only 文件 `$HOME/.trend-scout/last-refresh.txt`（铁律 v2.6.5 — 2026-06-20：旧按天命名 `-YYYYMMDD.txt` 跨天会读到当天空文件，算出乱码间隔，本会话连坑 3 次）**：文件名**不带日期**，每轮结尾 `echo "$(date +%s)000" >>` 追加，开跑 `tail -1` 取最后一行。禁止按天分文件、禁止只读当天文件。
 判模式：`"早上扫/隔夜更新"`→🟢首扫(24h) ｜ `"刷新/有什么新的"`→🔵刷新(4h) ｜ 模糊：06-10 点首扫、之后刷新 ｜ 今日 status=0 发布 0 条 → 强制首扫。
 
+> 📸 **收尾双留档（铁律 v2.8.3 — 效果评估地基）**：每轮收尾必做两笔追加（**单一 append-only 文件**，同 v2.6.5 教训不按天分文件）：
+> - **B0 快照** → `~/.trend-scout/snapshots.tsv`：本轮 B0 全量逐条 `run_ts<TAB>id<TAB>domain<TAB>status<TAB>created_at`。API 只给当前态、无变迁历史——没有跨轮快照，采纳率/打回率/误撤率全算不出。
+> - **写操作日志** → `~/.trend-scout/actions.tsv`：本轮每笔写操作逐条 `run_ts<TAB>action(create/cull/merge-keep/merge-hide/update/publish)<TAB>id<TAB>备注`。区分"我做的"和"系统/团队做的"全靠它。
+> - 周复盘用这两份算指标，见 `references/weekly-review.md`。
+
 > ⏱️ **跨轮间隔禁止凭会话记忆（v2.6.0 — 2026-06-12 实测：差点把昨天数据当"5 分钟前"复用）**：上轮何时跑的，**一律以 `$HOME/.trend-scout/last-refresh.txt` 最后一行时间戳 − 当前 date 计算**，"我记得刚跑完"不算数——compact/隔天续接后会话记忆必然失真。
 > - 实际间隔 **≤30min** → 可复用上轮价格快照/B0，只补增量
 > - **>30min** → 价格快照重拉
@@ -138,6 +143,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 1. 表格化三件套日报（v2.7.9）+ 本轮自动执行清单（建/合并/撤，逐条 ID）
 2. 🟡 跳过项清单（为什么跳过、等人决策什么）
 3. 干轮如实报干轮，禁止为"显得有产出"而降闸建题
+4. **收尾双留档必写**（§0 v2.8.3：B0 快照 + actions 日志）——AUTO 模式漏写留档 = 效果评估断档
 
 ### 状态持久化
 - 时间戳文件在 **`$HOME/.trend-scout/last-refresh.txt`**（v2.8.1 从 `/tmp` 迁出——`/tmp` 会被系统清理，实测一个会话内被清 3 次，对 cron 是致命的；`$HOME` 下跨重启存活）。开跑 `mkdir -p ~/.trend-scout` 兜底。
@@ -204,6 +210,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 | `references/dedup-scoring.md` | 第 0a/0a.5/0b 步详章：去重索引、升温硬规则、审核池预过滤、四维评分细则（A 维含行情关联度闸）、一票否决、三张表输出模板 | 评分/处置判定拿不准时 |
 | `references/fields-style.md` | 第 1-5 步详章：字段提取、标题样式标准 v2.8.0 全表、中英混杂规则、keywords/domain/topic_type、预览→create→tag 校验→数据核实→发布、紧急撤回 | 建题字段拿不准时 |
 | `references/data-quickref.md` | **数据表**：三栈 list ID、10 币表、板块矩阵 8×4、宏观符号映射、tag id 速查、update 用法 | 查数据时（数据更新只动这个文件）|
+| `references/weekly-review.md` | 周复盘效果评估：采纳率/打回率/误撤率/返工率算法 + 周报模板（吃 §0 双留档数据）| 用户喊"周复盘/效果复盘"或 AUTO 周任务 |
 | `LESSONS.md` | 完整事故档案 + 版本演进表 | 复盘/溯源时 |
 
 > **架构约定（v2.8.2）**：SKILL.md 只放「每轮必用」的执行卡+铁律+AUTO 协议；判定细节进 references；**数据与规则分离**（tag/list/币表过时只改 data-quickref，不动规则）；新教训入 LESSONS + 版本表，规则改动落到对应文件，**不再往本文件堆补丁**。
