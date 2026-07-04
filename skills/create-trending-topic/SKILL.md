@@ -70,6 +70,8 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 > **🤖 子进程范式（提速）**：list_timeline 子进程 prompt **只让它"按时间倒序 dump 最新 N 条 + 原始时间戳"，不要让它算 velocity**（velocity 计算吃 ~15K token/30s+，主进程粗排即可）。每条格式 `[MM/DD HH:MM] @author | 👍likes 🔁rt | text前130字`。N：首扫 主15/科技12/大师8，刷新 主10/科技8。
 >
 > **🛟 价格源降级梯（followin.metrics 挂时）**：metrics 报 `array has type string`（重连后数组序列化 bug，见 quirk⑬）或整体不返 → **crypto 走 okx `market_get_ticker(instId="BTC-USDT")`（单标的，10 币=10 call）；tradfi/指数/油金走 web 搜**。`okx` 的 `open24h` 算 24h 涨跌。yahoo/tradingview 偶发 SSL 证书错，不可靠。
+> **🛟 news 通道降级梯（v2.8.4 — 2026-07-04 AUTO 实测：followin 主 session 重init 时 metrics/news 全拒，但 Agent 子进程各起新 session 仍活）**：`followin.news`/TG 探针在主进程报 `session initialization` → **改用 Agent 子进程代跑**（prompt 让子进程 ToolSearch 加载 `followin__news` 后按同参数调用、只回传结果）。子进程独立 session 能绕过主 server 抖动（三栈 list 一直靠这个活）。子进程也失败才算该通道真缺失。
+> **🚨 半盲熔断铁律（v2.8.4 — 同源实测：followin 挂那轮只 okx 补了价格，news/TG 整条哑掉却照报"干净干轮"=误导）**：任一**必跑通道**（news 事件面 / TG exploit / 三栈 list）失败**且降级梯也补不齐** → 该轮结论**强制标「⚠️ 半盲扫·结论存疑」，禁止报"干净干轮/无候选"**（缺的是"看没看到"，不是"有没有"）。报告显式列**哪条通道缺、缺了什么维度**。AUTO 模式尤其致命（无人复核），半盲轮必须留醒目标注等人补扫。
 
 ### 2. 候选处置路由（status × create_at 年龄 → 走哪条规则）
 
@@ -144,6 +146,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 2. 🟡 跳过项清单（为什么跳过、等人决策什么）
 3. 干轮如实报干轮，禁止为"显得有产出"而降闸建题
 4. **收尾双留档必写**（§0 v2.8.3：B0 快照 + actions 日志）——AUTO 模式漏写留档 = 效果评估断档
+5. **半盲熔断**（§0 v2.8.4）：news/TG/三栈 任一失败且降级补不齐 → 报告首行标「⚠️ 半盲扫·结论存疑」+ 列缺失通道；**禁报"干净干轮"**，actions 留档标 note
 
 ### 状态持久化
 - 时间戳文件在 **`$HOME/.trend-scout/last-refresh.txt`**（v2.8.1 从 `/tmp` 迁出——`/tmp` 会被系统清理，实测一个会话内被清 3 次，对 cron 是致命的；`$HOME` 下跨重启存活）。开跑 `mkdir -p ~/.trend-scout` 兜底。
