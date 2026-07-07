@@ -297,3 +297,35 @@ N：首扫 主15/科技12/大师8；刷新 主10/科技8。三栈 list 各跑一
 → 提炼候选进入第 0a 去重对照。
 
 ---
+
+## 📈 movers 异动通道（v2.8.6 详章 — 2026-07-04~07 实测）
+
+### 标准调用（okx 为主源）
+
+```
+market_filter(instType="SWAP", sortBy="chg24hPct", sortOrder="desc", minVolUsd24h="15000000", limit=10)   # 涨榜
+market_filter(instType="SWAP", sortBy="chg24hPct", sortOrder="asc",  minVolUsd24h="15000000", limit=8)    # 跌榜
+market_filter_oi_change(instType="SWAP", bar="4H", sortBy="oiDeltaPct", minVolUsd24h="15000000", limit=10) # OI 异动
+```
+
+### 参数三坑（误诊事故档案）
+
+| 坑 | 症状 | 真相 |
+|----|------|------|
+| sortBy 传 `priceChangePercent` | HTTP 400 "Bind Arguments Validation Failure" | 枚举是 `chg24hPct`（另有 last/volUsd24h/fundingRate/oiUsd/listTime）。07-04 我据此误诊"OKX movers 挂了、得挂几天"，改用单一 tradingview 险误报干轮——**先 ToolSearch 读 schema 再下"通道死"结论** |
+| oi_change 不传 `instType` | ValidationError: Missing required parameter | `instType` 必填（SWAP/FUTURES） |
+| capabilities 显示 swap/spot/account `MODULE_FILTERED` | 看着像"模块被封" | 那是**交易模块**被关（只读部署设计），`market` 模块恒 `enabled`，只读扫描不受影响 |
+
+### 源优先级
+
+| 优先 | 源 | 说明 |
+|------|----|------|
+| 1 | okx `market_filter` / `oi_change` | 主源，SWAP 宇宙全、24h 口径准 |
+| 2 | tradingview `top_gainers/top_losers` | okx 挂时兜底；**单源不可信**——07-06 实测币安现货口径 +1.65% 封顶失真，同时刻 okx SWAP HMSTR +83%。单源静默 ≠ 干轮 |
+| ❌ | followin.metrics movers | **advertised-but-empty**：help 宣传 query='biggest gainers'/'涨幅榜'/'最活跃'/'市场异动'，实测四种写法全 total=0 且错路由进 metrics_macro(FRED)。followin 只查**已知标的**价格（keywords 直查，这个好用），不承担全市场涨跌榜 |
+
+### 干轮自检
+
+movers 侧报"无异动"前必确认：本轮 okx 两榜是否真跑通（ok:true + rows 非空结构）？只有 tradingview 一源在跑 → 不下"行情异动干轮"结论，标注"movers 单源存疑"。
+
+---
