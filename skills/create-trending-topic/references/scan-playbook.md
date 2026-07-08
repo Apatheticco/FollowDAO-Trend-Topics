@@ -59,6 +59,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 > 3. **`WebFetch https://www.google.com/finance/quote/000660:KRX`**（2026-06-22 实测**通**，回实时价+前收+涨跌额，可自算 %；stockanalysis 403 / Naver 被封 / yahoo SSL 均不可靠）
 > 4. 仍取不到 → **如实告知"今日实际价未取到"，给"等收盘 dated / 叙事版不押价 / 刷新老话题"三选项**，禁止硬编。
 > **教训（v2.6.7）**：06-22 我只试了 WebSearch 就下结论"取不到实时价"被用户顶回——`followin 无覆盖 ≠ 全网取不到`，降级梯必须走到底（Google Finance WebFetch 那级才通）。性质同 quirk⑨、5/14 漏 H200：盲区标的当场换源补全，不将就二手数、不提前认输。
+> **🐸 新链 memecoin 取价降级梯（v2.9.1 — 07-08 CASHCAT）**：followin/okx/tradingview 均不覆盖的新链 meme（Robinhood 链等）→ **WebFetch dexscreener API** 取硬数：`api.dexscreener.com/latest/dex/pairs/<chain>/<pair地址>`（TG/CT 帖里常带 dexscreener 链接可直接扒 pair 地址）或搜索端点 `api.dexscreener.com/latest/dex/search?q=<TOKEN>`，字段 priceUsd/fdv/marketCap/priceChange.h24；GMGN 页面兜底。**单条 CT 推文的市值数不作硬锚**（只可写"破 X"下限口径）。live 题锚值出现翻倍级偏差时**直接抓、别停下问用户**——只读抓取零成本（07-08 我停在"要不要抓"被复盘点名）。
 
 ### 🔁 价格应急扩列规则（首扫 / 刷新通用）
 
@@ -206,6 +207,7 @@ jq -r '.[] | "[\(._source_quality // "low")] @\(.author_name) | \((.published_ts
 
 ```
 调用 followin.twitter(action="list_timeline", list_id="<LIST_ID>")。
+若报 session initialization / session not found：等待约 10 秒重试，最多 3 次（子进程自愈，v2.9.1）。
 时间过滤：createdAt > <LAST_REFRESH_TS>（unix 秒）— 早于此时间的全部丢弃（首扫不传则不滤）。
 按 createdAt 倒序输出最新 <N> 条，每条只回传一行：
 [MM/DD HH:MM] @author | 👍likes 🔁rt 💬reply | text前130字

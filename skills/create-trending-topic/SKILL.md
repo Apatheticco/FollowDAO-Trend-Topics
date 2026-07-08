@@ -39,6 +39,8 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 
 ### 1. 并行批次表（同一格 = 同一 turn 内并发；followin 单批 ≤5 防掉线）
 
+> 🚀 **单 turn 齐发铁律（v2.8.9 — 2026-07-07 实测：串行跑一轮 15min，用户「优化一下」）**：刷新模式**全部批次（B0 console + B1/B2 followin + okx 涨/跌/OI + A1 子进程）一律在同一条消息里齐发**，不分先后波——各批间无数据依赖，分波纯属浪费；墙钟=最慢一路（子进程 ~2-3min）→ 全轮 4-5min。**三大违规姿势**：① 单 call 单 turn 逐个调、call 之间夹叙述（主犯，10 个串行回合 ≈6-8min）；② A1 子进程放末尾才起（长杆必须第一波起，§1 原有规则重申）；③ 首扫因 followin 单批 ≤5 需 4 波，但 **B0/A1/okx/TG 与 W1 同发，W2-W4 只等 followin 前一波返回即续发，不等其他通道**。A1 dump-only 子进程**一律 `model=haiku`**（机械 dump 不需要大模型，实测 opus 103-178s，haiku 显著更快）。收尾三合一：处置写操作 + 留档 bash + 报告同 turn 出。
+
 **🔵 刷新（4h）— B0+B1+A1 同波并发 + B2 + 1 console**
 | 批 | server | 并发 calls |
 |----|--------|-----------|
@@ -69,10 +71,10 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 >
 > **🤖 子进程范式（提速）**：list_timeline 子进程 prompt **只让它"按时间倒序 dump 最新 N 条 + 原始时间戳"，不要让它算 velocity**（velocity 计算吃 ~15K token/30s+，主进程粗排即可）。每条格式 `[MM/DD HH:MM] @author | 👍likes 🔁rt | text前130字`。N：首扫 主15/科技12/大师8，刷新 主10/科技8。
 >
-> **🛟 价格源降级梯（followin.metrics 挂时）**：metrics 报 `array has type string`（重连后数组序列化 bug，见 quirk⑬）或整体不返 → **crypto 走 okx `market_get_ticker(instId="BTC-USDT")`（单标的，10 币=10 call）；tradfi/指数/油金走 web 搜**。`okx` 的 `open24h` 算 24h 涨跌。yahoo/tradingview 偶发 SSL 证书错，不可靠。
+> **🛟 价格源降级梯（followin.metrics 挂时）**：metrics 报 `array has type string`（重连后数组序列化 bug，见 quirk⑬）或整体不返 → **crypto 走 okx `market_get_ticker(instId="BTC-USDT")`（单标的，10 币=10 call）；tradfi/指数/油金走 web 搜**。`okx` 的 `open24h` 算 24h 涨跌。yahoo/tradingview 偶发 SSL 证书错（07-08 实测 `tradingview yahoo_price` 全会话稳定，可用）。**tradfi 403 会话级熔断（v2.9.1 — 07-08 连续 3 轮 fmp 403 仍每轮先打 followin=白烧）**：followin tradfi 报 fmp 403（source_dead）→ **本会话后续 tradfi 报价直接走 yahoo_price/okx，不再先打 followin 探路**；下一次首扫重探 1 次，恢复则解除熔断。
 > **🥇 个股价格锚=正股优先（v2.8.7 — 2026-07-07 用户指令「不要用代币化股票，直接用 Followin 查正股」）**：个股/板块行情话题的标题价格一律锚**正股**——`followin.metrics(asset_type="tradfi")` 直查，非美股带正确后缀（韩 `.KS/.KQ`、日 `.T`、港补零 4 位 `.HK`；公司英文名也可解析，"SK Hynix"→000660.KS）。**代币化股票（OKX SKHYNIX/MU/TSLA-SWAP 等）不作主价格锚**——与正股有真实点差（实测 07-07：SK 海力士代币化 -4.8% vs 正股 -6.1%，锚错失真 1.3pt）；仅两用途：① 正股闭市时段的连续行情参考（标题/正文须显式写明"代币化"）；② crypto 域联动叙事。正股 metrics miss 才走 v2.6.7 降级梯（WebSearch→tradingview→Google Finance WebFetch），禁止先抓代币化凑数。**domain 联动：正股锚的个股/板块行情话题一律 `domain="tradfi"`**（韩/日/港正股与美股同待遇；只有叙事主体是代币化标的/链上联动时才 crypto）——SK 海力士 10423 建在 crypto 被用户「类型记得标记 Tradfi」纠，重建 tradfi 10000002103，同三星 10417→10000002102 前例。
 > **🛟 news 通道降级梯（v2.8.4 — 2026-07-04 AUTO 实测：followin 主 session 重init 时 metrics/news 全拒，但 Agent 子进程各起新 session 仍活）**：`followin.news`/TG 探针在主进程报 `session initialization` → **改用 Agent 子进程代跑**（prompt 让子进程 ToolSearch 加载 `followin__news` 后按同参数调用、只回传结果）。子进程独立 session 能绕过主 server 抖动（三栈 list 一直靠这个活）。子进程也失败才算该通道真缺失。
-> **🚨 半盲熔断铁律（v2.8.4 — 同源实测：followin 挂那轮只 okx 补了价格，news/TG 整条哑掉却照报"干净干轮"=误导）**：任一**必跑通道**（news 事件面 / TG exploit / 三栈 list）失败**且降级梯也补不齐** → 该轮结论**强制标「⚠️ 半盲扫·结论存疑」，禁止报"干净干轮/无候选"**（缺的是"看没看到"，不是"有没有"）。报告显式列**哪条通道缺、缺了什么维度**。AUTO 模式尤其致命（无人复核），半盲轮必须留醒目标注等人补扫。
+> **🚨 半盲熔断铁律（v2.8.4 — 同源实测：followin 挂那轮只 okx 补了价格，news/TG 整条哑掉却照报"干净干轮"=误导）**：任一**必跑通道**（news 事件面 / TG exploit / 三栈 list）失败**且降级梯也补不齐** → 该轮结论**强制标「⚠️ 半盲扫·结论存疑」，禁止报"干净干轮/无候选"**（缺的是"看没看到"，不是"有没有"）。报告显式列**哪条通道缺、缺了什么维度**。AUTO 模式尤其致命（无人复核），半盲轮必须留醒目标注等人补扫。**补扫在飞不预支（v2.9.1 — 07-08 主 list 重试未归即报"非全盲"，赌对但流程违规）**：某必跑通道的重试/子进程还在飞时，报告**不得**先写「非半盲/全通道跑通」——标「⚠️N 通道补扫中·结论待确认」，待其返回后再补记升格。
 > **📈 movers 异动通道（v2.8.6 — 2026-07-04~07 实测）**：全市场涨跌榜/OI 异动**主走 okx**：`market_filter(instType="SWAP", sortBy="chg24hPct", sortOrder="desc"/"asc", minVolUsd24h≈1500万)` 涨跌各一 + `market_filter_oi_change(instType="SWAP", bar="1H"/"4H")`。**参数三坑**：① `instType` 必填；② sortBy 枚举是 **`chg24hPct`**——传 `priceChangePercent` 直接 400 Bind Arguments（实测我曾据此误诊"OKX 挂了"，其实是自己传错参——先读 schema 再下"通道死"结论）；③ capabilities 里 swap/spot/account 等 `MODULE_FILTERED` 是**交易模块被关**（只读部署设计），market 模块 `enabled` 照常，别当"下架"。**followin.metrics movers 不可用**：query='biggest gainers'/'涨幅榜'/'最活跃'/'市场异动'（help 自己宣传的写法）实测全 total=0 且错路由 FRED——advertised-but-empty，涨跌榜别指望它。okx 挂时 fallback `tradingview top_gainers`，但**单源不可信**（实测币安现货口径 +1.65% 封顶失真、险把 HMSTR +83% 漏成"干轮"）→ movers 结论 okx 为主，与 news 面对不上时双源交叉再定，单源静默不下"干轮"结论。
 
 ### 2. 候选处置路由（status × create_at 年龄 → 走哪条规则）
@@ -83,13 +85,13 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 
 | status | create_at 年龄 | 处置 |
 |--------|------|------|
-| **0 上线** | ≤8h | 数据偏差 ≥10%→升温 update title；>25%→撤(status=3)；>50% 反向→强撤（= 下方近 6h 退场复查）|
+| **0 上线** | ≤8h | 数据偏差 ≥10%→升温 update title；>25%→撤(status=3)；>50% 反向→强撤（= 下方近 6h 退场复查）；**A≤1 灌水类 → 已上线也直接撤，不豁免（v2.9.2）**：产品升级/技术里程碑/链上 vanity 数据/已落地的上线宣传+奖励池均撤；⚠️ **例外：带明确未来日期的空投/上线预告可留**（GRVT 7/21 上线+28%空投=有日期的可交易预期，用户 07-08 分级）|
 | **0 上线** | **>8h** | 🚫**完全不管**（不复查/不脱锚撤/不升温/不提）；当前行情 → 新建一条 |
 | **2 审核** | ≤8h | 0a.5 预过滤 → ✅发 / 🟠改 / 🚨撤 / 🟡待核（表 3 必列）|
 | **2 审核** | **>8h** | 🚫**完全不管**（从简报剔除、不再 push、不撤不改）|
 | **3 hidden** | — | 不重建、不分析 |
 
-> **🔁 近 6h 上线话题退场复查（铁律 v2.6.8 — 2026-06-22 用户指令，受 v2.7.1 8h 闸约束）**：每轮扫描**必从 B0 挑出 status=0 且 `create_at ≤6h` 的话题逐条复查**——① **脱锚/失实/时效过期 → 下架 `status=3`**；② **数据旧但仍成立 → update**；③ 仍准确 → 不动。**>8h 的一律不进此复查**（v2.7.1）。系统自动批（10000001xxx）只扫明显脱锚错误，自建话题逐条过。
+> **🔁 近 6h 上线话题退场复查（铁律 v2.6.8 — 2026-06-22 用户指令，受 v2.7.1 8h 闸约束）**：每轮扫描**必从 B0 挑出 status=0 且 `create_at ≤6h` 的话题逐条复查**——① **脱锚/失实/时效过期 → 下架 `status=3`**；② **数据旧但仍成立 → update**；③ 仍准确 → 不动；④ **A≤1 灌水类 → 上线不豁免直接下架（v2.9.2 — 2026-07-08 用户 base case：Ondo Perps 上线+15万奖励池 10459、SUI $65B 转账实验 10452，「已经上线的应该都下掉」）**——v2.7.7 质量复审四类不合格标准（行情关联度 A≤1 / 链上红线 / 事实红线 / 灌水噪音）对 `status=0 ≤8h` 同样适用，**系统推上线 ≠ 质量背书**。**灌水类内部分级（用户同日细化）**：撤=产品升级/技术里程碑/链上 vanity 数据/已落地上线宣传（NEAR 升级 10446 用户点名撤，>8h 亦破闸执行）；留=**带明确未来日期的空投/上线预告**（GRVT 10447「7/21 上线+28%空投」保留——有日期的可交易预期，判据："读者能不能据此提前布局一个日期事件？能=留，不能=撤"）。**>8h 的一律不进此复查**（v2.7.1）。系统自动批（10000001xxx）只扫明显脱锚错误，自建话题逐条过。
 
 > **🔎 近 6h 审核中话题质量复审（铁律 v2.7.7 — 2026-07-01 用户指令「加入每天固定流程」）**：与上"退场复查"配对——每轮扫描**必从 B0 挑出 `status=2 审核中` 且 `create_at ≤6h` 的话题逐条按标准审，不合格的直接 `status=3` 下架，不留在审核池**（系统批 10xxx/2xxx 与自建一视同仁）。**不合格标准（任一命中即撤）**：① **行情关联度闸 A≤1**——无清晰可交易标的被该催化定价（财库流水/产品调整/DAO 治理/KOL 口水观点/政治披露 等）；② **链上红线**（匿名对赌/机构例行托管流水）；③ **事实红线**（硬定义词失实、隔日数进标题）；④ **灌水噪音**（空投/上币/小币 meme 短时波动）。**合格的保留**（有清晰标的+强催化，如 Circle 崩盘 2066）。**>6h 的不进此复审**（超窗）。2026-07-01 实测：09:35 系统批 7 条（Goldman Lampe 财库/Pump.fun 产品/ENS 治理/江卓尔口水/Sharplink 财库/JD Vance 披露/Trump 披露）全 A≤1 → 全撤，只留 2066。
 
