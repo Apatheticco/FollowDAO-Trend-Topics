@@ -14,6 +14,8 @@
 
 `BTC, ETH, SOL, BNB, XRP, DOGE, HYPE, SUI, AVAX, LINK`
 
+> 🧱 **metrics keywords ≤5/批硬上限（v2.9.4 — 2026-07-11 实测 API 变更）**：`followin.metrics` 单次 `keywords` 超过 5 个会**静默截断到前 5**、返回 `warning: keywords truncated: N→5`，多的直接丢（07-10 同调用还 10 个全返回、零 warning，隔夜收紧）。**10 币拆 2 批（5+5）、下方板块矩阵每批 ≤5**，别一次塞 10——那是看不见的漏扫。
+
 ##### 📊 美股板块涨跌矩阵 — 8 板块代表股（§1 W3 的 3×10 = 本表高权重子集 +MRVL/TSLA/AMZN；GEMI/IBKR/LMT/RTX/BA 仅按需补拉）
 
 风向标常漏**子板块异动**（如 5/18 存储+光通信集体崩盘只看大盘看不出）。8 大板块代表股：
@@ -29,7 +31,7 @@
 | **量化交易 / Fintech** | `HOOD,SOFI,PLTR,IBKR` |
 | **航天 / 国防** | `RKLB,LMT,RTX,BA` |
 
-**判定**：某板块 ≥2 标的同向 >3% 涨/跌 → 板块异动信号 → 进 0b 作板块候选（如 R-Mem 存储+光通信回调）。拆 3×10 跑（quirk⑪），加 `categories=["market"]`（quirk⑩）；批3 补 TSLA/AMZN 即覆盖科技大票，不单跑 Wave2C。
+**判定**：某板块 ≥2 标的同向 >3% 涨/跌 → 板块异动信号 → 进 0b 作板块候选（如 R-Mem 存储+光通信回调）。**拆 ≤5/批 跑（v2.9.4 — keywords 硬上限 5，旧"3×10"作废，改 6 批×5 或按板块 4 个一批）**，加 `categories=["market"]`（quirk⑩）；批内补 TSLA/AMZN 即覆盖科技大票，不单跑 Wave2C。
 
 ##### 🏛️ 宏观/大宗 — 符号校正 + fallback 链
 
