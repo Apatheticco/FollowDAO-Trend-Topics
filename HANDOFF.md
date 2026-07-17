@@ -1,6 +1,6 @@
 # HANDOFF — 会话交接（2026-07-07）
 
-> 新 session 接管指南：规则全在 `skills/create-trending-topic/`（SKILL.md 执行卡 + references 详章 + LESSONS 版本表，当前 v2.9.6），运行状态在 `~/.trend-scout/`（last-refresh.txt / actions.tsv / snapshots.tsv），话题池以 `list_trending_topics` 实查为准。**本文件只装未决事项**，处理完即可删除本文件。
+> 新 session 接管指南：规则全在 `skills/create-trending-topic/`（SKILL.md 执行卡 + references 详章 + LESSONS 版本表，当前 v2.9.7），运行状态在 `~/.trend-scout/`（last-refresh.txt / actions.tsv / snapshots.tsv），话题池以 `list_trending_topics` 实查为准。**本文件只装未决事项**，处理完即可删除本文件。
 
 ## ⏸ 未决事项（按优先级）
 
@@ -25,3 +25,4 @@
 - movers：只走 okx（`sortBy:"chg24hPct"`、`instType` 必填），followin 涨跌榜是空货架，tradingview 单源不可信（v2.8.6）
 - 执行序：扫热点→盘8h池→处置存量→**最后**补题（v2.8.5）；判模式：当天第一轮=首扫，其余=刷新（v2.8.8）
 - create 后停 status=2，禁主动上线；>8h 不碰；keywords ≤4 禁统称；tag 不硬塞
+- **meme 币默认保留（v2.9.7 铁律）**：A≤1 灌水闸对 meme **不适用**；撤 meme 只限「同标的重复／已证伪／事实错误」三类，**禁**以"小币/无锚/短时波动"为由撤（我连犯两次被用户纠正）
