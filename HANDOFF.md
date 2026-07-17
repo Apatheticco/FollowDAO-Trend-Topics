@@ -1,6 +1,6 @@
 # HANDOFF — 会话交接（2026-07-07）
 
-> 新 session 接管指南：规则全在 `skills/create-trending-topic/`（SKILL.md 执行卡 + references 详章 + LESSONS 版本表，当前 v2.9.7），运行状态在 `~/.trend-scout/`（last-refresh.txt / actions.tsv / snapshots.tsv），话题池以 `list_trending_topics` 实查为准。**本文件只装未决事项**，处理完即可删除本文件。
+> 新 session 接管指南：规则全在 `skills/create-trending-topic/`（SKILL.md 执行卡 + references 详章 + LESSONS 版本表，当前 v2.9.8），运行状态在 `~/.trend-scout/`（last-refresh.txt / actions.tsv / snapshots.tsv），话题池以 `list_trending_topics` 实查为准。**本文件只装未决事项**，处理完即可删除本文件。
 
 ## ⏸ 未决事项（按优先级）
 

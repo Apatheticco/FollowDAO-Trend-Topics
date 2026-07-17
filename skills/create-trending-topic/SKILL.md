@@ -29,7 +29,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 
 > 📸 **收尾双留档（铁律 v2.8.3 — 效果评估地基）**：每轮收尾必做两笔追加（**单一 append-only 文件**，同 v2.6.5 教训不按天分文件）：
 > - **B0 快照** → `~/.trend-scout/snapshots.tsv`：本轮 B0 全量逐条 `run_ts<TAB>id<TAB>domain<TAB>status<TAB>created_at`。API 只给当前态、无变迁历史——没有跨轮快照，采纳率/打回率/误撤率全算不出。
-> - **写操作日志** → `~/.trend-scout/actions.tsv`：本轮每笔写操作逐条 `run_ts<TAB>action(create/cull/merge-keep/merge-hide/update/publish)<TAB>id<TAB>备注`。区分"我做的"和"系统/团队做的"全靠它。
+> - **写操作日志** → `~/.trend-scout/actions.tsv`：本轮每笔写操作逐条 `run_ts<TAB>action(create/cull/merge-keep/merge-hide/update/publish/**restore**/rulefix/note)<TAB>id<TAB>备注`（restore=v2.9.7 起的误撤恢复 status→0）。区分"我做的"和"系统/团队做的"全靠它。
 > - 周复盘用这两份算指标，见 `references/weekly-review.md`。
 
 > ⏱️ **跨轮间隔禁止凭会话记忆（v2.6.0 — 2026-06-12 实测：差点把昨天数据当"5 分钟前"复用）**：上轮何时跑的，**一律以 `$HOME/.trend-scout/last-refresh.txt` 最后一行时间戳 − 当前 date 计算**，"我记得刚跑完"不算数——compact/隔天续接后会话记忆必然失真。
@@ -39,14 +39,14 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 
 ### 1. 并行批次表（同一格 = 同一 turn 内并发；followin 单批 ≤5 防掉线）
 
-> 🧱 **两条硬约束铁律（v2.9.4 — 2026-07-11 实测）**：① **`metrics` 的 `keywords` 每次硬上限 5 个**——超了静默截断到前 5、返回 `warning: keywords truncated: N→5`，多的直接丢（07-10 同调用 10 个还全返回，隔夜 API 收紧）。10 币拆 2 批、板块矩阵每批 ≤5，**别一次塞 10（看不见的漏扫）**。② **B0 `list_trending_topics` 的 `date_range` 必须含今天**——`start_date/end_date` 要覆盖当前 date（跨天写 `昨天~今天`），否则漏当天新建话题、误报"8h 池为空"（07-11 实测栽坑）。
+> 🧱 **两条硬约束铁律（v2.9.4 — 2026-07-11 实测）**：① **`metrics` 的 `keywords` 每次硬上限 5 个**——超了静默截断到前 5、返回 `warning: keywords truncated: N→5`，多的直接丢（07-10 同调用 10 个还全返回，隔夜 API 收紧）。10 币拆 2 批、板块矩阵每批 ≤5，**别一次塞 10（看不见的漏扫）**。② **B0 `list_trending_topics` 的 `date_range` 必须含今天**——`start_date/end_date` 要覆盖当前 date（跨天写 `昨天~今天`），否则漏当天新建话题、误报"8h 池为空"（07-11 实测栽坑）。③ **B0 `limit=100`（API max）+ 满额守卫（v2.9.8 — 07-17 首扫 total=80 正好顶到旧 limit=80）**：返回 `total == limit` 即视为**可能截断**，必须缩短 date_range 或分 `status` 拆两次拉齐，禁止拿顶格结果当全量（同 keywords 截断，是"看不见的漏扫"）。
 
 > 🚀 **单 turn 齐发铁律（v2.8.9 — 2026-07-07 实测：串行跑一轮 15min，用户「优化一下」）**：刷新模式**全部批次（B0 console + B1/B2 followin + okx 涨/跌/OI + A1 子进程）一律在同一条消息里齐发**，不分先后波——各批间无数据依赖，分波纯属浪费；墙钟=最慢一路（子进程 ~2-3min）→ 全轮 4-5min。**三大违规姿势**：① 单 call 单 turn 逐个调、call 之间夹叙述（主犯，10 个串行回合 ≈6-8min）；② A1 子进程放末尾才起（长杆必须第一波起，§1 原有规则重申）；③ 首扫因 followin 单批 ≤5 需 4 波，但 **B0/A1/okx/TG 与 W1 同发，W2-W4 只等 followin 前一波返回即续发，不等其他通道**。A1 dump-only 子进程**一律 `model=haiku`**（机械 dump 不需要大模型，实测 opus 103-178s，haiku 显著更快）。收尾三合一：处置写操作 + 留档 bash + 报告同 turn 出。
 
 **🔵 刷新（4h）— B0+B1+A1 同波并发 + B2 + 1 console**
 | 批 | server | 并发 calls |
 |----|--------|-----------|
-| **B0**（与 B1/A1 同波，**不单开一波**——console 与 followin/Agent 不同服务器、无依赖，只需在 0a 评分前到位）| console | `list_trending_topics(24h, 全状态, limit=80)` |
+| **B0**（与 B1/A1 同波，**不单开一波**——console 与 followin/Agent 不同服务器、无依赖，只需在 0a 评分前到位）| console | `list_trending_topics(24h, 全状态, **limit=100** + total==limit 满额守卫，见上方铁律③)` |
 | B1 | followin | 10币 metrics（**`categories=["market"]`**）｜ 跨市场 metrics（金=`XAUT`@crypto / 油+美元=`["CLUSD","DXY"]`@tradfi，均加 `categories=["market"]`；见 quirk⑨⑩）｜ news(crypto market 4h) ｜ news(listing/解锁/SEC 4h) ｜ **〔第 5 槽空出，按需补漏网币第二轮核〕** |
 | B2 | followin | **TG exploit 探针（1 条，v2.6.6）** ｜ news(美股 query 兜底, 不传 asset_type) ｜ Wave5 鲸鱼 ｜ Wave5 上币 ｜ 〔空〕 |
 | A1 | Agent×2（与 B0/B1 同波起）| **刷新只 2 栈**：主 `2046422494643687464` + 科技AI `2051854001608724654`（大师 list 刷新砍——4h 几乎每次"无新推"，移首扫；明确"看大师"才破例）。**子进程 prompt 用精简版**（见 §1 末「子进程范式」）|
@@ -65,8 +65,8 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 > |----|----------------------|------|
 > | **W1 价格核心**（**+ B0 console + A1 三栈 同波起**）| ①10币(market) ②金 XAUT(crypto/market) ③油+美元+spx `["CLUSD","DXY","spx"]`(tradfi/market) ④SPY+QQQ+VIX(tradfi/market，spx 兜底**预判直塞**) ⑤crypto market news(1d) | **B0 + A1 三栈 list 子进程同波并发**（console/Agent 不占 followin 的 5 槽）|
 > | **W2 事件/链上 news** | ①listing/解锁/SEC/漏洞 news ②美股 query 兜底(不传 asset_type) ③Wave5 鲸鱼 ④Wave5 上币 ⑤Wave5 解锁/财库 | 全 news；**tradfi 头条已砍**（quirk④ 返 0，②兜底覆盖）|
-> | **W3 板块+宏观** | ①板块批1[NVDA,AMD,AVGO,TSM,MSFT,GOOGL,META,AAPL,MU,SNDK] ②板块批2[WDC,STX,LITE,AAOI,GLW,COHR,ASML,AMAT,LRCX,KLAC] ③板块批3[CRCL,COIN,MSTR,HOOD,SOFI,PLTR,RKLB,MRVL,**+TSLA,AMZN**] ④**econ 日历（前瞻：传 `date_from`=今天 `date_to`=+5d，见 quirk⑫）** ⑤国债 DGS10/DGS2(macro) | 板块矩阵 3×10（quirk⑪）；**⚠️美股时段闸：US 休市/盘前（周末或 ET 收盘后）→ 板块矩阵=上一收盘陈旧，①②③ 跳过标"盘前取上收盘"，开盘后再拉**。批3 补 TSLA/AMZN 覆盖 Wave2C，不单跑 |
-> | **W4 扫尾（多为按需）** | ①跌榜 top losers(market) ②earnings 日历 `query="earnings calendar this week", categories=["fundamentals"], asset_type="tradfi"`（周一/财报周）③（按需）`CPIAUCSL/UNRATE`(macro) 点位 ④（按需）±15% 漏网币第二轮核 | 涨榜 `biggest gainers` **默认砍**（penny + min_market_cap source_dead，quirk⑪）。W4 多数轮无强需求 → **空就并进 W3 或跳过**，别硬塞 |
+> | **W3 板块+宏观（前半）** | ①板块批1[NVDA,AMD,AVGO,TSM,TSLA] ②板块批2[MSFT,GOOGL,META,AAPL,AMZN] ③板块批3[MU,SNDK,WDC,STX,LITE] ④板块批4[AAOI,GLW,COHR,ASML,AMAT] ⑤**econ 日历（前瞻：传 `date_from`=今天 `date_to`=+5d，见 quirk⑫）** | **板块矩阵 6 批×5（v2.9.8 — 修正 v2.9.4 改漏的本表旧"3×10"，keywords>5 静默截断=漏扫）**；**⚠️美股时段闸：US 休市/盘前（周末或 ET 收盘后）→ 板块矩阵=上一收盘陈旧，①~④ 跳过标"盘前取上收盘"，开盘后再拉**。TSLA/AMZN 已并入批1/2 覆盖 Wave2C |
+> | **W4 板块（后半）+扫尾** | ①板块批5[LRCX,KLAC,CRCL,COIN,MSTR] ②板块批6[HOOD,SOFI,PLTR,RKLB,MRVL] ③国债 DGS10/DGS2(macro) ④跌榜 top losers(market) ⑤earnings 日历 `query="earnings calendar this week", categories=["fundamentals"], asset_type="tradfi"`（周一/财报周；非财报周此槽给 按需 `CPIAUCSL/UNRATE` 或 ±15% 漏网币第二轮核）| 板块批5/6 受同一美股时段闸。涨榜 `biggest gainers` **默认砍**（penny + min_market_cap source_dead，quirk⑪）|
 > | **W-TG** | **TG 1 条 exploit 探针**（`query="hack exploit drained bridge vulnerability"`, telegram, 1d）—— v2.6.6 裸 feed 已砍 | 单 call，可并进 W2 空槽，不必单开波 |
 >
 > A1 第 3 栈 = **大师 list `2051856808348987697`**（首扫必跑；刷新砍）。3 栈子进程 ~30-45s 是长杆，**W1 就起**和 W2-W4 并行跑完，别落关键路径末尾。
@@ -76,6 +76,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 > **🛟 价格源降级梯（followin.metrics 挂时）**：metrics 报 `array has type string`（重连后数组序列化 bug，见 quirk⑬）或整体不返 → **crypto 走 okx `market_get_ticker(instId="BTC-USDT")`（单标的，10 币=10 call）；tradfi/指数/油金走 web 搜**。`okx` 的 `open24h` 算 24h 涨跌。yahoo/tradingview 偶发 SSL 证书错（07-08 实测 `tradingview yahoo_price` 全会话稳定，可用）。**tradfi 403 会话级熔断（v2.9.1 — 07-08 连续 3 轮 fmp 403 仍每轮先打 followin=白烧）**：followin tradfi 报 fmp 403（source_dead）→ **本会话后续 tradfi 报价直接走 yahoo_price/okx，不再先打 followin 探路**；下一次首扫重探 1 次，恢复则解除熔断。
 > **🥇 个股价格锚=正股优先（v2.8.7 — 2026-07-07 用户指令「不要用代币化股票，直接用 Followin 查正股」）**：个股/板块行情话题的标题价格一律锚**正股**——`followin.metrics(asset_type="tradfi")` 直查，非美股带正确后缀（韩 `.KS/.KQ`、日 `.T`、港补零 4 位 `.HK`；公司英文名也可解析，"SK Hynix"→000660.KS）。**代币化股票（OKX SKHYNIX/MU/TSLA-SWAP 等）不作主价格锚**——与正股有真实点差（实测 07-07：SK 海力士代币化 -4.8% vs 正股 -6.1%，锚错失真 1.3pt）；仅两用途：① 正股闭市时段的连续行情参考（标题/正文须显式写明"代币化"）；② crypto 域联动叙事。正股 metrics miss 才走 v2.6.7 降级梯（WebSearch→tradingview→Google Finance WebFetch），禁止先抓代币化凑数。**domain 联动：正股锚的个股/板块行情话题一律 `domain="tradfi"`**（韩/日/港正股与美股同待遇；只有叙事主体是代币化标的/链上联动时才 crypto）——SK 海力士 10423 建在 crypto 被用户「类型记得标记 Tradfi」纠，重建 tradfi 10000002103，同三星 10417→10000002102 前例。
 > **🛟 news 通道降级梯（v2.8.4 — 2026-07-04 AUTO 实测：followin 主 session 重init 时 metrics/news 全拒，但 Agent 子进程各起新 session 仍活）**：`followin.news`/TG 探针在主进程报 `session initialization` → **改用 Agent 子进程代跑**（prompt 让子进程 ToolSearch 加载 `followin__news` 后按同参数调用、只回传结果）。子进程独立 session 能绕过主 server 抖动（三栈 list 一直靠这个活）。子进程也失败才算该通道真缺失。
+> **🔌 通道会话级熔断（通用铁律 v2.9.8 — 把 v2.9.1 的 tradfi-403 熔断推广到所有通道；07-17 实测 TG 探针每轮白烧 3 次调用后才标半盲）**：任一通道**确诊会话级故障**（判据：主进程连续 2 次同型失败 **且** 子进程逃生舱也失败/同错）→ **本会话该通道直接熔断**：后续轮次**不再探路**，直接走既定兜底（TG exploit 探针 → **news 全源 query `"hack exploit drained…"` 兜底**，07-16/17 实测能捞到 BONK/OSTIUM/Summer.fi 全部漏洞事件=非危险半盲；tradfi 报价 → yahoo/okx；主 metrics → okx+子进程）。**下一次首扫重探 1 次**，恢复则解除。熔断态在报告固定标注「⚠️X 通道熔断中·兜底=Y」，不算半盲但必须可见。已知两种 TG 死法：主进程 `status:degraded/total=0`、子进程 quirk⑬ `sources` 数组 schema 拒绝——任一复现 2 次即熔断。
 > **🚨 半盲熔断铁律（v2.8.4 — 同源实测：followin 挂那轮只 okx 补了价格，news/TG 整条哑掉却照报"干净干轮"=误导）**：任一**必跑通道**（news 事件面 / TG exploit / 三栈 list）失败**且降级梯也补不齐** → 该轮结论**强制标「⚠️ 半盲扫·结论存疑」，禁止报"干净干轮/无候选"**（缺的是"看没看到"，不是"有没有"）。报告显式列**哪条通道缺、缺了什么维度**。AUTO 模式尤其致命（无人复核），半盲轮必须留醒目标注等人补扫。**补扫在飞不预支（v2.9.1 — 07-08 主 list 重试未归即报"非全盲"，赌对但流程违规）**：某必跑通道的重试/子进程还在飞时，报告**不得**先写「非半盲/全通道跑通」——标「⚠️N 通道补扫中·结论待确认」，待其返回后再补记升格。
 > **📈 movers 异动通道（v2.8.6 — 2026-07-04~07 实测）**：全市场涨跌榜/OI 异动**主走 okx**：`market_filter(instType="SWAP", sortBy="chg24hPct", sortOrder="desc"/"asc", minVolUsd24h≈1500万)` 涨跌各一 + `market_filter_oi_change(instType="SWAP", bar="1H"/"4H")`。**参数三坑**：① `instType` 必填；② sortBy 枚举是 **`chg24hPct`**——传 `priceChangePercent` 直接 400 Bind Arguments（实测我曾据此误诊"OKX 挂了"，其实是自己传错参——先读 schema 再下"通道死"结论）；③ capabilities 里 swap/spot/account 等 `MODULE_FILTERED` 是**交易模块被关**（只读部署设计），market 模块 `enabled` 照常，别当"下架"。**followin.metrics movers 不可用**：query='biggest gainers'/'涨幅榜'/'最活跃'/'市场异动'（help 自己宣传的写法）实测全 total=0 且错路由 FRED——advertised-but-empty，涨跌榜别指望它。okx 挂时 fallback `tradingview top_gainers`，但**单源不可信**（实测币安现货口径 +1.65% 封顶失真、险把 HMSTR +83% 漏成"干轮"）→ movers 结论 okx 为主，与 news 面对不上时双源交叉再定，单源静默不下"干轮"结论。
 
@@ -88,7 +89,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 | status | create_at 年龄 | 处置 |
 |--------|------|------|
 | **0 上线** | ≤8h | 数据偏差 ≥10%→升温 update title；>25%→撤(status=3)；>50% 反向→强撤（= 下方近 6h 退场复查）；**A≤1 灌水类 → 已上线也直接撤，不豁免（v2.9.2）**：产品升级/技术里程碑/链上 vanity 数据/已落地的上线宣传+奖励池均撤；⚠️ **例外：带明确未来日期的空投/上线预告可留**（GRVT 7/21 上线+28%空投=有日期的可交易预期，用户 07-08 分级）|
-| **0 上线** | **>8h** | 🚫**完全不管**（不复查/不脱锚撤/不升温/不提）；当前行情 → 新建一条。**唯一例外（v2.9.4 事实错误破闸）：硬数字/硬定义词失实**（如"NVDA涨3.7%"实为收跌、"280亿"实为265亿、"明日挂牌"已过期）**可破 8h 闸下架 status=3**——8h 闸防的是"追新脱锚"，不保护"已知事实错误"；仅限客观可证的失实，行情漂移/主观判断不算 |
+| **0 上线** | **>8h** | 🚫**默认不管**（不复查/不脱锚撤/不升温/不提）；当前行情 → 新建一条。**破闸例外全清单（v2.9.8 集中——此前散落 4 处执行时靠拼凑）**：① **事实错误**（v2.9.4：硬数字/硬定义词失实，如"涨3.7%"实为收跌、"明日挂牌"已过期；仅限客观可证，行情漂移不算）；② **盘中反转错向**（v2.9.6：早盘"XX下挫/上涨"题收盘方向反转=①的高频子类，fact-check 必校方向）；③ **碎片/重复卫生**（v2.7.3+v2.9.6：同事件多条合并、单名 vs 板块冗余隐单名——卫生问题非追新）；④ **tag 卫生**（v2.9.5：顺手 force-set 已知 tag）。8h 闸防的是"追新脱锚"，不豁免"错的东西挂在前台" |
 | **2 审核** | ≤8h | 0a.5 预过滤 → ✅发 / 🟠改 / 🚨撤 / 🟡待核（表 3 必列）|
 | **2 审核** | **>8h** | 🚫**完全不管**（从简报剔除、不再 push、不撤不改）|
 | **3 hidden** | — | 不重建、不分析 |
@@ -101,6 +102,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 > - 🚫 **明令禁止的撤 meme 理由**：「小币」「无叙事锚」「短时波动」「市值小」「纯投机」——这些**不再是撤的依据**。meme 的热度本身就是可交易信号（散户在打），A 闸防的是"新闻大但没标的"，而 meme **有标的（币本身）+有价格动作**，从来不该进这个闸。
 > - **由来（我连犯两次）**：v2.9.0 已因 CASHCAT 被用户救回而立"撤 meme 前先查叙事"，但 2026-07-15~17 我仍成批误撤（BRIAN 10631 / INDEX 10630+10632 / TENDIES 10615 / COLLECTOR_CRYPT 10584 / AKE 10585），用户第二次点名纠正并**升级为默认保留**。**旁证**：10615 TENDIES 被我撤后，系统/团队自行恢复回 `status=0`——团队本就要留 meme，是我的闸口错了。
 > - **判据一句话**：meme 只问"是不是同一个币重复了/是不是假的/数字错没错"，**不问"值不值得"**。
+> - **📐 适用范围=「热点小币」全类（v2.9.8 补口径——v2.9.7 只写 meme 没定义边界，ZIG/EVAA/DRV/AKE 算不算全靠临场猜=误判温床）**：本铁律覆盖 **meme + 小市值山寨 + 新上所币**，判据是**「有无真实价格动作」**——大涨/大跌（±30%+）、大振幅、放量、市值里程碑/新高、合约 OI 激增，**任一命中即默认保留**（EVAA 暴涨64%、DRV 上币放量、AKE +61.8% 全算）。**仍走 A 闸的只剩**：纯公告无价格动作（合作宣布/产品上线但币价没动）、纯 KOL 口水无标的。拿不准 → 留。
 
 > **🕰️ tradfi 价格复查的时段闸（铁律 v2.7.8 — 2026-07-01：休市时段别做无用改价）**：复查/复审 **tradfi 价格类话题**（个股/板块涨跌）时，**先判美股自话题建立后有没有经过一次新 regular session**：
 > - **US 休市 / 盘后 / 盘前 / 周末**（上次收盘后无新交易）→ 话题里的**收盘价数据仍是当前值、不脱锚**，**别改**（改了也是同一个数）。别凭"3-6h 前建的可能旧了"就空改——**先实测**（拉 metrics 对比），实测一致就不动。
