@@ -59,6 +59,8 @@
 | 改状态 | `title` + `status`（0=发布, 1=初始化, 2=审核中, 3=隐藏） |
 
 > ⚠️ `update_trending_topic` **不能改 desc**（v2.1.1 起创建话题不写 desc，此限制不再实际影响流程）。
+> 🌐 **update 按 `original_title` 匹配，而 list 默认返回中文翻译版 `title`（v2.9.16 — 07-28 实测，8 条批量归集时栽坑）**：`list_trending_topics` 默认 `lang=zh-cn`，系统建的英文题会被翻译，返回体里 **`title`=译名、`original_title`=原文**；`update_trending_topic` 只认原文。**判据：list 里 `title != original_title` 时，update 必须传 `original_title`**。实测四条译名≠原文的题（`比特矿浸入技术 11%` / `上涨5.2%` / `超微半导体公司跌3.7%` / `康宁公司跌4.9%`）用 `title` 定位**全部报「未找到」**，改传 `Bitmine Immersion Technologies涨11%` / `Strategy (formerly MicroStrategy)涨5.2%` / `Advanced Micro Devices跌3.7%` / `Corning Incorporated跌4.9%` **全部成功**。译名与原文相同的题（纯英文公司名+中文涨跌词）不受影响，所以这个坑**只在中文译名题上暴露**。
+
 > ⚠️ **标题含中文弯引号（“”）/特殊字符会失配（v2.9.8 — 07-17 实测 10636）**：update 按标题模糊匹配，传直引号"匹配不到弯引号标题 → **用不含特殊字符的短唯一子串定位**（如 `1confirmation 创始人：加密行业需要融合`）；子串命中多条会返回 candidates 列表，据此加长子串重试。
 
 ### 工具速查
@@ -70,6 +72,8 @@
 | `list_trending_topics` | 查看话题列表（去重对照必用） |
 
 ### 已知 tag id 速查
+
+> 🔧 **先自查 keywords 格式再怪打标器（v2.9.11 — 07-21 实测，推翻下方"打标器不可信"的一半结论）**：**我建的题 `matched_tags` 长期为空，根因是我把 keywords 传成了数组**，被序列化成 `"[\"IREN\",\"HUT\"]"` 原样存库，打标器拿到带方括号转义引号的串**匹配不到才是正确行为**。实证：10720 由 `["BONK"]` 改传字符串 `BONK`，`auto_matched_tags` **当场命中 159920**。→ **发现 matched_tags 空，第一步查 `new_keywords` 有没有 `[`/`\"`，不是第一步骂打标器**。下方"错实体/11 位垃圾 tag"是在**系统自建题**上观察到的，那部分仍成立。
 
 > 🚨 **系统自动打标器不可信（v2.9.5 — 2026-07-14 用户报「Circle 打 OCC、SpaceX 打 SPC」，实扫 66 条坐实）**：打标器**解析话题标题**（不是干净 keywords）去 fuzzy match，两种错法——① **错实体**：把标题里的机构/监管缩写当标的（"获 **OCC** 批准"→OCC tag 13924、SpaceX→SPC tag 11359）；② **11 位垃圾占位 tag**：匹配不到就自造（`34523806708` / `10478645335` / `10346157100` / `14127290595` / `10200232432`）。**判据：正常 tag = 5-6 位数字；≥7 位（尤其 11 位）一律是垃圾，必清**。规律：**干净单 token 的 crypto 题（ZEC/OIL）自动标对；公司名+机构缩写的 tradfi 题必吐垃圾**。→ 每轮 tag 复核见 SKILL §3/AUTO 表；治本已入 dev 单。
 
@@ -87,6 +91,10 @@
 | FET | 10201 |
 | XAUt（黄金） | 10226 |
 | OIL（原油） | 520979 |
+| **BONK** | **159920** |
+| **HYPE** | **489344** |
+
+> 📭 **实测确认无 tag 库（勿重复探，留空即可）**：IREN、HUT8、SMCI、KOSPI、ZHIPU、Multicoin（07-21~22 create 后 matched_tags 均空且 keywords 格式已正确）。
 
 **代币化美股 / 跨市场（v2.1.2 优先用此类）**
 | 标的 | tag id | 备注 |
