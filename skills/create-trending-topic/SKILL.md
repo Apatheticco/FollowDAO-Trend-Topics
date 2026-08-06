@@ -43,11 +43,11 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 | **B0**（与 B1/A1 同波，不单开）| console | `list_trending_topics(24h, 全状态, limit=100 + 满额守卫)` |
 | B1 | followin | 10币 metrics（`categories=["market"]`）｜ 跨市场 metrics（金=`XAUT`@crypto / 油+美元=`["CLUSD","DXY"]`@tradfi，均加 market；quirk⑨⑩）｜ news(crypto market 4h) ｜ news(listing/解锁/SEC 4h) ｜ 〔第 5 槽空出，按需补漏网币二轮核〕 |
 | B2 | followin | TG exploit 探针（1 条，v2.6.6）｜ news(美股 query 兜底, 不传 asset_type) ｜ Wave5 鲸鱼 ｜ Wave5 上币 ｜ 〔空〕 |
-| A1 | Agent×2（与 B0/B1 同波起）| 刷新只 2 栈：主 `2046422494643687464` + 科技AI `2051854001608724654`（大师栈刷新砍，明确"看大师"才破例）。prompt 用精简版（§1 末「子进程范式」）|
+| A1 | Agent×2（与 B0/B1 同波起）| 2 栈：主 `2046422494643687464` + 科技AI `2051854001608724654`。prompt 用精简版（§1 末「子进程范式」）|
 
 > 刷新**砍掉的死调用**（实测）：❌ tradfi 头条 news（quirk④ 每次返 0，美股 query 兜底已覆盖）；❌ Wave5 ETF query（`spot` 被解析成 Spotify，ETF flow 由 W2 media query 覆盖）；❌ Wave5 上币 query（4h 内永远返陈旧料，只首扫留）；不跑 signal/popularity/国债/spx/±15% 二轮核。
 
-**🟢 首扫（24h）— 4 波 followin 塞满 + TG 探针 + 3 Agent + 1 console（窗口 1d）**
+**🟢 首扫（24h）— 4 波 followin 塞满 + TG 探针 + 2 Agent + 1 console（窗口 1d）**
 
 > ⚡ **批次铁律**（v2.5.1）：每波严格塞满 5 个 followin，4 波打完，别欠装、别为 1 个 call 单开一波；spx 必 fail → SPY/QQQ 兜底**预判着塞进 W1**。
 >
@@ -59,9 +59,9 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 > | **W4 板块后半+扫尾** | ①批5[LRCX,KLAC,CRCL,COIN,MSTR] ②批6[HOOD,SOFI,PLTR,RKLB,MRVL] ③国债 DGS10/DGS2(macro) ④跌榜 okx `market_filter(sortBy="chg24hPct", sortOrder="asc")` ⑤earnings 日历（周一/财报周；否则 CPIAUCSL/UNRATE 或二轮核）| 批5/6 受同一时段闸；涨榜 `biggest gainers` 默认砍（quirk⑪）|
 > | **W-TG** | TG 1 条 exploit 探针（`query="hack exploit drained bridge vulnerability"`, telegram, 1d）| 可并进 W2 空槽 |
 >
-> **A1 首扫也只跑 2 栈（v2.9.28 — 2026-08-05/06 两轮重探确认大师 list 已失效）**：~~第 3 栈=大师 list `2051856808348987697`~~ 两种 action 均返空数组、非报错，**不再跑**（详 quickref「三栈 list ID」表）。首扫=刷新=主栈+科技AI 栈，**别再为它白起一个子进程**；拿到新 list_id 再恢复三栈。子进程 ~30-45s 是长杆，**W1 就起**。
+> **A1 = 2 栈（主 + 科技AI），首扫与刷新相同**（list ID 见 quickref）。子进程 ~30-45s 是长杆，**W1 就起**。
 >
-> **🤖 子进程范式**：list_timeline 子进程只让它"按时间倒序 dump 最新 N 条 + 原始时间戳"，**不算 velocity**（吃 15K token，主进程粗排即可）。格式 `[MM/DD HH:MM] @author | 👍likes 🔁rt | text前130字`。N：首扫 主15/科技12，刷新 主10/科技8（~~大师8~~ 栈已失效 v2.9.28）。**🚫 三栈禁止主进程直调 `list_tweets`**（v2.9.13：返回超限落盘只剩 preview=实际半盲），一律 A1 子进程 dump。
+> **🤖 子进程范式**：list_timeline 子进程只让它"按时间倒序 dump 最新 N 条 + 原始时间戳"，**不算 velocity**（吃 15K token，主进程粗排即可）。格式 `[MM/DD HH:MM] @author | 👍likes 🔁rt | text前130字`。N：首扫 主15/科技12，刷新 主10/科技8。**🚫 双栈禁止主进程直调 `list_tweets`**（v2.9.13：返回超限落盘只剩 preview=实际半盲），一律 A1 子进程 dump。
 >
 > **🔧 通道故障分型速查表**（v2.9.13，事故叙事在 LESSONS 对应版本行）：
 >
@@ -76,7 +76,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 > **🥇 个股价格锚=正股优先**（v2.8.7）：标题价格一律锚**正股**——`metrics(asset_type="tradfi")` 直查，非美股带后缀（韩 `.KS/.KQ`、日 `.T`、港补零 4 位 `.HK`；公司英文名可解析）。代币化股票不作主锚（与正股有真实点差），仅两用途：正股闭市时段连续参考（须显式标"代币化"）/ crypto 域联动叙事。正股 miss 才走降级梯（WebSearch→tradingview→Google Finance），禁止先抓代币化凑数。**domain 联动：正股锚的个股/板块行情题一律 `domain="tradfi"`**。（LESSONS v2.8.7）
 > **🛟 news 通道降级梯**（v2.8.4）：主进程 news/TG 报 `session initialization` → **Agent 子进程代跑**（子进程独立 session 绕过主 server 抖动）；子进程也失败才算通道真缺失。
 > **🔌 通道会话级熔断**（v2.9.8）：熔断=会话级状态，不算半盲但必须可见。**判死前必试同族备用 server**（v2.9.11——没试备用就判死=臆测），备用不存在（每会话实测）则免此判据。
-> **🚨 半盲熔断铁律**（v2.8.4/v2.9.1）：任一必跑通道（news 事件面/TG/三栈）失败**且降级梯补不齐** → 该轮强制标「⚠️ 半盲扫·结论存疑」+ 列缺失通道与维度，**禁报"干净干轮/无候选"**（缺的是"看没看到"不是"有没有"）。**补扫在飞不预支**：重试/子进程未归时报告标「⚠️ 补扫中·待确认」，返回后再升格。
+> **🚨 半盲熔断铁律**（v2.8.4/v2.9.1）：任一必跑通道（news 事件面/TG/双栈）失败**且降级梯补不齐** → 该轮强制标「⚠️ 半盲扫·结论存疑」+ 列缺失通道与维度，**禁报"干净干轮/无候选"**（缺的是"看没看到"不是"有没有"）。**补扫在飞不预支**：重试/子进程未归时报告标「⚠️ 补扫中·待确认」，返回后再升格。
 > **📈 movers 异动通道**（v2.8.6/v2.9.13）：主走 okx `market_filter(instType="SWAP", sortBy="chg24hPct", sortOrder="desc"/"asc", minVolUsd24h≈1500万)` 涨跌各一 + `market_filter_oi_change(instType="SWAP", bar="1H"/"4H")`。参数坑：`instType` 必填；sortBy 枚举=`chg24hPct`（错参 400，别误诊"OKX 挂了"）；**排序参数名=`sortOrder`**（传 `sortType` 被**静默忽略**返默认涨榜——未报错的错参比报错更险）；`MODULE_FILTERED`=交易模块被关非下架。followin.metrics movers 实测全 total=0 不可用。okx 挂 → fallback `tradingview top_gainers`，但**单源不可信**（口径封顶失真），movers 结论 okx 为主、双源交叉，单源静默不下"干轮"。
 
 ### 2. 候选处置路由（status × create_at 年龄 → 走哪条规则）
@@ -156,7 +156,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
     | 价格 10 币（拆2批5+5）+ 金/油/美元DXY/指数 | ✅必 | ✅必 | 10 币全到 + DXUSD 拿到 |
     | news 事件面（漏洞/上币/解锁/SEC）| ✅必 | ✅必 | ≥1 轮返回 |
     | okx 涨榜+跌榜+OI 三件套 | ✅必 | ✅必 | 3 个独立调用都返回 |
-    | A1 twitter 子进程 | **2栈**(v2.9.28 大师栈失效) | 2栈 | 栈数 |
+    | A1 twitter 子进程 | 2栈 | 2栈 | 栈数 |
     | TG exploit 探针（或熔断兜底）| ✅必 | ✅必 | 命中或兜底 |
     | 板块矩阵 6批×5 | ✅必（受时段闸）| 按需 | 批数 |
     | 国债 / econ / earnings 日历 | ✅必 | 砍 | DGS 等返回 |
@@ -214,7 +214,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 | `references/scan-playbook.md` | 第 -1/-1.5 步详章：时间校准、followin quirks 13 条、TG 探针范式、板块异动判定、宏观符号 fallback、Wave5 query、刷新模式、推特 L1 双轨排序、子进程 prompt 模板、候选池兜底 | 扫描中遇边界判定/调用失败 |
 | `references/dedup-scoring.md` | 第 0a/0a.5/0b 步详章：去重索引、升温硬规则、审核池预过滤、四维评分细则、一票否决、三张表模板 | 评分/处置拿不准 |
 | `references/fields-style.md` | 第 1-5 步详章：字段提取、标题样式标准 v2.8.0 全表、中英混杂、keywords/domain/topic_type、预览→create→tag→核实→发布、紧急撤回 | 建题字段拿不准 |
-| `references/data-quickref.md` | **数据表**：三栈 list ID、10 币表、板块矩阵、宏观符号映射、tag id 速查、update 用法 | 查数据（数据更新只动此文件）|
+| `references/data-quickref.md` | **数据表**：双栈 list ID、10 币表、板块矩阵、宏观符号映射、tag id 速查、update 用法 | 查数据（数据更新只动此文件）|
 | `references/weekly-review.md` | 周复盘效果评估：采纳/打回/误撤/返工率算法 + 周报模板 | 用户喊周复盘或 AUTO 周任务 |
 | `LESSONS.md` | 完整事故档案 + 版本演进表 | 复盘/溯源 |
 
