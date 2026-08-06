@@ -41,7 +41,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 | 批 | server | 并发 calls |
 |----|--------|-----------|
 | **B0**（与 B1/A1 同波，不单开）| console | `list_trending_topics(24h, 全状态, limit=100 + 满额守卫)` |
-| B1 | followin | 10币 metrics（`categories=["market"]`）｜ 跨市场 metrics（金=`XAUT`@crypto / 油+美元=`["CLUSD","DXY"]`@tradfi，均加 market；quirk⑨⑩）｜ news(crypto market 4h) ｜ news(listing/解锁/SEC 4h) ｜ 〔第 5 槽空出，按需补漏网币二轮核〕 |
+| B1 | followin | 10币 metrics（`categories=["market"]`）｜ 跨市场 metrics（金=`XAUT`@crypto / 美元+标普=`DXY`+`spx`@tradfi，均加 market；quirk⑨⑩）｜ news(crypto market 4h) ｜ news(listing/解锁/SEC 4h) ｜ 〔第 5 槽空出，按需补漏网币二轮核〕 ｜ **油走 `tradingview yahoo_price CL=F`（不占 followin 槽，quirk⑬——`CLUSD` 已废，会返 FRED 历史序列错值）** |
 | B2 | followin | TG exploit 探针（1 条，v2.6.6）｜ news(美股 query 兜底, 不传 asset_type) ｜ Wave5 鲸鱼 ｜ Wave5 上币 ｜ 〔空〕 |
 | A1 | Agent×2（与 B0/B1 同波起）| 2 栈：主 `2046422494643687464` + 科技AI `2051854001608724654`。prompt 用精简版（§1 末「子进程范式」）|
 
@@ -53,7 +53,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 >
 > | 波 | 5 个并发 followin call | 备注 |
 > |----|----------------------|------|
-> | **W1 价格核心**（+ B0 console + A1 双栈同波起）| ①10币(market) ②金 XAUT ③油+美元+spx `["CLUSD","DXY","spx"]`(tradfi) ④SPY+QQQ+VIX(tradfi，spx 兜底预判直塞) ⑤crypto market news(1d) | B0+A1 不占 followin 5 槽 |
+> | **W1 价格核心**（+ B0 console + A1 双栈 + **油 yahoo_price** 同波起）| ①10币(market) ②金 XAUT(+PAXG 交叉) ③美元+标普 `["DXY","spx"]`(tradfi) ④SPY+QQQ+VIX(tradfi，spx 兜底预判直塞) ⑤crypto market news(1d) | B0/A1/**油 `yahoo_price CL=F`** 都不占 followin 5 槽（`CLUSD` 已废→quirk⑬）|
 > | **W2 事件/链上 news** | ①listing/解锁/SEC/漏洞 news ②美股 query 兜底(不传 asset_type) ③Wave5 鲸鱼 ④Wave5 上币 ⑤Wave5 解锁/财库 | tradfi 头条已砍（quirk④）|
 > | **W3 板块+宏观前半** | ①板块批1[NVDA,AMD,AVGO,TSM,TSLA] ②批2[MSFT,GOOGL,META,AAPL,AMZN] ③批3[MU,SNDK,WDC,STX,LITE] ④批4[AAOI,GLW,COHR,ASML,AMAT] ⑤econ 日历（前瞻 `date_from`=今天 `date_to`=+5d，quirk⑫）| 板块矩阵 **6 批×5**（v2.9.8）；**⚠️ 美股时段闸**：休市/盘前 → 矩阵=上一收盘陈旧，①~④ 跳过标"盘前取上收盘"，开盘后再拉 |
 > | **W4 板块后半+扫尾** | ①批5[LRCX,KLAC,CRCL,COIN,MSTR] ②批6[HOOD,SOFI,PLTR,RKLB,MRVL] ③国债 DGS10/DGS2(macro) ④跌榜 okx `market_filter(sortBy="chg24hPct", sortOrder="asc")` ⑤earnings 日历（周一/财报周；否则 CPIAUCSL/UNRATE 或二轮核）| 批5/6 受同一时段闸；涨榜 `biggest gainers` 默认砍（quirk⑪）|
