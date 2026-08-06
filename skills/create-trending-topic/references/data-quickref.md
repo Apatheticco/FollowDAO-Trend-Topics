@@ -13,6 +13,7 @@
 
 `BTC, ETH, SOL, BNB, XRP, DOGE, HYPE, SUI, AVAX, LINK`
 
+> 📦 **`verbosity="concise"` 不砍 history（2026-08-06 实测，勿再试）**：参数被接受（meta 回显 concise）但每币仍返 ~10 根小时 K 线，回包体积无收益。10 币批照默认参数跑。
 > 🧱 **metrics keywords ≤5/批硬上限（v2.9.4 — 2026-07-11 实测 API 变更）**：`followin.metrics` 单次 `keywords` 超过 5 个会**静默截断到前 5**、返回 `warning: keywords truncated: N→5`，多的直接丢（07-10 同调用还 10 个全返回、零 warning，隔夜收紧）。**10 币拆 2 批（5+5）、下方板块矩阵每批 ≤5**，别一次塞 10——那是看不见的漏扫。
 
 ##### 📊 美股板块涨跌矩阵 — 8 板块代表股（§1 W3/W4 的 **6 批×5**（v2.9.8）= 本表高权重子集 +MRVL/TSLA/AMZN；GEMI/IBKR/LMT/RTX/BA 仅按需补拉）
