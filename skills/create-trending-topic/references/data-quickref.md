@@ -52,6 +52,8 @@
 >
 > ⚠️ **`yahoo_price` 会偶发返「空对象」——空 ≠ 失效，必须重试一次（quirk⑬b，2026-08-06 自我纠错）**：08-05 我测 `GC=F`/`SI=F` 得到 `{"symbol":"GC=F","error":"","source":"Yahoo Finance"}`（无 error 也无 price），据此下了「yahoo_price 对大宗整环失效」的结论并写进报告；08-06 同符号重试**立刻返回 4334.7**。**判据：单次空返回=偶发，重试 1 次;连续 2 次以上空才计入故障**（对比：大师 twitter 栈是两轮、两种 action、四次全空 → 那才是真失效）。**过度概括一次偶发，代价是我漏掉了当日金价 +5.84% 这个更硬的数据锚。**
 
+> ⚠️ **`yahoo_price` 亚洲时段会返「过期收盘复读」——识别标志：`change` 恰为 0.0 且 `price == previous_close`（quirk⑬c，2026-08-10 实测）**：当日 14:18 CST 取 `CL=F` 得 `price=78.18, change=0.0, previous_close=78.18`，而同时段 CNBC/Benzinga 实报 WTI **78.89 (+0.91%)**——返回值是上一交易日收盘的复读，不是现价。同日 09:45 取到的 78.96 则是周日夜盘真价（change≠0）。**判据：命中该标志时此值只能当"上日收盘"用，写现价必须以 news 侧报价交叉验证**；与 ⑬b 的空返回是两种坑——空返回重试可解，复读值重试无用（还是它）。
+
 
 ## 速查
 
@@ -66,6 +68,7 @@
 | 改状态 | `title` + `status`（0=发布, 1=初始化, 2=审核中, 3=隐藏） |
 
 > ⚠️ `update_trending_topic` **不能改 desc**（v2.1.1 起创建话题不写 desc，此限制不再实际影响流程）。
+> ✏️ **改标题用 `new_title`（v2.9.31 — 08-10 实测）**：`title`=**定位键**（必填，按它查话题）、`new_title`=新标题。仅传 `id`+`new_title` 报「至少需要传入一个要修改的字段(new_title/status/keywords/tags)」→ 证明 `title` 不计入修改字段、**`id` 参数完全不参与定位**。连带两个结论：① 数字/排序 factfix 直接 `new_title` 原地修，**不必撤+重建**（BICO 跌幅、meme 榜排序两次实战）；② **同域同名死锁无解**——两条标题逐字相同且同 domain 时，传 `id`+`domain`+`new_title` 仍报歧义（歧义在定位阶段即阻断），只能 mark 给 dev（案例 `2520`/`2512`）。
 > 🌐 **update 按 `original_title` 匹配，而 list 默认返回中文翻译版 `title`（v2.9.16 — 07-28 实测，8 条批量归集时栽坑）**：`list_trending_topics` 默认 `lang=zh-cn`，系统建的英文题会被翻译，返回体里 **`title`=译名、`original_title`=原文**；`update_trending_topic` 只认原文。**判据：list 里 `title != original_title` 时，update 必须传 `original_title`**。实测四条译名≠原文的题（`比特矿浸入技术 11%` / `上涨5.2%` / `超微半导体公司跌3.7%` / `康宁公司跌4.9%`）用 `title` 定位**全部报「未找到」**，改传 `Bitmine Immersion Technologies涨11%` / `Strategy (formerly MicroStrategy)涨5.2%` / `Advanced Micro Devices跌3.7%` / `Corning Incorporated跌4.9%` **全部成功**。译名与原文相同的题（纯英文公司名+中文涨跌词）不受影响，所以这个坑**只在中文译名题上暴露**。
 
 > ⚠️ **标题含特殊字符会失配（v2.9.8 — 07-17 实测 10636；v2.9.28 补 `&`）**：update 按标题模糊匹配 → **用不含特殊字符的短唯一子串定位**；子串命中多条会返回 candidates 列表，据此加长子串重试。**已实测会失配的字符**：
