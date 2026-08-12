@@ -31,11 +31,13 @@
 | **量化交易 / Fintech** | `HOOD,SOFI,PLTR,IBKR` |
 | **航天 / 国防** | `RKLB,LMT,RTX,BA` |
 
+**第 9 行·亚洲存储（v2.9.38 转正——韩股双雄已连续四轮实拉，KOSPI 熔断/收盘复查/双雄验证均实战）**：`000660.KS`（SK 海力士）+ `005930.KS`（三星）@tradfi，**KST 15:30 收盘后查**（盘中数字受 v2.9.32② 中间态闸约束，不作标题结论）；ADR=`SKHY`。
+
 **判定**：某板块 ≥2 标的同向 >3% 涨/跌 → 板块异动信号 → 进 0b 作板块候选（如 R-Mem 存储+光通信回调）。**拆 ≤5/批 跑（v2.9.4 — keywords 硬上限 5，旧"3×10"作废，改 6 批×5 或按板块 4 个一批）**，加 `categories=["market"]`（quirk⑩）；批内补 TSLA/AMZN 即覆盖科技大票，不单跑 Wave2C。
 
 ##### 🏛️ 宏观/大宗 — 符号校正 + fallback 链
 
-主调（quirk⑨ 已校正，均 `categories=["market"]`）：**金=`XAUT`@crypto｜美元=`DXY`｜标普=`spx`@tradfi**。国债=`DGS10/DGS2`@macro。econ 日历=传前瞻日期窗（quirk⑫）。⚠️ 绝不用裸 `gold`/`oil`（quirk⑨ 解析成金矿股/Colgate）。
+主调（quirk⑨ 已校正，均 `categories=["market"]`）：**金=`XAUT`@crypto｜美元=`DXY`｜标普=`spx`@tradfi｜日元=`USDJPY`（v2.9.38 并入美元批——日元线三天 10 次全靠 news 碰运气，08-12 晨日债 5 年收益率创历史新高+BOJ 加息概率 2/3 完全漏 note 后补）**。国债=`DGS10/DGS2`@macro。econ 日历=传前瞻日期窗（quirk⑫）。⚠️ 绝不用裸 `gold`/`oil`（quirk⑨ 解析成金矿股/Colgate）。宏观 news query 轮换词加 **`BOJ 日债 日元`**（与 CPI/Fed 系轮着用）。
 
 > 🛢️ **油价主调换成 `tradingview yahoo_price`（quirk⑬ — 2026-08-06 三轮踩坑后实测定案）**：~~`CLUSD`@tradfi~~ **已废弃，它不是"拿不到"而是"给错值"**——该 keyword 被路由到 macro，返回 FRED `DCOILWTICO` 的**历史序列**（实测取到 84.25），而同时点真实 WTI 是 **75.92**，**差 11%**。这种错值比返空更危险（返空会被自查表标 ❌，错值会被直接写进标题）。
 > - **油主调**：`tradingview yahoo_price(symbol="CL=F")` = WTI ｜ `BZ=F` = Brent（实测 75.92 / 80.16）
