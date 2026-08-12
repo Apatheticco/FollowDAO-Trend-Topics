@@ -52,6 +52,11 @@
 >
 > ⚠️ **`yahoo_price` 会偶发返「空对象」——空 ≠ 失效，必须重试一次（quirk⑬b，2026-08-06 自我纠错）**：08-05 我测 `GC=F`/`SI=F` 得到 `{"symbol":"GC=F","error":"","source":"Yahoo Finance"}`（无 error 也无 price），据此下了「yahoo_price 对大宗整环失效」的结论并写进报告；08-06 同符号重试**立刻返回 4334.7**。**判据：单次空返回=偶发，重试 1 次;连续 2 次以上空才计入故障**（对比：大师 twitter 栈是两轮、两种 action、四次全空 → 那才是真失效）。**过度概括一次偶发，代价是我漏掉了当日金价 +5.84% 这个更硬的数据锚。**
 
+> 🌙 **盘前/盘后价 = `tradingview stock_extended_hours(symbol)`（2026-08-12 实测定案，此前一直以为拿不到）**：一次返回**三段**——`pre_market{price, change_vs_previous_close_pct}`、`regular{price, change_pct}`、`post_market{price, change_vs_regular_close_pct}` + `previous_close`。**followin `metrics` 只给 regular**（返回体 `_quote_session: "regular_inactive"` 即标志：这是已收盘的 regular 价，不含盘后信息）。
+> - **判据：事件发布时点决定该用哪段价**。财报/重大公告多在**盘后**发布 → 当日 regular 收盘价**成文于事件之前**，拿它当"事件的价格反应"是错的。
+> - 实测案例：LITE 财报 08-11 盘后发布，pre 812.00(−0.19%) → regular 820.59(+0.87%) → **post 840.59(+2.44%)**；我先用 regular 的 +0.87% 写进标题（"股价仅涨0.9%"），被用户指出盘后是 +2.45%。RIOT 同日反向案例：pre **+21.75%** → regular +4.33% → post +0.54%（冲高回落且盘后未修复，此时 regular 才是对的锚）。
+> - **两个坑同源**：不是"该用盘后价"或"该用收盘价"，而是**必须先问事件什么时候发的**。
+
 > ⚠️ **`yahoo_price` 亚洲时段会返「过期收盘复读」——识别标志：`change` 恰为 0.0 且 `price == previous_close`（quirk⑬c，2026-08-10 实测）**：当日 14:18 CST 取 `CL=F` 得 `price=78.18, change=0.0, previous_close=78.18`，而同时段 CNBC/Benzinga 实报 WTI **78.89 (+0.91%)**——返回值是上一交易日收盘的复读，不是现价。同日 09:45 取到的 78.96 则是周日夜盘真价（change≠0）。**判据：命中该标志时此值只能当"上日收盘"用，写现价必须以 news 侧报价交叉验证**；与 ⑬b 的空返回是两种坑——空返回重试可解，复读值重试无用（还是它）。
 
 
