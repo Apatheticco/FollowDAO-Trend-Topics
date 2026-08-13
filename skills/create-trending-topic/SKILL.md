@@ -57,7 +57,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 > | **W1 价格核心**（+ B0 console + A1 双栈 + **油 yahoo_price** 同波起）| ①10币(market) ②金 XAUT(+PAXG 交叉) ③美元+标普 `["DXY","spx"]`(tradfi) ④SPY+QQQ+VIX(tradfi，spx 兜底预判直塞) ⑤crypto market news(1d) | B0/A1/**油 `yahoo_price CL=F`** 都不占 followin 5 槽（`CLUSD` 已废→quirk⑬）|
 > | **W2 事件/链上 news** | ①listing/解锁/SEC/漏洞 news ②美股 query 兜底(不传 asset_type) ③Wave5 鲸鱼 ④Wave5 上币 ⑤Wave5 解锁/财库 | tradfi 头条已砍（quirk④）|
 > | **W3 板块+宏观前半** | ①板块批1[NVDA,AMD,AVGO,TSM,TSLA] ②批2[MSFT,GOOGL,META,AAPL,AMZN] ③批3[MU,SNDK,WDC,STX,LITE] ④批4[AAOI,GLW,COHR,ASML,AMAT] ⑤econ 日历（前瞻 `date_from`=今天 `date_to`=+5d，quirk⑫）| 板块矩阵 **6 批×5**（v2.9.8）；**⚠️ 美股时段闸**：休市/盘前 → 矩阵=上一收盘陈旧，①~④ 跳过标"盘前取上收盘"，开盘后再拉 |
-> | **W4 板块后半+扫尾** | ①批5[LRCX,KLAC,CRCL,COIN,MSTR] ②批6[HOOD,SOFI,PLTR,RKLB,MRVL] ③国债 DGS10/DGS2(macro) ④跌榜 okx `market_filter(sortBy="chg24hPct", sortOrder="asc")` ⑤earnings 日历（周一/财报周；否则 CPIAUCSL/UNRATE 或二轮核）| 批5/6 受同一时段闸；涨榜 `biggest gainers` 默认砍（quirk⑪）|
+> | **W4 板块后半+扫尾** | ①批5[LRCX,KLAC,CRCL,COIN,MSTR] ②批6[HOOD,**SPCX**,PLTR,RKLB,MRVL]（v2.9.43b：SPCX 入槽，**SOFI 降按需**——30 槽已满必须换而非加，SOFI 市值 230 亿/近月贴地横盘 vs SPCX 1.87 万亿/连日 A 级点名）③国债 DGS10/DGS2(macro) ④跌榜 okx `market_filter(sortBy="chg24hPct", sortOrder="asc")` ⑤earnings 日历（周一/财报周；否则 CPIAUCSL/UNRATE 或二轮核）| 批5/6 受同一时段闸；涨榜 `biggest gainers` 默认砍（quirk⑪）|
 > | **W-TG** | TG 1 条 exploit 探针（`query="hack exploit drained bridge vulnerability"`, telegram, 1d）| 可并进 W2 空槽 |
 >
 > **A1 = 2 栈（主 + 科技AI），首扫与刷新相同**（list ID 见 quickref）。子进程 ~30-45s 是长杆，**W1 就起**。
