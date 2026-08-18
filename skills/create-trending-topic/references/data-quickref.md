@@ -109,6 +109,10 @@
 > - **✅ 歧义报错可当探测器用**：命中多条时工具**安全报错并返回 candidates 全列表（含各自 status）**，绝不误伤。清池时反而靠它挖出了两类查询查不到的东西：**不在查询日期窗内的积压**（`10126` xBubble status=2，早于 08-01）、**在线的样式违规题**（`2432`「Amazon.com Inc.涨5.1%」status=0 仍挂前台，法人全名违 v2.9.43）。所以定位串**宁可先传短的**——报错的信息量大于成功。
 > - **🐛 keywords 自动切词是可复现缺陷（v2.9.44 实测）**：系统给 `ETHERFI` 自动切成 `ETHER,FI`（`11388` 与 `11403` 两条独立生成的题都是这个结果），其中 **`FI` 命中 Fiserv（NYSE:FI）**，导致 news 检索 ETHFI 时返回 Fiserv 的股东诉讼稿。处置系统 crypto 题时**顺手核 keywords 有没有被切出两字母噪音段**，有则手工改（`ETHFI,AAVE`）。
 
+> 🔢 **followin `metrics` 的 keywords 硬上限 5，超出部分静默丢弃（quirk⑮ — 2026-08-18 实测）**：一次传 10 个 ticker，返回体只含前 5 个，**主结果区没有任何缺失提示**，只在 `meta.warnings` 里逐个报 `keyword_count_over_max`。批量核价时若不读 warnings，会把"后 5 个标的没数据"误判成通道问题或误当成"这些标的没异动"。**判据：>5 个标的必须分批，且每批读一次 warnings 确认 `filters_applied.keywords` 与我传的一致。**
+
+> 🚨 **`create_trending_topic` 端点会整体 500，而同期 `list`/`update` 正常（2026-08-18 实测）**：连续 5 次返回 `{"message":"An Internal Error Has Occurred.","code":500}`，含把标题和描述都缩短的极简版——**不是内容问题是端点故障**。判据：先用 `list` 探一次确认服务在线，再用短版本 create 探一次排除内容；两者都指向端点则**本轮放弃建题，把待建题写进 event-watch 下轮补**，不要反复重试刷错误。
+
 ### 工具速查
 
 | 工具 | 用途 |
