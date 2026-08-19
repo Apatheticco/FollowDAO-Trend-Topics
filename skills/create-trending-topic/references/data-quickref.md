@@ -113,6 +113,17 @@
 
 > 🚨 **`create_trending_topic` 端点会整体 500，而同期 `list`/`update` 正常（2026-08-18 实测）**：连续 5 次返回 `{"message":"An Internal Error Has Occurred.","code":500}`，含把标题和描述都缩短的极简版——**不是内容问题是端点故障**。判据：先用 `list` 探一次确认服务在线，再用短版本 create 探一次排除内容；两者都指向端点则**本轮放弃建题，把待建题写进 event-watch 下轮补**，不要反复重试刷错误。
 
+> 🇨🇳 **followin `metrics` 不覆盖 A 股，科创板/沪深代码一律 `no_match`（quirk⑯ — 2026-08-19 实测）**：查 `688836.SS`（宇树科技）返回 `total: 0` 且 `meta.warnings` 明报 `unknown ticker / no upstream coverage`；换 `UNITREE` 关键词同样落空。对比：韩股 `000660.KS`／`005930.KS`、港股 `0700.HK` 均正常返回（memory「正股优先」那条成立的前提是**该市场在覆盖内**）。**判据：A 股标的的价格锚只能走多源媒体交叉 + 自校验**——本例发行价 150.8 元（Reuters）、开盘 1100 元＝+629.4%（BlockBeats）、现报 911 元自算 +504.1%（与 Odaily「回落至 500% 附近」吻合），三源互验后才敢写进标题。**不要因为拉不到价就跳过价格反应（v2.9.35），也不要拿单源数字直接落笔（v2.9.10）。**
+
+> 🟢 **Hyperliquid / Trade.xyz 公开 API — 补美股盘后价、A股与 pre-IPO 标的的兜底通道（2026-08-19 实测接入，无需认证）**：
+> `curl -s -X POST https://api.hyperliquid.xyz/info -H "Content-Type: application/json" -d '{"type":"metaAndAssetCtxs","dex":"xyz"}'`
+> 实测 HTTP 200、~300ms、**无 key 无鉴权**。返回 `[meta, ctxs]` 两段并列，按下标对齐；每个 ctx 有 `midPx`／`prevDayPx`／`openInterest`／`dayNtlVlm`。
+>   - **`dex="xyz"` 是关键**：Trade.xyz 是建在 HL 上的 **HIP-3 builder DEX**，它的 114 个标的**不在主 universe（232 个）里**——直接查 `allMids` 或 `{"type":"meta"}` 会得到 `NOT FOUND` 而**误判为"该标的不存在"**（08-19 我就这么误判过 UNITREE）。builder DEX 列表：`{"type":"perpDexs"}`（当前 11 个：xyz/flx/vntl/hyna/km/abcd/cash/para/mkts/io）。
+>   - **它填补的三个真实缺口**：① **美股盘后/隔夜价**——24h 连续交易，`stock_extended_hours` 挂掉时唯一可用（08-19 该通道连续 2 次 ConnectError）；② **followin 不覆盖的标的**——`UNITREE`(A股宇树，quirk⑯)、`CXMT`／`ZHIPU`／`MINIMAX`(未上市中国 AI)、`KR200`(韩国200指数，解决 KOSPI 拉不到只能引用媒体的问题)、`SMSN`／`HYUNDAI`／`KIOXIA`；③ **OI 与成交额**——判资金流向。
+>   - **点差实测（vs 我当日实测正股收盘）**：MSTR 92.521 vs 92.52（**0.001%**）、META 545.56 vs 543.67（+0.35%）、NVDA 219.11 vs 219.74（−0.29%）、RDDT 158.51 vs 158.23（+0.18%）。**主流标的点差极小**，但差额里混着"盘后继续走"的真实变动（SNDK 1593.35 vs 收盘 1625.78＝**盘后又跌 2.0%**；AAOI −2.2%、CRWV −1.3%）——这既是它的价值也是它与收盘价的区别。
+>   - **⛔ 三条使用边界**：① **主锚仍是正股**（memory「个股价格锚=正股优先」不变），HL 只在"正股拉不到／要盘后价／要 OI"时用，并在文案中标明口径；② **`prevDayPx` 是滚动 24h、不是前一交易日收盘**——自算的 24h% 与正股当日涨跌幅**口径不同**（例：SNDK HL 24h −7.35% vs 正股当日 −9.01%），两者不可混写进同一句；③ **薄盘不可信**——先看 `openInterest`／`dayNtlVlm` 再用价（`RDDT` OI 仅 91、24h 额 15 万美元；`VIX` 的 `midPx` 直接是 `None`、OI=0）。
+>   - **08-19 首用即验证的一例**：`11513`「UNITREE 上线 Hyperliquid 后拉升至 100 美元」——实测 `midPx=127.89`、`prevDayPx=100.37`，**它把 24 小时前的价格当成了"拉升至"的现价**；同时 Odaily 的 133.74「短时破 140 后回落」与火星财经空头开仓 81.8／清算 172.18 全部对得上。**一个能自查的通道，能把"三个互相冲突的单源数字"直接收敛成一个可核事实。**
+
 ### 工具速查
 
 | 工具 | 用途 |
