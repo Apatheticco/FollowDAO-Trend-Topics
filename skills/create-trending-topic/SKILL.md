@@ -22,13 +22,14 @@ description: >
 ```bash
 date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'   # 必跑，算 cutoff_4h/24h
 tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真实时间戳
+$HOME/.trend-scout/circuit.sh get [首扫]   # 必跑(v2.9.76)，读通道熔断态——判模式后传"首扫"看哪些该重探
 # 跑完一轮在结尾追加：  echo "$(date +%s)000" >> $HOME/.trend-scout/last-refresh.txt
 ```
 > - 📊 **开跑先读 `~/.trend-scout/event-watch.tsv`**（v2.9.37→v2.9.38 泛化五类→v2.9.39 共六类：财报/宏观数据/政策/上线/解锁/**我方盘中题收盘复查**）：事件日已过的 `pending` 行**本轮必查结果并建题**（`review` 行则是必查真值并改标题）（查价路径按市场分，见 §3 带日期事件条）。日历只拉不落成文件=等于没拉（LITE 漏判根因；CPI 被提 30 次无待办同构）。
 > - 🗂️ **时间戳 = 单一 append-only 文件**（v2.6.5/v2.8.1）：文件名不带日期、`tail -1` 取末行；禁止按天分文件（跨天读空文件算出乱码间隔）。放 `$HOME/.trend-scout/`（`/tmp` 会被系统清，cron 致命），开跑 `mkdir -p ~/.trend-scout` 兜底。
 > - **判模式**（v2.8.8）：`last-refresh.txt` 末行与当前 date **跨天 = 当天第一轮 → 🟢首扫(24h)；同日 → 🔵刷新(4h)**。判据客观化、禁止凭会话记忆；用户显式说"跑首扫/刷新"以用户为准；今日 status=0 发布 0 条 → 强制首扫兜底。~~旧钟点判据~~ 作废。
 > - ⏱️ **跨轮间隔一律按文件时间戳算**（v2.6.0——compact/隔天续接后会话记忆必然失真）：**≤30min** 复用上轮价格快照/B0 只补增量；**>30min** 价格重拉；**跨天 → 价格 + B0 去重池全部作废重拉**（v2.5.4：旧池子当当下是最危险的错）。
-> - 📸 **收尾双留档**（v2.8.3，效果评估地基，同为 append-only）：① **B0 快照** → `~/.trend-scout/snapshots.tsv` 逐条 `run_ts<TAB>id<TAB>domain<TAB>status<TAB>created_at`（API 无变迁历史，没快照算不出采纳/打回/误撤率）；② **写操作日志** → `~/.trend-scout/actions.tsv` 逐条 `run_ts<TAB>action(create/cull/merge-keep/merge-hide/update/publish/restore/rulefix/note)<TAB>id<TAB>备注`。周复盘吃这两份（`references/weekly-review.md`）。
+> - 📸 **收尾双留档**（v2.8.3，效果评估地基，同为 append-only）：① **B0 快照** → `~/.trend-scout/snapshots.tsv` 逐条 `run_ts<TAB>id<TAB>domain<TAB>status<TAB>created_at`（API 无变迁历史，没快照算不出采纳/打回/误撤率）；② **写操作日志 → 一律经 `~/.trend-scout/log-action.sh` 写入（v2.9.75 —— 08-29 用户定「下架/创建都记录好逻辑和理由，最终目标是 AI 托管的自动化运营」）**：每一次 create/cull/update/merge/restore/publish **当场落一行** 6 列 `run_ts｜action｜id｜reason_code｜备注｜标题变更`——action(8 个)与 reason_code(35 个)双枚举校验、不在表内拒写；update 不带「旧标题→新标题」拒写；cull 自动补快照；批量撤走 `cull-batch` 逐条落账禁止合并。**备注三要素：判据引用了哪条规则＋本条的实测证据＋为什么落这个 reason_code**——记录不是为了留痕是为了下周能算分布（第 0.5 层），reason_code 落不进枚举＝判据本身没想清楚（v2.9.73 ⑦「改留」同源判据）。~~逐条手写 actions.tsv~~ **已废**（自由标签长出过 203 种取值，聚合全断）。周复盘吃 snapshots + actions 两份（`references/weekly-review.md`）。
 > - 🧪 **假设也要实测（08-25 顶格铁律，id 参数事件）**：「先实测再下结论」不仅管外部数据，**同样管自己跨会话带来的旧结论**。写「工具做不到 X」之前必须当场真试一次 X——曾基于从未验证的「update 无 id 入口」假设编造整条 P0 工单，一次真实调用即戳破。**规则体系防不住这类错，只有这条纪律防得住。**
 
 ### 0. 日常排班（v2.9.56 — 08-20 用户定，**当前手动触发，自动任务待用户启动**）
@@ -63,6 +64,8 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 
 
 ### 1. 并行批次表（同一格 = 同一 turn 内并发；followin 单批 ≤5 防掉线）
+
+> 📋 **通道清单单一事实源＝`~/.trend-scout/channels.json`（v2.9.76）**：`checklist.sh start` 从它生成模板（此前批次表与 checklist 模板各硬编码一份，换槽要改两处、漏改即脱节）。**增删改通道只改 json**（含 call/guard/fallback 字段，`checklist.sh channels` 查看）；本表保留为并发编排说明（哪些同波、塞几槽），通道存在性以 json 为准。
 
 > 🧱 **三条硬约束**（v2.9.4/v2.9.8）：① `metrics` 的 **keywords 每次硬上限 5 个**——超了**静默截断**到前 5（返 warning），10 币拆 2 批、板块矩阵每批 ≤5；**⚠️ query 降级形态下这条更狠（v2.9.39）：keyword 数由服务端 fanout 决定、不由我控制**，塞 3 个实体也可能被扩成 6 个然后截掉第 6 个——**判据：本轮非它不可的单一标的，宁可单独一个 call 拉，别塞进多标的 query**（08-12 实证：USDJPY 并进美元批后被扩成 6 词、`USDJPY=X` 首个被丢，v2.9.38 新加的日元线首轮即失效；改走 `yahoo_price JPY=X` 单独拉才到手）；② B0 `list_trending_topics` 的 **date_range 必须含今天**（跨天写 `昨天~今天`），否则漏当天新题、误报"8h 池为空"；③ B0 **`limit=100`（API max）+ 满额守卫**：`total == limit` 即视为可能截断，缩 date_range 或分 status 拆两次拉齐——截断都是"看不见的漏扫"。
 >
@@ -117,7 +120,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 > **🛟 价格源降级梯**（followin.metrics 挂时）：crypto 走 okx `market_get_ticker`（`open24h` 算 24h 涨跌）；tradfi/指数/油金走 web 搜（tradingview yahoo_price 可用）。**tradfi fmp 403 会话级熔断**（v2.9.1）：报 403 → 本会话 tradfi 报价直走 yahoo/okx 不再探路，下次首扫重探。
 > **🥇 个股价格锚=正股优先**（v2.8.7）：标题价格一律锚**正股**——`metrics(asset_type="tradfi")` 直查，非美股带后缀（韩 `.KS/.KQ`、日 `.T`、港补零 4 位 `.HK`；公司英文名可解析）。代币化股票不作主锚（与正股有真实点差），仅两用途：正股闭市时段连续参考（须显式标"代币化"）/ crypto 域联动叙事。正股 miss 才走降级梯（WebSearch→tradingview→Google Finance），禁止先抓代币化凑数。**domain 联动：正股锚的个股/板块行情题一律 `domain="tradfi"`**。（LESSONS v2.8.7）
 > **🛟 news 通道降级梯**（v2.8.4）：主进程 news/TG 报 `session initialization` → **Agent 子进程代跑**（子进程独立 session 绕过主 server 抖动）；子进程也失败才算通道真缺失。
-> **🔌 通道会话级熔断**（v2.9.8）：熔断=会话级状态，不算半盲但必须可见。**判死前必试同族备用 server**（v2.9.11——没试备用就判死=臆测），备用不存在（每会话实测）则免此判据。
+> **🔌 通道熔断＝文件化状态（v2.9.8 立，v2.9.76 改载体）**：~~会话级状态~~ **已废——cron/新会话一来记忆归零，等于每轮重踩已知的坑**。判死/降级/恢复一律 `circuit.sh set <通道> <ok|degraded|fused> <重探时点> <证据>` 写入 `circuit-log.tsv`（append-only 留审计链）；**开跑必 `circuit.sh get`**（§0 铁律），degraded/fused 通道直走已记录的兜底、到重探时点（含 next-firstscan）才重探。熔断不算半盲但必须可见（报告标「⚠️X 通道熔断中·兜底=Y」）。**判死前必试同族备用 server**（v2.9.11——没试备用就判死=臆测），备用不存在（每会话实测）则免此判据。
 > **🚨 半盲熔断铁律**（v2.8.4/v2.9.1）：任一必跑通道（news 事件面/TG/双栈）失败**且降级梯补不齐** → 该轮强制标「⚠️ 半盲扫·结论存疑」+ 列缺失通道与维度，**禁报"干净干轮/无候选"**（缺的是"看没看到"不是"有没有"）。**补扫在飞不预支**：重试/子进程未归时报告标「⚠️ 补扫中·待确认」，返回后再升格。
 > **📈 movers 异动通道**（v2.8.6/v2.9.13）：主走 okx `market_filter(instType="SWAP", sortBy="chg24hPct", sortOrder="desc"/"asc", minVolUsd24h≈1500万)` 涨跌各一 + `market_filter_oi_change(instType="SWAP", bar="1H"/"4H")`。参数坑：`instType` 必填；sortBy 枚举=`chg24hPct`（错参 400，别误诊"OKX 挂了"）；**排序参数名=`sortOrder`**（传 `sortType` 被**静默忽略**返默认涨榜——未报错的错参比报错更险）；`MODULE_FILTERED`=交易模块被关非下架。followin.metrics movers 实测全 total=0 不可用。okx 挂 → fallback `tradingview top_gainers`，但**单源不可信**（口径封顶失真），movers 结论 okx 为主、双源交叉，单源静默不下"干轮"。
 
@@ -376,7 +379,7 @@ tail -1 $HOME/.trend-scout/last-refresh.txt 2>/dev/null   # 必跑，上轮真�
 1. 表格化三件套日报（v2.7.9）+ 本轮自动执行清单（逐条 ID）
 2. 🟡 跳过项清单（为什么跳过、等人决策什么）
 3. 干轮如实报干轮，禁止为"显得有产出"降闸建题
-4. **收尾双留档必写**（§0 v2.8.3）——漏写=效果评估断档。**一律经 `~/.trend-scout/log-snapshot.sh` 写入**（v2.9.31 配套）：逐题行 `snap`（stdin `id domain status [note]`，格式坏行大声拒绝防静默降级）、收尾 `refresh` 打点；时间戳脚本内统一取真时，禁手拍（08-04 手拍漂移 74min + 逐题行退化成单行摘要报废六轮的双教训）。actions.tsv 判断文字仍手写
+4. **收尾双留档必写**（§0 v2.8.3）——漏写=效果评估断档。**一律经 `~/.trend-scout/log-snapshot.sh` 写入**（v2.9.31 配套）：逐题行 `snap`（stdin `id domain status [note]`，格式坏行大声拒绝防静默降级）、收尾 `refresh` 打点；时间戳脚本内统一取真时，禁手拍（08-04 手拍漂移 74min + 逐题行退化成单行摘要报废六轮的双教训）。写操作日志一律经 `log-action.sh`（v2.9.75，见 §0 收尾双留档②——枚举校验＋标题变更＋自动补快照，禁手写裸行）
 5. **半盲熔断**（§1 v2.8.4）：必跑通道失败且补不齐 → 报告首行标「⚠️ 半盲扫」+ 列缺失，禁报"干净干轮"，actions 留 note
 - 三角校验（v2.5.4）AUTO 更关键：headless 时钟/上下文更易漂移，date × currentDate × live 数据互证后才动手。
 
