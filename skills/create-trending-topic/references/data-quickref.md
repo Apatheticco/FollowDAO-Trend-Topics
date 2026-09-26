@@ -32,7 +32,7 @@
 | **半导体设备** | `ASML,AMAT,LRCX,KLAC` |
 | **加密概念股** | `CRCL,COIN,MSTR,GEMI` |
 | **量化交易 / Fintech** | `HOOD,SOFI,PLTR,IBKR` |
-| **航天 / 国防** | `SPCX,RKLB,LMT,RTX`（BA 降为按需）|
+| **航天 / 国防** | `SPCX`＋`RKLB,LMT,RTX,BA` 按需（v2.9.82：ASML 占 2 槽后 30 槽只剩 29，RKLB 降按需；6 批固定分法写死在 channels.json，禁现场拼批）|
 
 > 🚀 **SPCX 入表（v2.9.43b — 08-13 用户定「1」，成本最低的补法）**：航天行原名单 `RKLB,LMT,RTX,BA` **没有 SPCX**，而它市值约 1.87 万亿美元、成交活跃、被 A 级账号连日点名——今早我误撤 `2592`（SPCX+9.7%）时在留档写"命中板块矩阵第 8 行"**其实不准确**，它当时只靠 ③主线头部/④A级点名 两条需现场判断的条款兜着，而现场判断恰是失手处。入表后它由 ②固定名单 直接覆盖，v2.9.37 入册与 v2.9.42 撤前搜 news 两处判据同时生效。**BA 降为按需补拉**（近月无异动、不占 5 槽上限）。
 > - ~~动态兜底（"近 5 日成交/涨跌榜前列美股自动算覆盖"）~~ **本轮不做**：需额外拉榜单、为单一案例造需现场取数的规则不划算；**若再出现第二次"新晋主线漏判"再上**。
@@ -56,6 +56,7 @@
 > - **油主调**：`tradingview yahoo_price(symbol="CL=F")` = WTI ｜ `BZ=F` = Brent（实测 75.92 / 80.16）
 > - **油 fallback**：`followin.metrics(query="USO BNO oil ETF price snapshot", asset_type="tradfi")` → USO/BNO/OIL 三个 ETF/ETN 全返（实测 114.93 / 45.41 / 28.42，追踪期货非现货，标题须写"油价 ETF"或换算说明）
 > - **金也可用 yahoo**：`GC=F`(期货，实测 4334.7) ｜ `GLD`(ETF，389.64)——与 XAUT/PAXG 互为交叉源
+> - ⚠️ **期货结算价别用 yahoo 的 previous_close（v2.9.82 — 09-03 实证）**：`yahoo_price GC=F` 的 `previous_close` 不随交易日滚动（9/3 晨仍显 9/1 结算 4348），按它算涨幅差 0.7 个百分点。**结算价主调＝`followin metrics(keywords=["GC=F"], asset_type=tradfi, categories=[market])`**，返回 `GCUSD` 的 `previousClose` 即上一结算（实测 4414.6，与 XAUT 17:30UTC 小时线 4377＋期货升水一致）。yahoo 只用它的现价。
 
 | 主调 | Fallback |
 |---------|----------|
@@ -63,11 +64,30 @@
 | **`yahoo_price CL=F`(油)** | `BZ=F` → followin `USO/BNO/OIL` ETF |
 | `spx` | `SPY/QQQ`@tradfi |
 | `DXY` | `DTWEXBGS`@macro |
-> Primary 失败必跑 fallback，仍失败标"⚠️数据缺失"。**followin.metrics 整体挂 → 价格源降级梯（§1 末 okx/web）**。
+| `yahoo ^TNX/^TYX`(10Y/30Y 收益率) | FRED 直连 `curl https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10`（`DGS30` 同）——**滞后 1–2 个交易日，只作收盘值，不写「盘中」** |
+| `yahoo ^HSI/000001.SS/^N225/^KS11` | followin `metrics(keywords=[...], asset_type="tradfi", categories=["market"])`＝fmp，带 `previousClose`，一批 ≤5 |
+| `yahoo DX-Y.NYB` | followin `DXUSD`@tradfi(fmp)；yahoo 该符号 5d 线 `prev` 常为 None，算不出涨跌 |
+| `yahoo 000660.KS` 等个股 | 同上 fmp 批（09-14 yahoo 单次返非 JSON，fmp 同批取到 1697000/前收 1812000） |
+> **v3.4.4（周报提案 P1-3）实测 09-14 14:58 CST**：yahoo `^TNX 4.975`／`^TYX 5.354`／`^HSI 24885.56`／`000001.SS 3885.33`；FRED `DGS10` 末行 09-10 4.95、`DGS30` 5.37（滞后两日）；fmp `^HSI 24896`（前收 24805.64）／`000001.SS 3885.33`／`DXUSD 99.18`／`^N225 63492.99`／`^KS11 6684.37`。yahoo 失效是**间歇**的（09-12 两轮多符号空 error、09-14 全通），所以是降级梯不是换主调——空返回先按 quirk⑬b 重试一次，再走本表。
+> Primary 失败必跑 fallback，仍失败标"⚠️数据缺失"。**followin.metrics 整体挂 → 价格源降级梯（§1 末 okx.py/web）**。
 >
 > ⚠️ **`yahoo_price` 会偶发返「空对象」——空 ≠ 失效，必须重试一次（quirk⑬b，2026-08-06 自我纠错）**：08-05 我测 `GC=F`/`SI=F` 得到 `{"symbol":"GC=F","error":"","source":"Yahoo Finance"}`（无 error 也无 price），据此下了「yahoo_price 对大宗整环失效」的结论并写进报告；08-06 同符号重试**立刻返回 4334.7**。**判据：单次空返回=偶发，重试 1 次;连续 2 次以上空才计入故障**（对比：大师 twitter 栈是两轮、两种 action、四次全空 → 那才是真失效）。**过度概括一次偶发，代价是我漏掉了当日金价 +5.84% 这个更硬的数据锚。**
 
-> 🌙 **盘前/盘后价 = `tradingview stock_extended_hours(symbol)`（2026-08-12 实测定案，此前一直以为拿不到）**：一次返回**三段**——`pre_market{price, change_vs_previous_close_pct}`、`regular{price, change_pct}`、`post_market{price, change_vs_regular_close_pct}` + `previous_close`。**followin `metrics` 只给 regular**（返回体 `_quote_session: "regular_inactive"` 即标志：这是已收盘的 regular 价，不含盘后信息）。
+> ✅ **followin 也有盘前/盘后——在 history 叶不在 snapshot 叶（v2.9.84 — 2026-09-03 实测推翻 08-12 定案）**：`metrics(keywords=["HPE"], asset_type="tradfi", categories=["market"], query="intraday candles", interval="15min", limit=60)` 返回的 K 线**从盘前 05:00 ET 一路到盘后 19:45 ET**（时间戳是 **ET 不是 UTC**），与 tradingview 三段逐位对齐：
+> | 段 | followin K 线 | tradingview `stock_extended_hours` |
+> |---|---|---|
+> | 盘前 | HPE 09:00 ET 收 **52.8** | `pre_market.price` **52.8** |
+> | 盘中收 | HPE 15:45 ET 收 51.855 | `regular.price` 51.83 |
+> | 盘后 | HPE 19:45 ET 收 **49.154** | `post_market.price` **49.154** |
+> | 盘后 | SNOW 19:00 ET 收 **376.60** ／ NTAP 19:45 ET 收 **165.01** | **376.6** ／ **165.01** |
+>
+> **08-12「followin 只给 regular」的结论只对 snapshot 叶成立**——snapshot 恒返 `_quote_cache: last_regular` / `_quote_session: regular_inactive`，09-03 用四种问法（`extended hours quote…` / `after hours post market price change` / `premarket` / `bid ask spread quote`）全部只拿到 regular，历史上也只出现过 `regular_inactive` 一个会话值。**换叶子就有**：错在我把「一个叶子拿不到」推广成「这个 MCP 拿不到」。
+> - **怎么用**：`interval=15min` 取当日全时段；**最后一根盘后 K 线的 close ＝ 盘后价**，涨跌幅要自己拿它比 regular 收盘（16:00 ET 那根的 open ＝ regular 收盘价，可作校验锚）。盘前同理，取 09:15 ET 之前最后一根。
+> - **口径坑**：16:00 ET 那根的 high/low 会横跨收盘瞬间（HPE 该根 high 53.74 low 48.5），**不可当盘后区间用**；要盘后区间就从 16:15 ET 那根起算。
+> - **取舍（v3.0.5 改）**：**主调＝followin `metrics(interval="15min")`**（唯一事实源见 gates 闸:时段 铁律⓪；本地与 Evose 同一条路径，规则可移植——Evose 上没有 tradingview）；`stock_extended_hours` 作降级梯＋交叉校验（它一次返三段带 change%，不用自己数 K 线，**核数时优先用它交叉**）。~~原「本地仍以 stock_extended_hours 为主调」~~ 已废：主次两处写反会让 gates 的铁律⓪落不了地。
+>
+> 🌙 **盘前/盘后价的第二条路 = `tradingview stock_extended_hours(symbol)`（08-12 实测）**：一次返回**三段**——`pre_market{price, change_vs_previous_close_pct}`、`regular{price, change_pct}`、`post_market{price, change_vs_regular_close_pct}` + `previous_close`；省去自己数 K 线、自算涨跌幅。
+> **⚠️ 通道主次以 `gates.md` 闸:时段 四时段表铁律⓪ 为准（v3.0.5）**：主＝followin `metrics(interval="15min")`，本条为降级梯／交叉源。~~原文「**followin `metrics` 只给 regular**」~~ **已废**——那句只对 snapshot 叶成立，见上方 09-03 实测块（v2.9.84）。本行与上方两块曾在同一文件里互相矛盾五行之隔，是 v3.0.5「散点各自演化」的第四处。
 > - **判据：事件发布时点决定该用哪段价**。财报/重大公告多在**盘后**发布 → 当日 regular 收盘价**成文于事件之前**，拿它当"事件的价格反应"是错的。
 > - 实测案例：LITE 财报 08-11 盘后发布，pre 812.00(−0.19%) → regular 820.59(+0.87%) → **post 840.59(+2.44%)**；我先用 regular 的 +0.87% 写进标题（"股价仅涨0.9%"），被用户指出盘后是 +2.45%。RIOT 同日反向案例：pre **+21.75%** → regular +4.33% → post +0.54%（冲高回落且盘后未修复，此时 regular 才是对的锚）。
 > - **两个坑同源**：不是"该用盘后价"或"该用收盘价"，而是**必须先问事件什么时候发的**。

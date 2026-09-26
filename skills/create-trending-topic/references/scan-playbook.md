@@ -47,6 +47,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 11. **🚫 `metrics` keywords 硬上限 = 5 个（v2.9.4 — 2026-07-11 从 10 收紧，隔夜 API 变更）** — 超出**静默截断到前 5**（仅 `warning: keywords truncated: N→5`，不报错不补返回），极易漏数据。>5 必拆 ≤5/批 并行（10 币 = 2×5，28 股 = 6×5）。`change` 是**绝对额非百分比**（% = change/previousClose）。涨榜 `biggest gainers` **不要传 min_market_cap**（gainers 端点 marketCap=null 会 source_dead）；penny/leveraged ETF 靠后过滤（name 含 2X/3X/Bull）
 12. **🗓️ econ 日历必须传前瞻日期窗** — 默认 `lookback_days=7` 只向后看，**传 `date_from`=今天、`date_to`=+5d** 才返前瞻（`actual=null`+`estimate` 有值=未公布）。**仍不传 keywords**（传了每个 keyword 各回 10 条 JP/KR 噪音）；Agent 过滤 `country∈{US,CN,EU}` 且 `impact∈{High,Medium}`；关键前瞻偶缺收录，web 兜
 13. **🔌 MCP 重连后「数组参数」序列化 bug** — followin 断线重连后，凡显式传数组的调用报 `["X"] has type "string"`（ToolSearch 回拉 schema 丢 array 标注；非服务端宕机、非 skill 错）。纯 query / twitter(list_id) 正常。**修复 = 重启 followin server / 重开会话**；临时绕：价格走降级梯（okx/web），TG 用纯 query news 兜底。**v2.9.3 增补（07-09 实测）**：本 bug 在**子进程新 session 同样触发且重试 3 次无效**（非瞬态）——v2.8.4 子进程逃生舱**只救 string 参调用**（news query / twitter 全 string 参故免疫），数组参（metrics keywords / news sources）子进程照死。**TG 探针（sources 数组）无 string 替代 → 缺位时标注"TG 早警维度缺"+ news 事件面兜底，不算危险半盲**；metrics 走 okx/yahoo。归因两说待 dev：客户端 ToolSearch 疑丢 union type `["null","array"]` vs 服务端校验过严——twitter 纯 string 免疫是最硬佐证
+14a. **🔌 followin 可脚本直连（v3.3.3 — 09-08 实测）** — followin 是 SSE 型 MCP：GET `/sse` 得 `endpoint` 事件 → POST `initialize`(202) → POST `tools/call`(202)，结果从 SSE 流回；**裸 MCP 的 `news` 没有 `categories`，用 `sources=[telegram|twitter]`，空 query 走内部十类召回**。已封装为 `~/.trend-scout/news-fetch.py`（凭证运行时读 `~/.claude.json`）。意义：新闻拉取可以脱离会话上下文落盘（每轮 ~10s、三源 ~100 条），供 `hot-names.py` 等脚本消费——也是效率方案里「减少会话内 MCP 往返」的一条现成路径。
 14. **🔒 主进程 session-init 死锁 = 会话级永久（v2.9.3 — 07-09 实测：09:18 全灭→09:20 重试灭→09:33 探针仍灭）** — 长闲置/隔夜（SSE 断连）后首调报 `tools/call is invalid during session initialization`，quirk① 的"重试一次恢复"只对短抖动成立，此死锁**重试无效、会话内无自愈**（ToolSearch 重拉不重建连接）。**判死即熔断（同 v2.9.1 403 逻辑）：连续 2 波重试仍死 → 本会话固定走「子进程 news(string) + okx/yahoo 价格 + TG 缺位标注」降级模式，不再逐轮重试白烧**。判据：子进程能连 = 服务端活着、死的是本会话连接。唯一根治 = 重启会话（若 loop/上下文值钱则不值得，降级模式够用）
 
 ### 价格数据铁律
@@ -60,7 +61,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%:z) | Unix: %s'
 > 3. **`WebFetch https://www.google.com/finance/quote/000660:KRX`**（2026-06-22 实测**通**，回实时价+前收+涨跌额，可自算 %；stockanalysis 403 / Naver 被封 / yahoo SSL 均不可靠）
 > 4. 仍取不到 → **如实告知"今日实际价未取到"，给"等收盘 dated / 叙事版不押价 / 刷新老话题"三选项**，禁止硬编。
 > **教训（v2.6.7）**：06-22 我只试了 WebSearch 就下结论"取不到实时价"被用户顶回——`followin 无覆盖 ≠ 全网取不到`，降级梯必须走到底（Google Finance WebFetch 那级才通）。性质同 quirk⑨、5/14 漏 H200：盲区标的当场换源补全，不将就二手数、不提前认输。
-> **🐸 新链 memecoin 取价降级梯（v2.9.1 — 07-08 CASHCAT）**：followin/okx/tradingview 均不覆盖的新链 meme（Robinhood 链等）→ **WebFetch dexscreener API** 取硬数：`api.dexscreener.com/latest/dex/pairs/<chain>/<pair地址>`（TG/CT 帖里常带 dexscreener 链接可直接扒 pair 地址）或搜索端点 `api.dexscreener.com/latest/dex/search?q=<TOKEN>`，字段 priceUsd/fdv/marketCap/priceChange.h24；GMGN 页面兜底。**单条 CT 推文的市值数不作硬锚**（只可写"破 X"下限口径）。live 题锚值出现翻倍级偏差时**直接抓、别停下问用户**——只读抓取零成本（07-08 我停在"要不要抓"被复盘点名）。
+> **🐸 新链 memecoin 取价降级梯（v2.9.1 — 07-08 CASHCAT；v3.3.6 起统一走 `~/.trend-scout/dex.py t <SYM>`，它先查注册表 `contracts.json` 按地址取、未钉的列候选并警告——同名对动辄 20~30 个，按 symbol 取成交额最大在 09-08 就会把 4STOCK 选成 solana 仿盘）**：followin/okx.py/tradingview 均不覆盖的新链 meme（Robinhood 链等）→ **dexscreener API** 取硬数：`api.dexscreener.com/latest/dex/pairs/<chain>/<pair地址>`（TG/CT 帖里常带 dexscreener 链接可直接扒 pair 地址）或搜索端点 `api.dexscreener.com/latest/dex/search?q=<TOKEN>`，字段 priceUsd/fdv/marketCap/priceChange.h24；GMGN 页面兜底。**单条 CT 推文的市值数不作硬锚**（只可写"破 X"下限口径）。live 题锚值出现翻倍级偏差时**直接抓、别停下问用户**——只读抓取零成本（07-08 我停在"要不要抓"被复盘点名）。
 
 ### 🔁 价格应急扩列规则（首扫 / 刷新通用）
 
@@ -301,34 +302,50 @@ N：首扫 主15/科技12；刷新 主10/科技8。双栈 list 各跑一次。�
 
 ---
 
-## 📈 movers 异动通道（v2.8.6 详章 — 2026-07-04~07 实测）
+## 📈 movers 异动通道（v3.3.0 — 09-08 用户裁定「skill 里去掉 OKX 的 MCP」，改直连）
 
-### 标准调用（okx 为主源）
+### 标准调用（`~/.trend-scout/okx.py` 直连 okx 公开端点，不走 MCP）
 
 ```
-market_filter(instType="SWAP", sortBy="chg24hPct", sortOrder="desc", minVolUsd24h="15000000", limit=10)   # 涨榜
-market_filter(instType="SWAP", sortBy="chg24hPct", sortOrder="asc",  minVolUsd24h="15000000", limit=8)    # 跌榜
-market_filter_oi_change(instType="SWAP", bar="4H", sortBy="oiDeltaPct", minVolUsd24h="15000000", limit=10) # OI 异动
+~/.trend-scout/okx.py movers --top 12 [--minvol 15000000]   # 涨跌两榜，一次调用出两榜，带成交额
+~/.trend-scout/okx.py oi --top 12 [--minoi 10000000]        # OI 榜 + 与上轮快照的变化率
+~/.trend-scout/okx.py t SOPH USELESS CP                     # 单/多标的实测（不存在的 instId 不中断整批）
 ```
 
-### 参数三坑（误诊事故档案）
+### 为什么从 MCP 换成直连（三条实测，全部发生在 09-08 当天）
+
+| # | 实测 | 后果 |
+|---|------|------|
+| ① | `market_filter` 的 `order` 参数对 `chg24hPct` **不生效**：14:40 轮传 `order=asc` 返回涨序，改 `order=ASC` 再试仍是涨序 | 跌榜整轮拿不到，该通道判 ❌。跌榜是抓「昨天建的涨题今天翻绿」的主通道 |
+| ② | 退而用 `quotes.py` 缓存排序（16:35 轮），但它只存 ticker→涨跌幅 | 「okx-OI」通道又判 ❌，且跌榜无成交额维度、混进死币无法过滤 |
+| ③ | okx 公开端点**无需鉴权**即可拿到 SWAP 全量 473 条（含 open24h/high24h/low24h/volCcy24h）与 OI 全量 | 排序方向自己控制、成交额与 OI 一并到手——**直连不是降级，是比 MCP 更全** |
+
+### 直连的三个坑（首版实测踩中，已修）
 
 | 坑 | 症状 | 真相 |
 |----|------|------|
-| sortBy 传 `priceChangePercent` | HTTP 400 "Bind Arguments Validation Failure" | 枚举是 `chg24hPct`（另有 last/volUsd24h/fundingRate/oiUsd/listTime）。07-04 我据此误诊"OKX movers 挂了、得挂几天"，改用单一 tradingview 险误报干轮——**先 ToolSearch 读 schema 再下"通道死"结论** |
-| oi_change 不传 `instType` | ValidationError: Missing required parameter | `instType` 必填（SWAP/FUTURES） |
-| capabilities 显示 swap/spot/account `MODULE_FILTERED` | 看着像"模块被封" | 那是**交易模块**被关（只读部署设计），`market` 模块恒 `enabled`，只读扫描不受影响 |
+| 把 `volCcy24h` 当美元成交额 | SOPH 显示 `$31139M`，而 MCP 时代同一标的是 `$2.75亿`，差 96 倍 | **`volCcy24h` 是基础货币数量（币的个数），必须 × `last` 才是 USD**。96 倍正好是 1/0.0104=1/价格。校验法：拿 MCP 时代已知值对照——DOT `66194972 × 1.069 = $7076万` ≈ MCP 的 `69927813` ✔。**不校对就用，低价币成交额被放大百倍、全部混过过滤，跌榜会塞满死币** |
+| 一处改对、另一处漏改 | `tickers()` 修好后 `okx.py t` 仍显示 `$31167M` | 同一口径出现在两个函数里就是散点。修完必须**两条路径交叉验证**（`t` 与 `movers` 对同一标的的 vol 必须相等） |
+| 批量实测遇不存在的 instId | 查 SOPH/USELESS/CP/ZZZ，前三个拿到了，ZZZ 返 51001 直接 `SystemExit` | 前三条结果照样打印但**退出码是 1**，调用方用 `&&` 串联会误判整批失败。已加 `tolerant=True`：单个不存在只打印一行提示、不中断、不改退出码 |
+
+### OI 变化率的实现差异（直连相对 MCP 唯一的减项）
+
+MCP 的 `market_filter_oi_change` 直接给 `oiDeltaPct`；公开端点只给**当下 OI 快照**。
+`okx.py oi` 因此自存快照（`~/.trend-scout/okx-oi-snap.json`），每轮落盘、下轮对比。
+**首次跑没有基线时如实打印「首次·无基线」并让变化率列显示 `n/a`，不假装有变化率**；
+变化率的时间跨度＝两次跑的实际间隔（不是固定 4H），读数时要看打印的基线时间戳。
 
 ### 源优先级
 
 | 优先 | 源 | 说明 |
 |------|----|------|
-| 1 | okx `market_filter` / `oi_change` | 主源，SWAP 宇宙全、24h 口径准 |
+| 1 | `okx.py movers` / `oi`（直连） | 主源，SWAP 宇宙全、24h 口径准、排序与过滤自己控制 |
 | 2 | tradingview `top_gainers/top_losers` | okx 挂时兜底；**单源不可信**——07-06 实测币安现货口径 +1.65% 封顶失真，同时刻 okx SWAP HMSTR +83%。单源静默 ≠ 干轮 |
 | ❌ | followin.metrics movers | **advertised-but-empty**：help 宣传 query='biggest gainers'/'涨幅榜'/'最活跃'/'市场异动'，实测四种写法全 total=0 且错路由进 metrics_macro(FRED)。followin 只查**已知标的**价格（keywords 直查，这个好用），不承担全市场涨跌榜 |
 
 ### 干轮自检
 
-movers 侧报"无异动"前必确认：本轮 okx 两榜是否真跑通（ok:true + rows 非空结构）？只有 tradingview 一源在跑 → 不下"行情异动干轮"结论，标注"movers 单源存疑"。
+movers 侧报"无异动"前必确认：本轮 `okx.py movers` 是否真跑通（打印了「SWAP N 个标的」且两榜非空）？
+只有 tradingview 一源在跑 → 不下"行情异动干轮"结论，标注"movers 单源存疑"。
 
 ---
