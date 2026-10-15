@@ -14,7 +14,7 @@ description: >
 
 ## ⚡ 跑单（每轮照此跑；判定规则不在本卡——`~/.trend-scout/gate.sh <闸名>` 查 `references/gates.md`）
 
-> **v3.0.0 架构**：本卡只回答「跑什么、什么顺序、调哪个脚本、什么时候查哪道闸」。判据／反例／版本护栏全在 `references/gates.md`（38 闸，**不随每轮加载**，`gate.sh list` 列全部）。强制力在脚本层：`checklist.sh` 拒开跑拒报告、`log-action.sh` 拒写、`lint-title.sh` 拒标题、`review-verify.sh` 拒漏审。依据：09-02 架构 review——本会话工具层拦错 4 次，同期被违反的两条都是写在本卡里的「铁律」；每条被违反 ≥2 次的散文规则最终都变成了脚本（LESSONS v2.9.81）。
+> **v3.0.0 架构**：本卡只回答「跑什么、什么顺序、调哪个脚本、什么时候查哪道闸」。判据／反例／版本护栏全在 `references/gates.md`（38 闸，**不随每轮加载**，`gate.sh list` 列全部）。强制力在脚本层：`checklist.sh` 拒开跑拒报告、`topic.py`／`log-action.sh` 拒写、`lint-title.sh` 拒标题、`review-verify.sh` 拒漏审。依据：09-02 架构 review——本会话工具层拦错 4 次，同期被违反的两条都是写在本卡里的「铁律」；每条被违反 ≥2 次的散文规则最终都变成了脚本（LESSONS v2.9.81）。
 
 ### §0 开跑
 ```bash
@@ -41,17 +41,16 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%z) | Unix: %s'; tail -1 ~/.trend-scout/last-ref
 - **盘**：B0 圈 `≤8h` 全量（status 0/2 都要）＝轮内射程；`>8h` 只管破闸七项（事实错误／反转错向／碎片重复／tag／命名样式／48h 窗口题／聚簇）→`gate.sh 射程`。
 - **每条候选**：`~/.trend-scout/route.sh <status> <age_h> [偏差%]` 得适用规则 → 按其指向 `gate.sh <闸>` 查判据。高频闸：**A闸**（说得出哪个可交易标的被定价；meme 同过双要素：豁免三选一或硬事件，四查全空即撤）｜**双要素**（诱因＋价格两腿，伪诱因清单）｜**归因**（三问：这句因果谁写的／因子昨天在不在／板块拉了几个标的；①c 利好配跌走事实闸）｜**去重**（≤8h update 承接／>8h 新建；切面判定）｜**时段**（美股四时段＋亚洲四市；盘中数字禁写死）｜**时效**（0b.0 双闸）。
 - **复审默认反转**：先假设该撤，三问全过（标的／时效／去重）才 `update status=0`→`gate.sh 发布三问`。status=2 只有上／撤两条路，收尾 total==0；核不了的数字不进标题但事件有确认源→改题上线。
-- **写标题前**：`~/.trend-scout/lint-title.sh "<标题>" <tradfi|crypto>`——FAIL（**长度 >30 字**／法人全名／疑问句）不得写入；WARN（伪诱因／时段前缀／因果连接词）逐条给出理由或改；INFO 提示对应闸。
-- **写操作一律 `log-action.sh`**：action/reason_code 双枚举拒写；update 必带「旧标题→新标题」；批量撤走 `cull-batch` 逐条；**机械改题（改数字族/改样式）用 `-T "<判据>|<实测>|<落此code因>"` 三段模板、同 rc 多条走 `update-batch <rc> <判据> <why> "<id>|<旧→新>|<实测>"…`（v3.3.4，省 80% 备注字数；cull/改归因/note/rulefix 仍写长备注）**；meme 撤因工具层硬闸；备注三要素＝判据引用＋实测证据＋为何落此 code。定位一律传 `id`。
-- **建题**：create 不传 desc；keywords ≤4 逗号分隔字符串禁数组；tag 校验（≥7 位 ID＝垃圾占位）；数据核实＋P0 锚双源＋量级自洽→`gate.sh 建题核实`／`数字`；**create 后同轮 `update status=0` 自推**。盘中价建题／改题当轮 `event.sh add <date> review …` 挂收盘复查。
+- **写看板一律 `~/.trend-scout/topic.py`（v3.7.0）**：`create|update|publish|cull|restore --id …`，一条命令做完「预检→写看板→用真实 id 记账→回读核对」；预检含标题闸（FAIL 拦：>30 字／法人全名／疑问句）、`--pct 标签=现价/前收` 涨跌幅核对、keywords（字符串 ≤4 个）、系统建 tradfi 窗口内改标题拦、log-action 全部闸；被拦照样留痕。**禁止再分两步手调 console 与 log-action**。批量机械撤仍走 `b0-cull.py`；纯 note/rulefix 仍用 `log-action.sh`（`-T` 三段模板、`update-batch` 照旧）。备注三要素＝判据引用＋实测证据＋为何落此 code。改错自己写的数字/事实用 rc `纠错-自纠`。试稿可单跑 `lint-title.sh`。
+- **建题**：`topic.py create --domain … --title … --keywords … --rc … --note … --pct …`（默认同轮自推上线并回读下游；desc 不传、tag 占位、上线行全在工具里）；**涨跌幅只用 `pct.py` 算**（`calc 现价 前收`／`bn`／`yahoo`，一次舍入）；数据核实＋P0 锚双源＋量级自洽→`gate.sh 建题核实`／`数字`。盘中价建题／改题当轮 `event.sh add <date> review …` 挂收盘复查。
 - **到期事件**：`due` 清单逐项建／update／`event.sh close <主题> done|missed`；扫到的带日期新事件当轮 `event.sh add`（预告题准入三档与闭环→`gate.sh 预告题`／`事件日历`）。
 
 ### §5 收尾（顺序固定；任一不过不得出报告）
 1. **自审七查**（`gate.sh 自审七查`）：①横向矛盾 ②纵向过期 ③诱因复用 ④价格腿＋④b 漏建对偶 ⑤update 未被覆盖（前台 `list` 实查，含往日题；系统建 tradfi 题回滚复核）⑥碎片/重复 ⑦同批判留一致性＋⑦b meme 机械勾选。
-2. **⑤前台复核**（v3.4.1 提前到复审员之前）：`list` 当日＋本轮涉及的往日题 status=0 核标题；status=2 复查 total==0；**此步及窗口题处置产生的写操作必须在起复审员前全部落账**——09-09 排在复审员后，2 条新写让复审覆盖过期、重跑 3.5 min；09-10 提前后内容侧零重跑。
-3. **复审员**：按 `references/review-agent.md` 起 haiku 子进程——它自己 `cat` 该文件读硬闸／豁免，我只给送审清单＋**工具返回的原文片段**（不给概括）；它对 ≥30% 自检索并输出 `SAMPLED=`；**返回前须自跑 `review-verify.sh` 到 PASS（v3.4.1），格式不过自己修，主进程不再替它修**。
+2. **⑤前台复核＋下游回读**（v3.4.1 提前到复审员之前）：`list` 当日＋本轮涉及的往日题 status=0 核标题；status=2 复查 total==0；**`downstream.py <run_ts>`（v3.7.0）回读本轮题在 Followin 资讯流的成品，错标/域不符当轮 `topic.py update --rc tag修正` 改到 0**（清单「下游回读」行）；**此步产生的写操作必须在起复审员前全部落账**——09-09 排在复审员后，2 条新写让复审覆盖过期、重跑 3.5 min。
+3. **复审员**：送审清单由 **`review-packet.py <run_ts> --keep "<id>|<标题>|<为什么留>" … --out <文件>`** 从台账生成（v3.7.0；计数不再手写，有撤题不给留-撤对照拒出）；按 `references/review-agent.md` 起 haiku 子进程——它自己 `cat` 该文件读硬闸／豁免；它对 ≥30% 自检索并输出 `SAMPLED=`；**返回前须自跑 `review-verify.sh` 到 PASS（v3.4.1），格式不过自己修，主进程不再替它修**。
 4. `~/.trend-scout/review-verify.sh <run_ts> <输出文件>`：主进程终验——覆盖率＋抽样契约；每条挑战当轮处置，分歧未清不得出报告。
-5. `checklist.sh verify`（内含 `run-tests.sh` 规则回归：标题闸用例＋灌水形态用例＋gates/SKILL 体积上限＋枚举一致性，跑不过不得出报告）→ `log-snapshot.sh json ~/.trend-scout/b0-latest.json`（收尾前若有写操作先 `b0-audit.sh --fetch` 重拉一次让快照是终态）→ `log-snapshot.sh refresh`。
+5. `checklist.sh verify`（内含 `run-tests.sh` 规则回归，跑不过不得出报告；本轮拒写/未落账须已处理——其后同动作同 id 落账自动算，否则 `log-action.sh reject-ok <ts> <说明>`，**不再删行**）→ `log-snapshot.sh json ~/.trend-scout/b0-latest.json`（收尾前若有写操作先 `b0-audit.sh --fetch` 重拉一次让快照是终态）→ `log-snapshot.sh refresh`。
 6. **报告**：**第一屏固定三行（v3.4.0，用户 09-09 定）：①要你定的 N 项（无则写「0 项」）②本轮动了什么（一行：建/改/撤计数＋唯一真热点）③我自己发现的错（一行，无则「0」）；细节全折到第一屏之下**。三件套表格｜已执行清单（逐条 id＋list 实查 status）｜🟡待裁｜当前话题全列｜弃建记录（带未来日期的必已 `event.sh add`；每条当场 `log-action.sh note - 留档 "弃建|<标的>|<原因>|<日期>"`，否则推不进群）。表格化与六块格式→`gate.sh 报告格式`／`收尾清单`。
 7. **Lark 推送**（v3.0.0，收尾最后一步，`refresh` 之后）：`~/.trend-scout/lark-push.py send <run_ts> --summary "<一句话结论≤200字>"`——从台账渲染，`--summary` 是唯一手写输入。**放弃出报告时改调 `lark-push.py abort <run_ts> "<原因>"`**：群里「没消息」不得与「跑挂了」同形。推送失败不回滚不阻塞，报告首行标一句，下轮 §0 `retry` 自动补发。
 
@@ -87,7 +86,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%z) | Unix: %s'; tail -1 ~/.trend-scout/last-ref
 | 灌水形态闸命中的系统批量题机械撤，不计上限，逐条落 reason_code＋送复审员（v2.9.78） | 撤 meme——须四查全空（`缺诱因-未达线`，备注带四查行）或落三类，主观撤因一律禁；**判断型**批量撤 >10 条 |
 | — | 模糊判定（去重边界／幅度口径打架／单源硬定义词）→标 🟡 |
 
-**🟡 无人默认出口（v2.9.81——切 cron 前必须有出口，否则 🟡 无限积压）**：有人在场时 🟡 列报告等裁，最多跨 1 轮。**无人（AUTO）时**：① meme/小市值→按 `gate.sh A闸` meme 行四查：任一命中留、全空撤（`缺诱因-未达线`）；不再适用「拿不准→留」（v3.6.2）；② 非 meme 模糊判定→按复审默认反转**撤**（status=3，`log-action.sh cull … 跳过-待人裁` 备注写明"无人默认撤·可恢复"），下一次有人在场的轮次报告置顶「无人撤清单」供 `restore`；③ 判断型撤 >10 条的上限在无人时失效，全部按 ② 处置、逐条落账、报告标「无人批量」。撤是可逆的，挂着等人不是。
+**🟡 无人默认出口（v2.9.81——切 cron 前必须有出口，否则 🟡 无限积压）**：有人在场时 🟡 列报告等裁，最多跨 1 轮。**无人（AUTO）时**：① meme/小市值→按 `gate.sh A闸` meme 行四查：任一命中留、全空撤（`缺诱因-未达线`）；不再适用「拿不准→留」（v3.6.2）；② 非 meme 模糊判定→按复审默认反转**撤**（`topic.py cull --id … --rc 跳过-待人裁`，备注写明"无人默认撤·可恢复"），下一次有人在场的轮次报告置顶「无人撤清单」供 `restore`；③ 判断型撤 >10 条的上限在无人时失效，全部按 ② 处置、逐条落账、报告标「无人批量」。撤是可逆的，挂着等人不是。
 
 **每轮固定输出**：0 通道齐备清单（`checklist.sh verify` 产物）｜0b 独立复审员（v2.9.70 治「选手兼裁判」）＋`review-verify`｜1 表格化三件套＋自动执行清单（逐条 id）｜2 🟡处置清单｜3 干轮如实报干轮，禁为"显得有产出"降闸建题｜4 双留档（`log-snapshot.sh`／`log-action.sh`，禁手写裸行）｜5 半盲熔断标首行、禁报"干净干轮"｜**5b 非我方隐藏只落 note＋累计进 dev-ticket，平日不再逐轮上报（v3.4.0，用户 09-09 定：累计 4 次无解，已交系统侧）**｜**6 Lark 推送 message_id**（`lark-push.py send`；未推＝本轮无人知道跑过，等同没跑）。三角校验（date × currentDate × live 数据）AUTO 更关键。
 
