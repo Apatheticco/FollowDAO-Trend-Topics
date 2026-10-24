@@ -1,211 +1,132 @@
-# 数据速查（tag id / list ID / 币表 / 板块矩阵 / 工具用法）— 从 SKILL.md 拆出（v2.8.2）
+# 数据速查（list ID / 币表 / 板块矩阵 / 宏观符号 / 取价坑 / tag id）
 
-> ⚠️ 本文件是**数据**不是规则——数据会过时，更新这里不需要动规则文件。新 tag 实测到就补进来。
+> 本文件是**数据**不是规则：数据过时直接改这里，不动规则文件；新 tag 实测到就补。通道清单与调用参数以 `~/.trend-scout/channels.json` 为唯一来源，本文件和它不一致时以 json 为准。v3.7.15 起实录叙事（SPCX 入表、earnings 日历误判、油价 11% 错值、HL 首用验证、volume 错 874 倍等）沉 LESSONS「gates 10-24 沉降」及对应版本行；旧全文在 git `0deeaa3` 版本。
 
-## 双栈 Twitter list ID
+## 双栈 Twitter list ID（json「A1主栈／A1科技栈」）
 
-| 栈 | list_id | 用法 |
-|----|---------|------|
-| 主 | 2046422494643687464 | 首扫+刷新必跑 |
-| 科技AI | 2051854001608724654 | 首扫+刷新必跑 |
+| 栈 | list_id |
+|----|---------|
+| 主 | 2046422494643687464 |
+| 科技AI | 2051854001608724654 |
 
-## 10 币价格固定列表
+## 10 币（json「价格10币5+5」）
 
-`BTC, ETH, SOL, BNB, XRP, DOGE, HYPE, SUI, AVAX, LINK`
+`[BTC, ETH, SOL, BNB, XRP]` ＋ `[DOGE, ADA, AVAX, LINK, HYPE]` 两批（metrics keywords ≤5/批，`gate.sh 调用约束`）。`verbosity="concise"` 不砍 history（每币仍返约 10 根小时线），照默认跑。
 
-> 📦 **`verbosity="concise"` 不砍 history（2026-08-06 实测，勿再试）**：参数被接受（meta 回显 concise）但每币仍返 ~10 根小时 K 线，回包体积无收益。10 币批照默认参数跑。
-> 🧱 **metrics keywords ≤5/批硬上限（v2.9.4 — 2026-07-11 实测 API 变更）**：`followin.metrics` 单次 `keywords` 超过 5 个会**静默截断到前 5**、返回 `warning: keywords truncated: N→5`，多的直接丢（07-10 同调用还 10 个全返回、零 warning，隔夜收紧）。**10 币拆 2 批（5+5）、下方板块矩阵每批 ≤5**，别一次塞 10——那是看不见的漏扫。
+## 美股板块矩阵（首扫；拉取名单＝json「板块矩阵6批」，增删改 json）
 
-##### 📊 美股板块涨跌矩阵 — 8 板块代表股（§1 W3/W4 的 **6 批×5**（v2.9.8）= 本表高权重子集 +MRVL/TSLA/AMZN；GEMI/IBKR/LMT/RTX/BA/**SOFI** 仅按需补拉）
+**29 槽已满，加一个必须换一个**（换人判据：市值×活跃度×被点名频率三项都明显更弱的降「按需」）。批内有海外双重上市的标的（ASML 被服务端扩成 ASML＋ASML.AS 占 2 槽）时，该批只装得下 4 个。下表是**板块归属对照**（报告按板块聚合用，`gate.sh 报告格式`；≥2 标的同向 >3% 成行）：
 
-> ⚠️ **30 槽是硬约束：加一个必须换一个（v2.9.43b）**。6 批 × 5 keywords（v2.9.4 硬上限）= 30 槽已满，**只改本表不改 §1 批次组成 = 新标的根本不会被拉到**（这次 SPCX 入表同步把批6 的 SOFI 换出，否则等于白改）。换人判据：市值×活跃度×被点名频率，三项都明显更弱的降"按需"。
-> 📌 **实测坑（08-13）**：批4 `[AAOI,GLW,COHR,ASML,AMAT]` 走 query 降级形态时，`ASML` 被 fanout 扩成 `ASML`+`ASML.AS` 两个 keyword，**`AMAT` 作第 6 个被截断丢弃**——批内含"有海外双重上市版"的标的（ASML/ASML.AS 型）时实际只装得下 4 个，AMAT 这类关键标的宁可单独一个 call（同 v2.9.39 日元判据）。
+| 板块 | 代表股 |
+|------|--------|
+| AI 算力 / GPU | `NVDA,AMD,AVGO,TSM`（TSLA 同批拉取） |
+| AI 应用 / 大科技 | `MSFT,GOOGL,META,AAPL,AMZN` |
+| 存储 / 内存 | `MU,SNDK,WDC,STX`（MRVL 同批拉取） |
+| 光通信 / 网络 | `LITE,AAOI,GLW,COHR` |
+| 半导体设备 | `ASML,AMAT,LRCX,KLAC` |
+| 加密概念股 | `CRCL,COIN,MSTR`（GEMI 按需） |
+| 量化交易 / Fintech | `HOOD,PLTR`（SOFI、IBKR 按需） |
+| 航天 / 国防 | `SPCX`（RKLB、LMT、RTX、BA 按需） |
 
-风向标常漏**子板块异动**（如 5/18 存储+光通信集体崩盘只看大盘看不出）。8 大板块代表股：
+## 宏观 / 大宗
 
-| 板块 | 代表股票（3-4 个，按权重）|
-|------|--------------------------|
-| **AI 算力 / GPU** | `NVDA,AMD,AVGO,TSM` |
-| **AI 应用 / 大科技** | `MSFT,GOOGL,META,AAPL` |
-| **存储 / 内存** | `MU,SNDK,WDC,STX` |
-| **光通信 / 网络** | `LITE,AAOI,GLW,COHR` |
-| **半导体设备** | `ASML,AMAT,LRCX,KLAC` |
-| **加密概念股** | `CRCL,COIN,MSTR,GEMI` |
-| **量化交易 / Fintech** | `HOOD,SOFI,PLTR,IBKR` |
-| **航天 / 国防** | `SPCX`＋`RKLB,LMT,RTX,BA` 按需（v2.9.82：ASML 占 2 槽后 30 槽只剩 29，RKLB 降按需；6 批固定分法写死在 channels.json，禁现场拼批）|
+| 品种 | 主调（json） | 降级 |
+|------|-------------|------|
+| 金 | `XAUT`／`PAXG` @crypto | `yahoo_price GC=F`／`GLD` |
+| 油 | `yahoo_price CL=F`（WTI）／`BZ=F`（Brent） | followin `USO/BNO/OIL` ETF（追踪期货，标题须写「油价 ETF」） |
+| 美元 | followin `DXY` @tradfi | `DTWEXBGS`@macro；followin `DXUSD`（yahoo `DX-Y.NYB` 的前收常为 None） |
+| 美股大盘 | followin `SPY/QQQ` @tradfi（`spx` 必失败，不再先调） | — |
+| 国债 | followin macro `DGS10/DGS2`（首扫） | yahoo `^TNX/^TYX` → FRED 直连 `curl https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10`（滞后 1–2 个交易日，只作收盘值，不写「盘中」） |
+| econ 日历 | metrics macro-calendar `date_from=今天 date_to=+5d`（首扫） | — |
 
-> 🚀 **SPCX 入表（v2.9.43b — 08-13 用户定「1」，成本最低的补法）**：航天行原名单 `RKLB,LMT,RTX,BA` **没有 SPCX**，而它市值约 1.87 万亿美元、成交活跃、被 A 级账号连日点名——今早我误撤 `2592`（SPCX+9.7%）时在留档写"命中板块矩阵第 8 行"**其实不准确**，它当时只靠 ③主线头部/④A级点名 两条需现场判断的条款兜着，而现场判断恰是失手处。入表后它由 ②固定名单 直接覆盖，v2.9.37 入册与 v2.9.42 撤前搜 news 两处判据同时生效。**BA 降为按需补拉**（近月无异动、不占 5 槽上限）。
-> - ~~动态兜底（"近 5 日成交/涨跌榜前列美股自动算覆盖"）~~ **本轮不做**：需额外拉榜单、为单一案例造需现场取数的规则不划算；**若再出现第二次"新晋主线漏判"再上**。
+- **按需取数**（不在 json 通道里）：亚洲指数 `^HSI/000001.SS/^N225/^KS11` 用 followin fmp 批（带 `previousClose`，一批 ≤5）或 yahoo。（亚洲存储行与日元通道 10-24 用户定删除，维持不跑。）
+- **⚠️ 绝不用裸 `gold`/`oil`/`CL`**（解析成金矿股/Colgate）；`CLUSD` 已废（返回 FRED `DCOILWTICO` 历史值，差 11%）。
+- **期货结算价不用 yahoo 的 `previous_close`**（不随交易日滚动，9/3 晨仍显 9/1 结算）：结算价用 `followin metrics(keywords=["GC=F"], asset_type=tradfi, categories=[market])` 的 `previousClose`；yahoo 只取现价。
+- **yahoo 两种假数据**：① 偶发返回空对象（无 error 也无 price）——单次空返回先重试 1 次，连续 ≥2 次才算故障；② 亚洲时段「过期收盘复读」——`change` 恰为 0.0 且 `price == previous_close`，此值只能当上日收盘用，写现价必须拿别的源交叉（重试无用）。
+- **earnings**：按 ticker 查最准——`metrics(keywords=[HD,WMT,...], query="next earnings date", asset_type=tradfi)` 返回精确日期＋EPS/营收预期＋上季 surprise＋目标价共识。市场级日历：带 `country=US` 可用但结果可能不全（10-24 复核：返回 partial，单页上限 50，有 next_cursor）。**判任何通道失效前，先读 meta 的 `filters_applied` 与 `pagination`。**
 
-**第 9 行·亚洲存储（v2.9.38 转正——韩股双雄已连续四轮实拉，KOSPI 熔断/收盘复查/双雄验证均实战）**：`000660.KS`（SK 海力士）+ `005930.KS`（三星）@tradfi，**KST 15:30 收盘后查**（盘中数字受 v2.9.32② 中间态闸约束，不作标题结论）；ADR=`SKHY`。
+## 美股分时段取价
 
-**判定**：某板块 ≥2 标的同向 >3% 涨/跌 → 板块异动信号 → 进 0b 作板块候选（如 R-Mem 存储+光通信回调）。**拆 ≤5/批 跑（v2.9.4 — keywords 硬上限 5，旧"3×10"作废，改 6 批×5 或按板块 4 个一批）**，加 `categories=["market"]`（quirk⑩）；批内补 TSLA/AMZN 即覆盖科技大票，不单跑 Wave2C。
+主次以 `gate.sh 时段` 四时段表（铁律⓪：长桥 `quote` 为主，followin 15min 为降级）为准，下面只记降级通道的用法与坑：
 
-##### 🏛️ 宏观/大宗 — 符号校正 + fallback 链
+- **followin 盘前/盘后在 history 叶不在 snapshot 叶**：snapshot 恒为 `regular_inactive`；`metrics(keywords=[X], asset_type=tradfi, categories=[market], query="intraday candles", interval="15min", limit=60)` 返回 05:00–19:45 ET 全时段（**时间戳是 ET**）。最后一根盘后 K 线的 close＝盘后价，自比 regular 收盘（16:00 那根的 open）；16:00 那根的高低点横跨收盘，盘后区间从 16:15 起算。
+- **`tradingview stock_extended_hours`**：一次返回 `pre_market`／`regular`／`post_market` 三段带涨跌幅，核数时作交叉。**美股全休市时段（ET 00:00–04:00＝CST 12:00–16:00）字段错位**：`post_market` 为 null，`pre_market` 装的是上一交易日盘后最后一笔——看 `as_of_utc`，落在上一交易日约 23:59 UTC 的就读作盘后价。
+- **事件发布时点决定用哪段价** → `gate.sh 双要素`／`gate.sh 时段`。
 
-主调（quirk⑨ 已校正，均 `categories=["market"]`）：**金=`XAUT`@crypto｜美元=`DXY`｜标普=`spx`@tradfi｜日元=`USDJPY`**。
-> - ⚠️ **日元改走 `yahoo_price JPY=X` 单独一个 call（v2.9.39 修正 — 08-12 实测，v2.9.38「并入美元批」当轮即失效）**：数组参被剥空后走 query 降级形态时，**keyword 数由服务端 fanout 决定**，`"美元指数 dollar index DXY 标普500 spx USDJPY 日元"` 被扩成 6 个 keyword，`USDJPY=X` 作为第 6 个**被截断丢弃**（`warning: keyword omitted after applying the maximum of 5`）。同型：腾讯+韩股批被扩成 6 词丢 `HXSCY`（该例无影响，三个目标标的都到了）。**判据：本轮非它不可的单一标的，宁可单独一个 call，别塞进多标的 query——query 形态下我控不了 keyword 数。** 实测 `JPY=X` 返回正常（159.426／159.358，52w 高 163.979）。
-> - 日元线的由来：三天 10 次全靠 news 碰运气，08-12 晨"日债 5 年收益率创历史新高+BOJ 加息概率 2/3"完全漏 note 后才补进批次。国债=`DGS10/DGS2`@macro。econ 日历=传前瞻日期窗（quirk⑫）。⚠️ 绝不用裸 `gold`/`oil`（quirk⑨ 解析成金矿股/Colgate）。宏观 news query 轮换词加 **`BOJ 日债 日元`**（与 CPI/Fed 系轮着用）。
+## 非美 / 特殊标的
 
-> 📅 **earnings 日历必须传 ticker，绝不拉市场级日历（quirk⑭ — 2026-08-17 实测，当轮我先误判为"通道失效"）**：
-> - **市场级日历实际不可用**：`metrics(query="earnings calendar...", asset_type=tradfi, date_from/to)` 返回的是**全球**日历，按 symbol **字母序**排，**单页硬上限 50**（传 `limit=100` 返 `warning: limit_over_max`）。A 股纯数字代码（`000825.SZ`）、港台带数字前缀天然排在所有字母 ticker 之前；**美股 ticker 是纯字母（HD/WMT/ADI），要翻很多页才轮到**。实测 limit=50 时 50 条走完 `.SZ→.KL→.HK→.F→.KQ→.L→.TWO→.TW` 仍 `has_more:true`，光单日就几百条。
-> - **✅ 正解 = query 里直接放 ticker**：`metrics(query="HD WMT TGT ADI NVDA next earnings date", asset_type=tradfi)` → ticker 被正确解析成 `keywords:[HD,WMT,TGT,ADI,NVDA]`，返回 **`next_earnings_estimate`（精确日期＋EPS/营收预期）＋上季 `earnings_surprise`＋`consensus_price` 目标价共识**，信息量远超日历。实测：HD 8/18（EPS 4.73）、TGT 8/19（2.26）、ADI 8/19（3.34）、WMT 8/20（0.741）、NVDA 8/26（2.08／营收 919.3 亿，上季 816 亿＝环比+12.6%，目标价共识 319.48 vs 现价 225.16＝**距共识+41.9%**）。
-> - **⚠️ 我当轮的错误判断留档**：先写成「query 形态下 fanout 把语义导向中国市场」——**两处直接证伪**：返回体 `filters_applied.keywords: null`（**根本没 fanout**，机制是我编的）、`pagination.returned:10 / has_more:true`（是分页不是"只有 A 股"）。**判据升级：判定任何外部通道失效前，先把 meta 的 `filters_applied` 与 `pagination` 逐字读完**——真因每次都写在那两个字段里。本会话同型第四次（OI 通道判"疑似失效"实为 bar 档位、actions 判"无记录"实为自己改了时间戳格式、本条判"fanout 导向"实为分页＋字母序）。
+- **A 股**：主＝长桥 `quote`（`.SH/.SZ`）；followin `metrics` 用 `.SS` 也能直查（10-24 复核 `688836.SS` 返回 fmp 现价与前收，旧版「followin 不覆盖 A 股」已过时）。韩 `.KS/.KQ`、日 `.T`、港 `.HK` 同样直查（正股优先，`gate.sh 通道故障`）。
+- **followin `volume`／`volume_24h` 是币数不是美元**：美元成交额＝`volume_24h × 现价`，低价币会错 3 个数量级；`history[].volume` 是单根 K 线的量不是 24h。合约美元成交额直接用 `pct.py bn`。写金额前过量级自洽闸（`gate.sh 数字`：成交额÷市值 >20 倍先当自己算错）。HL 的 `dayNtlVlm` 确为美元。
 
-> 🛢️ **油价主调换成 `tradingview yahoo_price`（quirk⑬ — 2026-08-06 三轮踩坑后实测定案）**：~~`CLUSD`@tradfi~~ **已废弃，它不是"拿不到"而是"给错值"**——该 keyword 被路由到 macro，返回 FRED `DCOILWTICO` 的**历史序列**（实测取到 84.25），而同时点真实 WTI 是 **75.92**，**差 11%**。这种错值比返空更危险（返空会被自查表标 ❌，错值会被直接写进标题）。
-> - **油主调**：`tradingview yahoo_price(symbol="CL=F")` = WTI ｜ `BZ=F` = Brent（实测 75.92 / 80.16）
-> - **油 fallback**：`followin.metrics(query="USO BNO oil ETF price snapshot", asset_type="tradfi")` → USO/BNO/OIL 三个 ETF/ETN 全返（实测 114.93 / 45.41 / 28.42，追踪期货非现货，标题须写"油价 ETF"或换算说明）
-> - **金也可用 yahoo**：`GC=F`(期货，实测 4334.7) ｜ `GLD`(ETF，389.64)——与 XAUT/PAXG 互为交叉源
-> - ⚠️ **期货结算价别用 yahoo 的 previous_close（v2.9.82 — 09-03 实证）**：`yahoo_price GC=F` 的 `previous_close` 不随交易日滚动（9/3 晨仍显 9/1 结算 4348），按它算涨幅差 0.7 个百分点。**结算价主调＝`followin metrics(keywords=["GC=F"], asset_type=tradfi, categories=[market])`**，返回 `GCUSD` 的 `previousClose` 即上一结算（实测 4414.6，与 XAUT 17:30UTC 小时线 4377＋期货升水一致）。yahoo 只用它的现价。
+## Hyperliquid / Trade.xyz（W-HL 条件通道；触发条件与口径边界 → `gate.sh 并发编排` W-HL 条）
 
-| 主调 | Fallback |
-|---------|----------|
-| `XAUT`(金)@crypto | `PAXG`@crypto → `yahoo_price GC=F/GLD` |
-| **`yahoo_price CL=F`(油)** | `BZ=F` → followin `USO/BNO/OIL` ETF |
-| `spx` | `SPY/QQQ`@tradfi |
-| `DXY` | `DTWEXBGS`@macro |
-| `yahoo ^TNX/^TYX`(10Y/30Y 收益率) | FRED 直连 `curl https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10`（`DGS30` 同）——**滞后 1–2 个交易日，只作收盘值，不写「盘中」** |
-| `yahoo ^HSI/000001.SS/^N225/^KS11` | followin `metrics(keywords=[...], asset_type="tradfi", categories=["market"])`＝fmp，带 `previousClose`，一批 ≤5 |
-| `yahoo DX-Y.NYB` | followin `DXUSD`@tradfi(fmp)；yahoo 该符号 5d 线 `prev` 常为 None，算不出涨跌 |
-| `yahoo 000660.KS` 等个股 | 同上 fmp 批（09-14 yahoo 单次返非 JSON，fmp 同批取到 1697000/前收 1812000） |
-> **v3.4.4（周报提案 P1-3）实测 09-14 14:58 CST**：yahoo `^TNX 4.975`／`^TYX 5.354`／`^HSI 24885.56`／`000001.SS 3885.33`；FRED `DGS10` 末行 09-10 4.95、`DGS30` 5.37（滞后两日）；fmp `^HSI 24896`（前收 24805.64）／`000001.SS 3885.33`／`DXUSD 99.18`／`^N225 63492.99`／`^KS11 6684.37`。yahoo 失效是**间歇**的（09-12 两轮多符号空 error、09-14 全通），所以是降级梯不是换主调——空返回先按 quirk⑬b 重试一次，再走本表。
-> Primary 失败必跑 fallback，仍失败标"⚠️数据缺失"。**followin.metrics 整体挂 → 价格源降级梯（§1 末 okx.py/web）**。
->
-> ⚠️ **`yahoo_price` 会偶发返「空对象」——空 ≠ 失效，必须重试一次（quirk⑬b，2026-08-06 自我纠错）**：08-05 我测 `GC=F`/`SI=F` 得到 `{"symbol":"GC=F","error":"","source":"Yahoo Finance"}`（无 error 也无 price），据此下了「yahoo_price 对大宗整环失效」的结论并写进报告；08-06 同符号重试**立刻返回 4334.7**。**判据：单次空返回=偶发，重试 1 次;连续 2 次以上空才计入故障**（对比：大师 twitter 栈是两轮、两种 action、四次全空 → 那才是真失效）。**过度概括一次偶发，代价是我漏掉了当日金价 +5.84% 这个更硬的数据锚。**
+```
+curl -s -X POST https://api.hyperliquid.xyz/info -H "Content-Type: application/json" -d '{"type":"metaAndAssetCtxs","dex":"xyz"}'
+```
 
-> ✅ **followin 也有盘前/盘后——在 history 叶不在 snapshot 叶（v2.9.84 — 2026-09-03 实测推翻 08-12 定案）**：`metrics(keywords=["HPE"], asset_type="tradfi", categories=["market"], query="intraday candles", interval="15min", limit=60)` 返回的 K 线**从盘前 05:00 ET 一路到盘后 19:45 ET**（时间戳是 **ET 不是 UTC**），与 tradingview 三段逐位对齐：
-> | 段 | followin K 线 | tradingview `stock_extended_hours` |
-> |---|---|---|
-> | 盘前 | HPE 09:00 ET 收 **52.8** | `pre_market.price` **52.8** |
-> | 盘中收 | HPE 15:45 ET 收 51.855 | `regular.price` 51.83 |
-> | 盘后 | HPE 19:45 ET 收 **49.154** | `post_market.price` **49.154** |
-> | 盘后 | SNOW 19:00 ET 收 **376.60** ／ NTAP 19:45 ET 收 **165.01** | **376.6** ／ **165.01** |
->
-> **08-12「followin 只给 regular」的结论只对 snapshot 叶成立**——snapshot 恒返 `_quote_cache: last_regular` / `_quote_session: regular_inactive`，09-03 用四种问法（`extended hours quote…` / `after hours post market price change` / `premarket` / `bid ask spread quote`）全部只拿到 regular，历史上也只出现过 `regular_inactive` 一个会话值。**换叶子就有**：错在我把「一个叶子拿不到」推广成「这个 MCP 拿不到」。
-> - **怎么用**：`interval=15min` 取当日全时段；**最后一根盘后 K 线的 close ＝ 盘后价**，涨跌幅要自己拿它比 regular 收盘（16:00 ET 那根的 open ＝ regular 收盘价，可作校验锚）。盘前同理，取 09:15 ET 之前最后一根。
-> - **口径坑**：16:00 ET 那根的 high/low 会横跨收盘瞬间（HPE 该根 high 53.74 low 48.5），**不可当盘后区间用**；要盘后区间就从 16:15 ET 那根起算。
-> - **取舍（v3.0.5 改）**：**主调＝followin `metrics(interval="15min")`**（唯一事实源见 gates 闸:时段 铁律⓪；本地与 Evose 同一条路径，规则可移植——Evose 上没有 tradingview）；`stock_extended_hours` 作降级梯＋交叉校验（它一次返三段带 change%，不用自己数 K 线，**核数时优先用它交叉**）。~~原「本地仍以 stock_extended_hours 为主调」~~ 已废：主次两处写反会让 gates 的铁律⓪落不了地。
->
-> 🌙 **盘前/盘后价的第二条路 = `tradingview stock_extended_hours(symbol)`（08-12 实测）**：一次返回**三段**——`pre_market{price, change_vs_previous_close_pct}`、`regular{price, change_pct}`、`post_market{price, change_vs_regular_close_pct}` + `previous_close`；省去自己数 K 线、自算涨跌幅。
-> **⚠️ 通道主次以 `gates.md` 闸:时段 四时段表铁律⓪ 为准（v3.0.5）**：主＝followin `metrics(interval="15min")`，本条为降级梯／交叉源。~~原文「**followin `metrics` 只给 regular**」~~ **已废**——那句只对 snapshot 叶成立，见上方 09-03 实测块（v2.9.84）。本行与上方两块曾在同一文件里互相矛盾五行之隔，是 v3.0.5「散点各自演化」的第四处。
-> - **判据：事件发布时点决定该用哪段价**。财报/重大公告多在**盘后**发布 → 当日 regular 收盘价**成文于事件之前**，拿它当"事件的价格反应"是错的。
-> - 实测案例：LITE 财报 08-11 盘后发布，pre 812.00(−0.19%) → regular 820.59(+0.87%) → **post 840.59(+2.44%)**；我先用 regular 的 +0.87% 写进标题（"股价仅涨0.9%"），被用户指出盘后是 +2.45%。RIOT 同日反向案例：pre **+21.75%** → regular +4.33% → post +0.54%（冲高回落且盘后未修复，此时 regular 才是对的锚）。
-> - **两个坑同源**：不是"该用盘后价"或"该用收盘价"，而是**必须先问事件什么时候发的**。
+- 无鉴权，返回 `[meta, ctxs]` 两段按下标对齐；ctx 有 `midPx`／`prevDayPx`／`openInterest`／`dayNtlVlm`。`dex="xyz"` 不可省（不在主 universe，直查 `allMids` 会误判不存在）；builder DEX 列表 `{"type":"perpDexs"}`。
+- **名字带 `xyz:` 前缀**：取名一律 `u["name"].split(":")[-1]`；空结果先打印 `len(universe)` 再下结论（静默空集是看不见的漏扫）。
+- **新上市合约的 `prevDayPx` 是上市锚定价、不滚动**（24h% 完全失真）：上一轮 dump 里没有的标的，改用正股或自己两次读数的差。量盘后/隔夜变化也用自己两次读数差，不用 24h%。
+- **命名陷阱**：xyz 上非美标的多为「正股·美元计价」，个别是 ADR，同一公司可能两个合约并存（SK 海力士 `SKHX`＝正股、`SKHY`＝ADR）。写韩/日股价格取正股口径那个，并用「正股收盘价 ÷ 合约价 ≈ 即期汇率」当场验。
+- **薄盘不可信**：先看 OI／成交额再用价（`VIX` 的 `midPx` 直接是 None）。
 
-> ⏰ **`stock_extended_hours` 在美股完全休市时段字段会错位——`pre_market` 其实是上一交易日的盘后价（quirk⑬d，2026-08-12 实测）**：ET 00:00–04:00（= CST 12:00–16:00，即我方亚洲下午的常规扫描时段）调用时，`post_market` 返回 `null`，而 `pre_market` 装的是**上一交易日盘后最后一笔**。
-> - **判据：看 `as_of_utc`——落在上一交易日且 ≈23:59 UTC（=19:59 ET，盘后窗口末端）时，这个 `pre_market` 读作盘后价，不是盘前价。** 真盘前价要等 ET 04:00 后再拉。
-> - 实测三例（均 as_of `2026-08-11 23:59 UTC`）：NBIS `pre` 208.50 vs `regular` 193.23 = **+7.90%**，恰好复算出系统 `2568` 标题的「NBIS 盘后涨 8%」→ 反过来证明这个字段确实是盘后；CRCL `pre` 71.15 ≈ `regular` 71.16（盘后无成交）；MSTR `pre` 96.51 vs `regular` 96.09。
-> - **误读代价**：若当成盘前价，会把上一日盘后的反应写成"今日盘前"，时点整错一天——与 ⑬c（亚洲时段过期收盘复读）同族，都是**返回值有效但语义与字段名不符**，比返空危险。
+## 写看板
 
-> ⚠️ **`yahoo_price` 亚洲时段会返「过期收盘复读」——识别标志：`change` 恰为 0.0 且 `price == previous_close`（quirk⑬c，2026-08-10 实测）**：当日 14:18 CST 取 `CL=F` 得 `price=78.18, change=0.0, previous_close=78.18`，而同时段 CNBC/Benzinga 实报 WTI **78.89 (+0.91%)**——返回值是上一交易日收盘的复读，不是现价。同日 09:45 取到的 78.96 则是周日夜盘真价（change≠0）。**判据：命中该标志时此值只能当"上日收盘"用，写现价必须以 news 侧报价交叉验证**；与 ⑬b 的空返回是两种坑——空返回重试可解，复读值重试无用（还是它）。
+- 一律 `~/.trend-scout/topic.py create|update|publish|cull|restore|get --id`（用法 `topic.py -h`）；keywords 只收逗号分隔字符串、≤4 个；不写 desc。按标题定位的老坑随入口一起作废（案例见 LESSONS）。
+- **系统建题会自己改标题**（行情题数字随行情滚动、已隐藏题也会被改写）：`topic.py cull` 已把撤时标题写进备注。
+- **系统 keywords 自动切词缺陷**：`ETHERFI` 被切成 `ETHER,FI`，`FI` 命中 Fiserv——处置系统 crypto 题时顺手核有没有被切出两字母噪音段，有就 `topic.py update --keywords` 改掉。
+- **端点 500**：`topic.py create` 整体报 500 而 list/update 正常 → 先 list 探服务在线、再用短标题 create 探一次排除内容；仍 500 就本轮放弃建题，用 `log-action.sh note` 留档「待建|<标的>|<原因>」下轮补，不要反复重试。
+- **台账备注**：只经 `topic.py`／`log-action.sh` 写入；备注里不用反引号和 `$`（会被 shell 执行），引用用中文「」。
 
+## 已知 tag id
 
-## 速查
-
-### 写看板（v3.7.0：一律 `~/.trend-scout/topic.py`）
-
-`create|update|publish|cull|restore|get`，一律按 `--id`（v2.9.66 起 id 定位实测可用）。按标题定位的老坑——原文／译名不一致（v2.9.16）、特殊字符 `“” & < >` 失配（v2.9.8/28）、系统行情题标题数字滚动（v2.9.39）、板块模板同名（v2.9.44）、同名死锁（2520/2512）——随入口一起作废，案例全文见 LESSONS 对应版本。
-
-| 需求 | topic.py |
-|------|------|
-| 改标题 | `update --id X --title "新" --rc … --note …`（console 字段 `new_title`；台账「旧→新」由工具生成） |
-| 改关键词（自动重配 tag） | `update --id X --keywords "A,B" --rc tag修正` |
-| 手动绑 tag | `--tags '[{"id":10006}]'`（与 keywords 同传以 tags 为准；**清空 `[]` 10-15 实测对下游无效**，下游按关键词实时匹配） |
-| 改状态 | `publish`（0）／`cull --rc …`（3）／`restore --rc …`（0） |
-
-> ⚠️ 不能改 desc（建题也不写 desc）。处置**系统建**题时仍要防它自己改标题：系统行情题的数字会随行情滚动、已隐藏题也会被改写（10-14/10-15 三例），`topic.py cull` 已把撤时标题写进备注。
-> - **🐛 keywords 自动切词是可复现缺陷（v2.9.44 实测）**：系统给 `ETHERFI` 自动切成 `ETHER,FI`（`11388` 与 `11403` 两条独立生成的题都是这个结果），其中 **`FI` 命中 Fiserv（NYSE:FI）**，导致 news 检索 ETHFI 时返回 Fiserv 的股东诉讼稿。处置系统 crypto 题时**顺手核 keywords 有没有被切出两字母噪音段**，有则手工改（`ETHFI,AAVE`）。
-
-> 🔢 **followin `metrics` 的 keywords 硬上限 5，超出部分静默丢弃（quirk⑮ — 2026-08-18 实测）**：一次传 10 个 ticker，返回体只含前 5 个，**主结果区没有任何缺失提示**，只在 `meta.warnings` 里逐个报 `keyword_count_over_max`。批量核价时若不读 warnings，会把"后 5 个标的没数据"误判成通道问题或误当成"这些标的没异动"。**判据：>5 个标的必须分批，且每批读一次 warnings 确认 `filters_applied.keywords` 与我传的一致。****同源勘误（08-18 复审）**：这不是新限制——v2.9.4（板块矩阵拆 ≤5/批）立的就是这同一个服务端上限，v2.9.39（query fanout 扩词后截断丢 keyword）是它的 query 形态；⑮ 的**增量只在失败表现**：显式多 ticker 传参时主结果区零提示、仅 warnings 报。判据三处通用：读 warnings／分批／非它不可的标的单独 call。**教训：立新 quirk 前先 grep 旧账。**
-
-> 🚨 **`create_trending_topic` 端点会整体 500，而同期 `list`/`update` 正常（2026-08-18 实测）**：连续 5 次返回 `{"message":"An Internal Error Has Occurred.","code":500}`，含把标题和描述都缩短的极简版——**不是内容问题是端点故障**。判据：先用 `list` 探一次确认服务在线，再用短版本 create 探一次排除内容；两者都指向端点则**本轮放弃建题，把待建题写进 event-watch 下轮补**，不要反复重试刷错误。
-
-> 🇨🇳 **followin `metrics` 不覆盖 A 股，科创板/沪深代码一律 `no_match`（quirk⑯ — 2026-08-19 实测）**：查 `688836.SS`（宇树科技）返回 `total: 0` 且 `meta.warnings` 明报 `unknown ticker / no upstream coverage`；换 `UNITREE` 关键词同样落空。对比：韩股 `000660.KS`／`005930.KS`、港股 `0700.HK` 均正常返回（memory「正股优先」那条成立的前提是**该市场在覆盖内**）。**判据：A 股标的的价格锚只能走多源媒体交叉 + 自校验**——本例发行价 150.8 元（Reuters）、开盘 1100 元＝+629.4%（BlockBeats）、现报 911 元自算 +504.1%（与 Odaily「回落至 500% 附近」吻合），三源互验后才敢写进标题。**不要因为拉不到价就跳过价格反应（v2.9.35），也不要拿单源数字直接落笔（v2.9.10）。**
-
-> 🟢 **Hyperliquid / Trade.xyz 公开 API — 补美股盘后价、A股与 pre-IPO 标的的兜底通道（2026-08-19 实测接入，无需认证）**：
-> `curl -s -X POST https://api.hyperliquid.xyz/info -H "Content-Type: application/json" -d '{"type":"metaAndAssetCtxs","dex":"xyz"}'`
-> 实测 HTTP 200、~300ms、**无 key 无鉴权**。返回 `[meta, ctxs]` 两段并列，按下标对齐；每个 ctx 有 `midPx`／`prevDayPx`／`openInterest`／`dayNtlVlm`。
->   - **`dex="xyz"` 是关键**：Trade.xyz 是建在 HL 上的 **HIP-3 builder DEX**，它的 114 个标的**不在主 universe（232 个）里**——直接查 `allMids` 或 `{"type":"meta"}` 会得到 `NOT FOUND` 而**误判为"该标的不存在"**（08-19 我就这么误判过 UNITREE）。builder DEX 列表：`{"type":"perpDexs"}`（当前 11 个：xyz/flx/vntl/hyna/km/abcd/cash/para/mkts/io）。
->   - **🆕 `universe[].name` 现在带 `xyz:` 前缀，裸名过滤会静默返回空（2026-08-22 实测）**：本轮按旧写法 `if n in {MSTR,COIN,...}` 过滤，脚本正常退出、**输出零行**，我差点当成「接口挂了」。实际返回的是 `xyz:MSTR`／`xyz:NVDA`／`xyz:GOLD`，标的数也从 114 增到 **116**。**判据：取名一律 `u[名字键].split(冒号)[-1]`**（代码里写 `u["name"].split(":")[-1]`）；且**空结果必须先打印 `len(universe)` 再下结论**——静默空集是「看不见的漏扫」的又一种形态（与 B0 满额守卫同源）。
->   - **它填补的三个真实缺口**：① **美股盘后/隔夜价**——24h 连续交易，`stock_extended_hours` 挂掉时唯一可用（08-19 该通道连续 2 次 ConnectError）；② **followin 不覆盖的标的**——`UNITREE`(A股宇树，quirk⑯)、`CXMT`／`ZHIPU`／`MINIMAX`(未上市中国 AI)、`KR200`(韩国200指数，解决 KOSPI 拉不到只能引用媒体的问题)、`SMSN`／`HYUNDAI`／`KIOXIA`；③ **OI 与成交额**——判资金流向。
->   - **点差实测（vs 我当日实测正股收盘）**：MSTR 92.521 vs 92.52（**0.001%**）、META 545.56 vs 543.67（+0.35%）、NVDA 219.11 vs 219.74（−0.29%）、RDDT 158.51 vs 158.23（+0.18%）。**主流标的点差极小**，但差额里混着"盘后继续走"的真实变动（SNDK 1593.35 vs 收盘 1625.78＝**盘后又跌 2.0%**；AAOI −2.2%、CRWV −1.3%）——这既是它的价值也是它与收盘价的区别。
->   - **🇰🇷 命名陷阱：xyz 上非美标的多为「正股·美元计价」，只有个别是 ADR——同一公司可能两个标的并存（2026-08-19 实测）**：`SKHX` 1152.60 × 实测隐含汇率 1301 ≈ SK 海力士**正股** 1,500,000 KRW；`SMSN` 183.28 × ~1350 ≈ 三星**正股** 247,500 KRW；而 `SKHY` 161.085 对应的是**美股 ADR**（08-18 regular 收盘 155.56）。**同一家 SK 海力士在 xyz 上同时有 SKHX(正股) 与 SKHY(ADR) 两个合约，24h 涨跌幅并不相同**（−2.35% vs −3.63%）。**判据：写韩/日股价格时优先取"正股口径"那个合约（memory「正股优先」），并用「正股收盘价 ÷ 合约价 ≈ 即期汇率」当场验口径**——量级对不上就说明拿错了标的。
->   - **🆕 新上市合约的 prevDayPx 是上市锚定价、不滚动——24h% 完全失真（quirk⑰ — 08-20 实测修正）**：MRNA 合约上市首日两次相隔 12h 的读数 prevDayPx 钉死在 139.0（同期正股 62.96→174.70，单日 **+177.5%**，而 HL 显示 **+18%**）；对照老标的（SKHX/SNDK/META/NVDA）同期 prevDayPx 全部滚动正常。**判据：上一轮 dump 里不存在的标的（universe 数变了），其 24h% 不可用，改用正股或自己的区间差。** 此前我断言"prevDayPx 是滚动 24h"对老标的成立、对新上市标的是错的——**已实测修正而非猜测**。
->   - **⏱️ 用它量"盘后/隔夜变化"要用自己的两次读数差，不要用 24h%**：24h% 的分母是滚动 24 小时前，跨越了整个下跌段，会**低估反弹**。实例：SK 海力士回购公告后，`SKHX` 的 24h% 只是从 −8.39% 收窄到 −2.35%，但用我自己两次读数算「1072.95 → 1152.60 = **+7.42%**」才是公告后的真实拉升幅度。**每轮把关键标的的 midPx 记进台账，下一轮就能算出区间变化——这是 followin 给不了的（ADR 在盘后返回 `regular_inactive`）。**
->   - **⛔ 三条使用边界**：① **主锚仍是正股**（memory「个股价格锚=正股优先」不变），HL 只在"正股拉不到／要盘后价／要 OI"时用，并在文案中标明口径；② **`prevDayPx` 是滚动 24h、不是前一交易日收盘**——自算的 24h% 与正股当日涨跌幅**口径不同**（例：SNDK HL 24h −7.35% vs 正股当日 −9.01%），两者不可混写进同一句；③ **薄盘不可信**——先看 `openInterest`／`dayNtlVlm` 再用价（`RDDT` OI 仅 91、24h 额 15 万美元；`VIX` 的 `midPx` 直接是 `None`、OI=0）。
->   - **08-19 首用即验证的一例**：`11513`「UNITREE 上线 Hyperliquid 后拉升至 100 美元」——实测 `midPx=127.89`、`prevDayPx=100.37`，**它把 24 小时前的价格当成了"拉升至"的现价**；同时 Odaily 的 133.74「短时破 140 后回落」与火星财经空头开仓 81.8／清算 172.18 全部对得上。**一个能自查的通道，能把"三个互相冲突的单源数字"直接收敛成一个可核事实。**
-
-> ⌨️ **台账写入脚本的引号纪律（一周三次翻车后定）**：heredoc 一律 `<<'PYEOF'`；台账内容里**禁用 ASCII 引号与反引号**（backtick 被 shell 执行、三引号撞 Python 字面量、英文双引号截断字符串——三种事故各踩过一次），引用一律用中文「」；美元符写"美元"或去掉 `$`。
-
-> 🚨 **followin `volume`／`volume_24h` 是「基础币种数量」不是美元——低价币上会错 3 个数量级（quirk⑱ — 2026-08-21 用户报 BUG-2，我已因此错发两条题）**：
-> - **换算**：美元成交额 = `volume_24h` × 当前价。实证：NEIRO `volume_24h=214,723,839,760` 看着像"2147 亿美元"，实为 **21.47 万亿枚 × $0.00010651 ≈ 2,287 万美元**，我写成「逾 200 亿美元」**差 874 倍**；BOME 同款错误**差 855 倍**。
-> - **为什么专坑低价币**：BTC 的 `volume_24h=39,396` 一眼就知道是币数（39,396 枚 ≈ 30 亿美元）；但低价币的数量级本身就有 11–12 位，**看起来恰好像美元金额**——而低价币正是 meme 热榜主力，歧义精准咬在最高频的场景上。
-> - **⚠️ 第二个坑叠加：`history[]` 里的 `volume` 是「那一根 K 线的量」不是 24h**。我把 05:00 那根小时线的 207 亿枚当成了日成交量，**单位错 × 周期错双重叠加**。判据：日成交额只能取 `snapshot.volume_24h`，`history[].volume` 仅用于看单根 K 线放量。
-> - **✅ 对照：W-HL 的 `dayNtlVlm` 确为美元计价**（Ntl=Notional），实测 `xyz:SNDK 541,935,380 ÷ 1593 = 34 万股`量级合理，此前用法正确、无需修正。
-> - **🔒 自洽闸（用户建议，已采纳为硬判据）：成交额 ÷ 市值 > 20 倍即拦下复核。** NEIRO 那条按错误数字算是市值的 **466 倍**——**这个荒谬程度不需要任何外部数据就能自查出来**，我却直接写进了标题。
-
-### 工具速查
-
-| 工具 | 用途 |
-|------|------|
-| `create_trending_topic` | 创建新话题 |
-| `update_trending_topic` | 修改 title/keywords/tags/status |
-| `list_trending_topics` | 查看话题列表（去重对照必用） |
-
-### 已知 tag id 速查
-
-> 🔧 **matched_tags 为空先查 keywords 格式（v2.9.11）**：数组会被存成带 `[`/`\"` 的字面量、打标必 miss；v3.7.0 起 `topic.py` 只收逗号分隔字符串，此坑在工具层封死。下方「错实体/11 位垃圾 tag」是在**系统自建题**上观察到的，仍成立。
-
-> 🚨 **系统自动打标器不可信（v2.9.5 — 2026-07-14 用户报「Circle 打 OCC、SpaceX 打 SPC」，实扫 66 条坐实）**：打标器**解析话题标题**（不是干净 keywords）去 fuzzy match，两种错法——① **错实体**：把标题里的机构/监管缩写当标的（"获 **OCC** 批准"→OCC tag 13924、SpaceX→SPC tag 11359）；② **11 位垃圾占位 tag**：匹配不到就自造（`34523806708` / `10478645335` / `10346157100` / `14127290595` / `10200232432`）。**判据：正常 tag = 5-6 位数字；≥7 位（尤其 11 位）一律是垃圾，必清**。规律：**干净单 token 的 crypto 题（ZEC/OIL）自动标对；公司名+机构缩写的 tradfi 题必吐垃圾**。→ 每轮 tag 复核见 SKILL §3/AUTO 表；治本已入 dev 单。
+- **打标规律**：系统打标器解析的是**标题**不是 keywords——① 错实体（标题里的机构/监管缩写被当标的：「获 OCC 批准」→ OCC、SpaceX→SPC）；② ≥7 位（尤其 11 位）是匹配不到时自造的垃圾占位 tag（`topic.py` 已自动标出）。干净单 token 的 crypto 题自动标对；公司名＋机构缩写的 tradfi 题最易出错。下游错实体由 `downstream.py` 回读，改关键词才生效（`gate.sh 建题核实`）。
+- **找新美股 tag**：`topic.py update --id X --keywords "XXX,XXXX,XXXon" --rc tag修正 …` 加代币化后缀试一次，看回读的自动打标结果，命中即用，否则原 ticker。
 
 **加密原生**
+
 | 标的 | tag id |
 |------|--------|
 | BTC | 10006 |
 | ETH | 10007 |
-| SOL（Solana） | 10012 |
+| SOL | 10012 |
 | DOGE | 10015 |
 | AAVE | 10052 |
-| ONDO | 352019 |
 | ZEC | 10058 |
-| WLD | 248008 |
 | FET | 10201 |
 | XAUt（黄金） | 10226 |
+| WLD | 248008 |
+| ONDO | 352019 |
+| ENA | 399979 |
+| BONK | 159920 |
+| Hyperliquid | 416160 |
 | OIL（原油） | 520979 |
-| **BONK** | **159920** |
-| **HYPE** | **489344** |
-| **ENA** | **399979**（08-12 实测，`11346` keywords 含 `ENA` 自动命中，同批另返 10006=BTC）|
 
-> 📭 **实测确认无 tag 库（勿重复探，留空即可）**：IREN、HUT8、SMCI、KOSPI、ZHIPU、Multicoin（07-21~22 create 后 matched_tags 均空且 keywords 格式已正确）；**日股/韩股正股**——`6976.T` 太阳诱电（08-12 `2581` 实测空）、三星 `005930.KS`（08-12 `2580` 实测空，只能手动绑 SK 的 658686/658687）。
+**代币化美股 / 跨市场**（create 自动匹配常只给原票，要代币化 tag 需 keywords 带 `X`／`on` 后缀）
 
-> 🔍 **待核 tag（映射未确定，勿当已知用）**：`489344` —— 08-20 `11547` 传 `HYPE,Hyperliquid,特朗普,白宫` 返回 `489344+416160`，416160 已确认为 Hyperliquid，**489344 对应 HYPE／特朗普／白宫之一（最可能 HYPE）**。｜`148592` —— 08-19 `11519` 同批返回，对应 `Binance／代币化美股／永续合约` 三者之一。｜`161127` —— 08-19 `11515` 传 `SEC,加密监管,BTC,Atkins` 返回 `161127+10006`，10006 已知是 BTC，**161127 对应 SEC／加密监管／Atkins 三者之一（最可能是 SEC）**，下次单 keyword 建题时分辨再入表。｜`667111` 与 `416160` —— 08-12 `11350` 传 `PLTR,BTC,ETH,Hyperliquid` 返回 `667111+10006+10007+416160`，10006/10007 已知是 BTC/ETH，剩两个分别对应 PLTR 与 Hyperliquid 但**无法确定谁是谁**，下次单 keyword 建题时顺手分辨再入表。
-
-**代币化美股 / 跨市场（v2.1.2 优先用此类）**
 | 标的 | tag id | 备注 |
 |------|--------|------|
-| **NVDAX** | 522527 | NVIDIA 代币化 |
-| **CRCLX** | 522611 | Circle 代币化 |
-| **AAPLon** | 546230 | Apple 代币化（Ondo 发行）|
-| **SPY-X** | 522609 | S&P 500 ETF 代币化 |
-| **QQQ-X** | 522709 | NASDAQ-100 ETF 代币化 |
-| INTC | 548353 | Intel（无代币化版，原票 tag）|
-| GOOGL | 522630 | Google（无代币化版查到）|
-| TSLA | 528245 | Tesla（无代币化版查到，可试 TSLAX）|
-| **MU** | 550032 | 美光（2026-06 实测确认）|
-| **MRVL** | 548352 | Marvell（2026-06 实测确认）|
-| **COHR** | 635980 | Coherent 光通信（2026-06 实测确认）|
-| **SpaceX** | 536083 | SpaceX pre-IPO 代币化（keyword="SpaceX" 可自动命中）|
-| **AVGO** | 550939 / 550614 | Broadcom 代币化（2026-06-04 实测，keyword AVGOX/AVGOon 命中）|
-| **COIN** | 522512 | Coinbase 代币化（COINX，2026-06-04 实测）|
-| **MSTR** | 522610 | Strategy 代币化（MSTRX，2026-06-04 实测）|
-| **AMD** | 634136 / 547619 | AMD 代币化（2026-06-11 实测，keyword AMDX/AMDon 命中）|
-| **ORCL** | 563897 / 549884 | Oracle 代币化（2026-06-11 实测，keyword ORCLX/ORCLon 命中；裸 ORCL 不命中）|
-| **SNDK** | 627019 | 闪迪代币化（2026-06-12 实测，keyword SNDKX/SNDKon 命中；**tradfi 域同样生效**——10000001925 首验）。WDCX/STXX 无命中（疑无代币化版）|
-| NASDAQ 指数 | 10646 | 大盘/纳指话题手动绑（keywords 重匹配会顶掉，需以 tags 显式传回）|
-| **SK 海力士** | **658686 + 658687** | SKHYX（2026-07-11 SKHY 挂牌后入库实测，keyword 含 `SKHYX` 即自动命中双标；HANDOFF#1 已结清。韩企 tag 此前整体缺席，SK 已解除）|
-| **MU 原票** | **658099** | 美光原票（与代币化 550032 并存，双标最全；create 自动匹配只给 658099，要 550032 需 keywords 带 `MUX/MUon` 或手动绑）|
-| **SNDK 原票** | **658100** | 闪迪原票（08-19 `11519` 传 `SNDK,Binance,代币化美股,永续合约` 自动返回；**与 MU 原票 658099 连号**，与代币化 627019 并存，模式同 MU——create 自动匹配只给原票）|
-| **Hyperliquid** | **416160** | 08-20 `11547` 确认（keywords 含 Hyperliquid 无 PLTR，与 08-12 双待核对撞得解）|
-| **PLTR** | **667111** | 由 416160 确认反推（08-12 双待核的另一个）|
+| NVDAX | 522527 | |
+| CRCLX | 522611 | |
+| AAPLon | 546230 | Ondo 发行 |
+| SPY-X | 522609 | |
+| QQQ-X | 522709 | |
+| COINX | 522512 | |
+| MSTRX | 522610 | |
+| AVGO | 550939 / 550614 | AVGOX/AVGOon |
+| AMD | 634136 / 547619 | AMDX/AMDon |
+| ORCL | 563897 / 549884 | ORCLX/ORCLon（裸 ORCL 不命中） |
+| SNDK | 627019（代币化）／658100（原票） | tradfi 域同样生效；WDCX/STXX 无命中 |
+| MU | 550032（代币化）／658099（原票） | |
+| MRVL | 548352 | |
+| COHR | 635980 | |
+| INTC | 548353 | 无代币化版 |
+| GOOGL | 522630 | |
+| TSLA | 528245 | 可试 TSLAX |
+| PLTR | 667111 | |
+| SpaceX | 536083 | pre-IPO 代币化，keyword `SpaceX` 自动命中 |
+| SK 海力士 | 658686 + 658687 | keyword 含 `SKHYX` 自动命中双标 |
+| NASDAQ 指数 | 10646 | 手动绑；keywords 重匹配会顶掉，需以 tags 显式传回 |
 
-> 找新美股 tag：`update_trending_topic(keywords=["XXX","XXXX","XXXon"])` 加代币化后缀试一次，看返回的 `auto_matched_tags` 即得 tag id，命中即用，否则原 ticker + 手动绑。
+- **待核（勿当已知用）**：`489344`——08-20 传 `HYPE,Hyperliquid,特朗普,白宫` 返回 489344＋416160，416160 已确认是 Hyperliquid，489344 是 HYPE／特朗普／白宫之一（最可能 HYPE）｜`148592`——Binance／代币化美股／永续合约之一｜`161127`——SEC／加密监管／Atkins 之一（最可能 SEC）。下次单 keyword 建题时分辨再入表。
+- **实测无 tag（勿重复探）**：IREN、HUT8、SMCI、KOSPI、ZHIPU、Multicoin；日韩正股（`6976.T`、`005930.KS`，三星只能手动绑 SK 的 658686/658687）。
