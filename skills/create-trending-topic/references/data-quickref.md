@@ -15,7 +15,7 @@
 
 ## 美股板块矩阵（首扫；拉取名单＝json「板块矩阵6批」，增删改 json）
 
-**29 槽已满，加一个必须换一个**（换人判据：市值×活跃度×被点名频率三项都明显更弱的降「按需」）。批内有海外双重上市的标的（ASML 被服务端扩成 ASML＋ASML.AS 占 2 槽）时，该批只装得下 4 个。下表是**板块归属对照**（报告按板块聚合用，`gate.sh 报告格式`；≥2 标的同向 >3% 成行）：
+**29 槽已满，加一个必须换一个**（换人判据：市值×活跃度×被点名频率三项都明显更弱的降「按需」）。批内有海外双重上市的标的（ASML 被服务端扩成 ASML＋ASML.AS 占 2 槽）时，该批只装得下 4 个。下表是**板块归属对照**（报告按板块聚合用，`gate.sh 报告格式`；≥2 标的同向 >3% 可并行展示，展示行不算板块断言）。**取价主通道＝长桥 `quote`**（gates 闸:时段 铁律⓪），followin metrics tradfi 批量为降级（遇 fmp 限流 degraded 时切长桥；每批 ≤5、ASML 占 2 槽的约束只对降级通道成立）：
 
 | 板块 | 代表股 |
 |------|--------|
@@ -34,8 +34,8 @@
 |------|-------------|------|
 | 金 | `XAUT`／`PAXG` @crypto | `yahoo_price GC=F`／`GLD` |
 | 油 | `yahoo_price CL=F`（WTI）／`BZ=F`（Brent） | followin `USO/BNO/OIL` ETF（追踪期货，标题须写「油价 ETF」） |
-| 美元 | followin `DXY` @tradfi | `DTWEXBGS`@macro；followin `DXUSD`（yahoo `DX-Y.NYB` 的前收常为 None） |
-| 美股大盘 | followin `SPY/QQQ` @tradfi（`spx` 必失败，不再先调） | — |
+| 美元 | followin `DXY` @tradfi | Yahoo `DX-Y.NYB`（11-07 实测 fmp 限流时可用）→ `DTWEXBGS`@macro／followin `DXUSD` |
+| 美股大盘 | followin `SPY/QQQ/DIA` @tradfi（`spx` 必失败，不再先调） | 长桥 `quote` SPY.US/QQQ.US/DIA.US（指数 .SPX.US/.DJI.US/.NDX.US）；VIX 用 Yahoo `^VIX`，偶返空、无兜底记 ⚠️ |
 | 国债 | followin macro `DGS10/DGS2`（首扫） | yahoo `^TNX/^TYX` → FRED 直连 `curl https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10`（滞后 1–2 个交易日，只作收盘值，不写「盘中」） |
 | econ 日历 | metrics macro-calendar `date_from=今天 date_to=+5d`（首扫） | — |
 
@@ -50,7 +50,7 @@
 主次以 `gate.sh 时段` 四时段表（铁律⓪：长桥 `quote` 为主，followin 15min 为降级）为准，下面只记降级通道的用法与坑：
 
 - **followin 盘前/盘后在 history 叶不在 snapshot 叶**：snapshot 恒为 `regular_inactive`；`metrics(keywords=[X], asset_type=tradfi, categories=[market], query="intraday candles", interval="15min", limit=60)` 返回 05:00–19:45 ET 全时段（**时间戳是 ET**）。最后一根盘后 K 线的 close＝盘后价，自比 regular 收盘（16:00 那根的 open）；16:00 那根的高低点横跨收盘，盘后区间从 16:15 起算。
-- **`tradingview stock_extended_hours`**：一次返回 `pre_market`／`regular`／`post_market` 三段带涨跌幅，核数时作交叉。**美股全休市时段（ET 00:00–04:00＝CST 12:00–16:00）字段错位**：`post_market` 为 null，`pre_market` 装的是上一交易日盘后最后一笔——看 `as_of_utc`，落在上一交易日约 23:59 UTC 的就读作盘后价。
+- **`tradingview stock_extended_hours`**：一次返回 `pre_market`／`regular`／`post_market` 三段带涨跌幅，核数时作交叉。**美股全休市时段（ET 00:00–04:00＝CST 夏令时 12:00–16:00／冬令时 13:00–17:00）字段错位**：`post_market` 为 null，`pre_market` 装的是上一交易日盘后最后一笔——看 `as_of_utc`，落在上一交易日约 23:59 UTC 的就读作盘后价。
 - **事件发布时点决定用哪段价** → `gate.sh 双要素`／`gate.sh 时段`。
 
 ## 非美 / 特殊标的
@@ -75,7 +75,7 @@ curl -s -X POST https://api.hyperliquid.xyz/info -H "Content-Type: application/j
 - 一律 `~/.trend-scout/topic.py create|update|publish|cull|restore|get --id`（用法 `topic.py -h`）；keywords 只收逗号分隔字符串、≤4 个；不写 desc。按标题定位的老坑随入口一起作废（案例见 LESSONS）。
 - **系统建题会自己改标题**（行情题数字随行情滚动、已隐藏题也会被改写）：`topic.py cull` 已把撤时标题写进备注。
 - **系统 keywords 自动切词缺陷**：`ETHERFI` 被切成 `ETHER,FI`，`FI` 命中 Fiserv——处置系统 crypto 题时顺手核有没有被切出两字母噪音段，有就 `topic.py update --keywords` 改掉。
-- **端点 500**：`topic.py create` 整体报 500 而 list/update 正常 → 先 list 探服务在线、再用短标题 create 探一次排除内容；仍 500 就本轮放弃建题，用 `log-action.sh note` 留档「待建|<标的>|<原因>」下轮补，不要反复重试。
+- **端点 500**：`topic.py create` 整体报 500 而 list/update 正常 → 先 list 探服务在线、再用短标题 create 探一次排除内容；仍 500 就本轮放弃建题，用 `log-action.sh note - 留档 "弃建|<标的>|端点500待补|<日期>"` 留档、下轮补建（11-07 Q16：coverage 只认「弃建|」，写「待建|」会被当漏建卡住 漏=0），不要反复重试。
 - **台账备注**：只经 `topic.py`／`log-action.sh` 写入；备注里不用反引号和 `$`（会被 shell 执行），引用用中文「」。
 
 ## 已知 tag id

@@ -5,7 +5,7 @@
 ## Followin 调用细节（10-24 对 schema 实测）
 
 - **news**：没有 `categories`；`sort_by` 有（带 query：time 默认／relevance；空 query 热榜：hot 默认／time）。生产用 `verbosity="concise"`（每字段 200 字；standard 是 600）＋ `limit≤15`。
-- **news TG**（`sources=["telegram"]`）：返回字段 `tg_category / author_name / content / _source_quality / published_ts`，**没有 username**，按 `author_name` 过滤去重。query 必须是具体币种/资产词（泛词返回 degraded 0 条，参数见 json「TG探针或兜底」）。
+- **news TG**（`sources=["telegram"]`）：返回字段 `tg_category / author_name / content / _source_quality / published_ts`，**没有 username**，按 `author_name` 过滤去重。query 必须是具体币种/资产词（泛词返回 degraded 0 条）；**11-07 起 TG 通道主路改为从全源 news 返回里抽 TG 条目**（用户定 Q14：单拉对 BTC/ETH 也间歇性 0 条），单拉只作可选试探，填法见 json「TG探针或兜底」。
 - **tradfi 新闻**：`news(asset_type="tradfi")` 几乎每轮返 0，已从批次砍掉；美股新闻用 `news(query=<当周热点词>, 不传 asset_type)`，词按当周热点自拟（例：`"NVIDIA chip export China"`、`"earnings beat miss guidance"`）。
 - **metrics 价格调用一律加 `categories=["market"]`**——不加会扇出 macro＋fundamentals，tradfi 几只股就溢出上下文。keywords ≤5／批的硬约束 → `gate.sh 调用约束`。
 - **大宗裸词会解析成同名股票**（`gold`→Barrick、`CL`→Colgate）：金用 `XAUT`／`PAXG`@crypto，油用 `yahoo_price CL=F`（`CLUSD` 已废，返回 FRED 历史错值），美元 `DXY`。
@@ -30,7 +30,7 @@
 - **子进程 prompt 模板**（N 值、list ID、server 降级梯以 json「A1主栈／A1科技栈」为准；`model=haiku`）：
 
 ```
-调用 followin.twitter(action="list_timeline", list_id="<LIST_ID>", limit=20)。
+调用 followin.twitter(action="list_timeline", list_id="<LIST_ID>", limit=20)，用返回的 cursor 继续翻页，直到某页最新一条早于 <LAST_REFRESH_TS>（首扫按 24h）或达到页数上限（主栈 4 页／科技栈 3 页）。每页只显示约 20/60~85 条（服务端截断、cursor 不回补），把返回里的截断警告原样写进 dump 末行。
 若报 session initialization / session not found：等约 10 秒重试，最多 3 次；followin 报配额耗尽或取数失败再换 followdao-test 同参重试。
 时间过滤：createdAt 晚于 <LAST_REFRESH_TS> 的才留（该值取自 last-refresh.txt 末行，文件存毫秒，换成与 createdAt 相同的单位再比；首扫不滤）。
 按 createdAt 倒序输出最新 <N> 条，每条一行：
