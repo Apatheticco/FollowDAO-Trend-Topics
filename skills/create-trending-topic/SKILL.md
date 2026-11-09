@@ -45,7 +45,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%z) | Unix: %s'; tail -1 ~/.trend-scout/last-ref
 - **每条候选**：`~/.trend-scout/route.sh <status> <age_h> [偏差%]` 得适用规则 → 按其指向 `gate.sh <闸>` 查判据。高频闸：**A闸**（说得出哪个可交易标的被定价；meme 同过双要素：豁免三选一或硬事件，四查全空即撤）｜**双要素**（诱因＋价格两腿，伪诱因清单）｜**归因**（三问：这句因果谁写的／因子昨天在不在／板块拉了几个标的；①c 利好配跌走事实闸）｜**去重**（≤8h update 承接／>8h 新建；切面判定）｜**时段**（美股四时段＋亚洲四市；盘中数字禁写死）｜**时效**（0b.0 双闸）。
 - **复审默认反转**：先假设该撤，三问全过（标的／时效／去重）才 `update status=0`→`gate.sh 发布三问`。status=2 只有上／撤两条路，收尾 total==0；核不了的数字不进标题但事件有确认源→改题上线。
 - **写看板一律 `~/.trend-scout/topic.py`（v3.7.0）**：`create|update|publish|cull|restore --id …`，一条命令做完「预检→写看板→用真实 id 记账→回读核对」；预检含标题闸（FAIL 拦：>30 字／法人全名／疑问句）、`--pct 标签=现价/前收` 涨跌幅核对、keywords（字符串 ≤4 个）、系统建 tradfi 窗口内改标题拦、log-action 全部闸；被拦照样留痕。**禁止再分两步手调 console 与 log-action**。批量机械撤仍走 `b0-cull.py`；纯 note/rulefix 仍用 `log-action.sh`（`-T` 三段模板、`update-batch` 照旧）。备注三要素＝判据引用＋实测证据＋为何落此 code。改错自己写的数字/事实用 rc `纠错-自纠`。试稿可单跑 `lint-title.sh`。
-- **建题**：`topic.py create --domain … --title … --keywords … --rc … --note … --pct …`（默认同轮自推上线并回读下游；desc 不传、tag 占位、上线行全在工具里）；**涨跌幅只用 `pct.py` 算**（`calc 现价 前收`／`bn`／`yahoo`，一次舍入）；数据核实＋P0 锚双源＋量级自洽→`gate.sh 建题核实`／`数字`。盘中价建题／改题由 `topic.py` 自动挂收盘复查（v3.7.1）；crypto 纯行情题另需币安合约成交额 ≥1 亿美元（v3.7.9，topic.py 拦）。
+- **建题**：`topic.py create --domain … --title … --keywords … --rc … --note … --pct …`（默认同轮自推上线并回读下游；desc 不传、tag 占位、上线行全在工具里）；**涨跌幅只用 `pct.py` 算**（`calc 现价 前收`／`bn`／`yahoo`，一次舍入）；数据核实＋P0 锚双源＋量级自洽→`gate.sh 建题核实`／`数字`。盘中价建题／改题由 `topic.py` 自动挂收盘复查（v3.7.1）；crypto 纯行情题另需币安合约成交额 ≥1 亿美元（v3.7.9，topic.py 拦）。排序权重四档（全部为正）由 topic.py 自动判档写入并记档，判错 `--tier X --tier-why`；收尾前跑 `weight-sync.py --apply` 给系统题补设（v3.7.30，`gate.sh 权重`）。
 - **到期事件**：`due` 清单逐项建／update／`event.sh close <主题> done|missed`；扫到的带日期新事件当轮 `event.sh add`（预告题准入三档与闭环→`gate.sh 预告题`／`事件日历`）。
 
 ### §5 收尾（顺序固定；任一不过不得出报告）
@@ -74,6 +74,7 @@ date '+%Y-%m-%d %H:%M:%S %Z (UTC%z) | Unix: %s'; tail -1 ~/.trend-scout/last-ref
 | **大热点** | 触发四信号（机审⑦＝系统 ≤8h 对同一实体族建题 ≥3／跨语种≥3源／派生≥2标的／24h>10×）→五步：实体图→取价走到 dexscreener→一手源→按切面立题(≤4)→挂复查 | 机审⑦亮灯时，先于逐条处置 |
 | 疑问句／稳定币／滞后数据／过期题／聚簇／标题样式／数字 | lint-title／b0-audit 覆盖机械部分；判断部分查闸 | 写标题前／机审后 |
 | 建题核实／发布三问／写操作定位 | keywords／tag／二次交叉／②a②b②c；三问全过才推；id 优先 | 建／推前 |
+| 权重 | 四档 A+600 美股宏观大事件／B+300 核心池·板块·宏观资产／C+150 主流币·亚股·其余美股／D 1 小币；按标题主体判，topic.py 判+记档，weight-sync 补设 | 建题时／收尾前 |
 | 自审七查／终审／存量全审 | 七查；8h 横向终审；周报全量在线题审 | §5 |
 | 通道齐备／报告格式／收尾清单 | ✅须计数；未跑齐禁全景结论；表格化；收尾六块 | §5 |
 

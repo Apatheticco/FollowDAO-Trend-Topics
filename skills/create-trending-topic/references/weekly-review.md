@@ -10,7 +10,7 @@
 ~/.trend-scout/lark-push.py weekly --prepare      # ① 第 0 层机器算数落盘 reports/weekly-<起>_<止>.md
 #   ② 人做第 4 步「规则卫生」＋第 5 步「四问梳理＋行数体检」，追加到①的文件（段名逐字：## 规则卫生 / ## ① 过期 / ## ② 矛盾 / ## ③ 被实践推翻 / ## ④ 冗余 / ## 行数体检；末尾「排序建议」或「规则集本周无梳理项」）
 #   ②b 存量全审：全量在线题逐条过闸（gate.sh 存量全审），处置照常 topic.py 落账
-#   ②c 超大盘名单刷新（v3.7.27）：按实测市值（followin metrics 取 marketCap）复核 ~/.trend-scout/megacap.json 的前 10 名，改名单同时改 as_of
+#   ②c 超大盘名单刷新（v3.7.27）：按实测市值（followin metrics 取 marketCap）复核 ~/.trend-scout/megacap.json 的前 10 名，改名单同时改 as_of；同时按 CoinGecko 市值前 30 刷新 ~/.trend-scout/weights.json 的 major_coins（去掉稳定币/平台币后取前 20，另留 USDT/USDC；改了同时改 major_coins_as_of，v3.7.30）
 ~/.trend-scout/weekly-verify.sh "$(ls -t ~/.trend-scout/reports/weekly-*.md | head -1)"   # ③ 门禁自查（只传一个文件；第 2 个参数是天数）
 ~/.trend-scout/lark-push.py weekly                 # ④ 过门禁才发；不重跑 metrics，不覆盖②
 ```
