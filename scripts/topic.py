@@ -1237,6 +1237,12 @@ def cmd_check(path):
 
     with ThreadPoolExecutor(max_workers=4) as ex:
         res = list(ex.map(run, cmds))
+    # 11-10 复盘:并发跑时偶发「退出码非 0 且一个字都没输出」(17:30 轮 1 次、23:00 轮 2 次,单跑都过;事后并发 32 次未复现)。
+    #   这种没有拦截原因的失败不能当被拦——串行重跑一次;仍失败就明写「无输出、退出码 N」,不再空着一行让人猜。
+    retried = set()
+    for k, (item, (rc_, out)) in enumerate(zip(cmds, res)):
+        if rc_ != 0 and not out and item[1] is not None:
+            res[k] = run(item); retried.add(k)
     # v3.7.33 判据卡:各条命中的卡汇总,在逐条结果之前打一次——先看判据,再看哪条被拦
     picked, refs = [], {}
     for _, out in res:
@@ -1257,13 +1263,14 @@ def cmd_check(path):
     ok = 0
     for i, ((ln, args, _), (rc_, out)) in enumerate(zip(cmds, res), 1):
         head = ln if len(ln) <= 90 else ln[:90] + '…'
+        rt = ['↻ 并发跑时无输出失败,已串行重跑一次'] if i - 1 in retried else []
         if rc_ == 0:
             ok += 1
-            extra = [l for l in out.splitlines() if l.strip().startswith(('⚠️', 'WARN', '↻', '⚖️'))]
+            extra = rt + [l for l in out.splitlines() if l.strip().startswith(('⚠️', 'WARN', '↻', '⚖️'))]
             print(f'✔ #{i} {head}' + ''.join('\n    ' + l.strip() for l in extra))
         else:
             lines = [l.strip() for l in out.splitlines() if l.strip().startswith(('🚨', 'WARN', '⚠️', 'usage', 'topic.py: error'))]
-            lines = lines or [l.strip() for l in out.splitlines() if l.strip()][-3:]
+            lines = rt + (lines or [l.strip() for l in out.splitlines() if l.strip()][-3:] or [f'无输出,退出码 {rc_}(不是检查拦下的,单跑这一行看原因)'])
             print(f'🚨 #{i} {head}' + ''.join('\n    ' + l for l in lines))
     print(f'CHECK: 条数={len(cmds)} 通过={ok} 被拦={len(cmds) - ok}')
     sys.exit(0 if ok == len(cmds) else 1)
@@ -1287,6 +1294,10 @@ def main():
 
 
 def _main():
+    # 回归注入:模拟一次「并发下无输出失败」——文件在就删掉它并静默退出 1(只在预检子进程里生效)
+    _fk = os.environ.get('TOPIC_CHECK_FLAKE')
+    if COLLECT is not None and _fk and os.path.exists(_fk):
+        os.remove(_fk); sys.stdout.flush(); os._exit(1)
     p = argparse.ArgumentParser(add_help=True, description='看板写操作唯一入口(v3.7.0)')
     p.add_argument('cmd', choices=['create', 'update', 'publish', 'cull', 'restore', 'get'])
     p.add_argument('--id')

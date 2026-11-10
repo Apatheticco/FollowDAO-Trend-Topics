@@ -1264,6 +1264,34 @@ printf '%s\tnote\t-\t留档\t弃建|NBIS|跟随CRWV同跌,并入CRWV题|2026-10-
 printf '{"channels":[{"key":"板块矩阵6批","call":"B1[NVDA]"}]}' > "$_Q/ch.json"
 _cv=$(B0JSON="$_Q/b0.json" COVERAGE_QUOTES="$_Q/q.json" COVERAGE_BN="$_Q/bn.json" ACTIONS="$_Q/ca.tsv" CHANNELS="$_Q/ch.json" COVERAGE_LOG="$_Q/cv.log" python3 "$D/coverage.py"); _cvrc=$?
 n=$((n+1)); [ "$_cvrc" = "2" ] && echo "$_cv" | grep -q 'COVERAGE: 过线=4 有题=1 弃建=1 漏=2' && echo "$_cv" | grep -q '🚨 股 ASTS' && echo "$_cv" | grep -q '🚨 币 ZEREBRO' || { echo "❌ coverage(v3.7.1): 应 过线4(DELL有题/NBIS弃建/ASTS漏/ZEREBRO漏,DUST成交额不足不算),得: $(echo "$_cv" | tail -1)"; fail=$((fail+1)); }
+# ②n 突发对账(11-10 用户定):news-alert 强关联(linkage=3)入选事件要么有题、要么有弃建;宽标的(指数/大宗/利率/汇率/BTC/ETH)不认有题
+n=$((n+1)); echo "$_cv" | grep -q '突发' && { echo "❌ coverage-news(11-10): 没注入 NEWS_ALERT_DB 不得读生产突发库"; fail=$((fail+1)); }
+python3 - "$_Q" <<'EOF2'
+import sqlite3, sys, json, time, datetime as dt
+q = sys.argv[1]; now = time.time()
+iso = lambda h: dt.datetime.fromtimestamp(now - h * 3600, dt.timezone.utc).isoformat()
+loc = lambda h: time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now - h * 3600))
+c = sqlite3.connect(f'{q}/news.db')
+c.execute("CREATE TABLE items(uid TEXT, src TEXT, ts TEXT, text TEXT, keep INT, keep_ops INT, linkage INT, assets TEXT, event_key TEXT)")
+c.execute("CREATE TABLE events(event_key TEXT, headline TEXT)"); c.execute("CREATE TABLE state(k TEXT, v TEXT)")
+A = lambda *xs: json.dumps([{"symbol": s, "market": m, "mainstream": True} for s, m in xs])
+for uid, h, k, ko, lk, a, ek in [('1', 1, 1, 0, 3, A(('NVDA', 'us_equity')), 'nvda-probe'), ('2', 1, 0, 1, 3, A(('SPX', 'index')), 'tariff-x'),
+        ('3', 1, 1, 1, 3, A(('WTI', 'commodity')), 'oil-y'), ('4', 1, 1, 0, 3, A(('KKR', 'us_equity')), 'kkr-z'),
+        ('5', 1, 1, 1, 2, A(('TSLA', 'us_equity')), 'low-l2'), ('6', 40, 1, 1, 3, A(('META', 'us_equity')), 'old-e'),
+        ('7', 1, 1, 0, 3, A(('AMD', 'us_equity')), 'amd-ev')]:
+    c.execute("INSERT INTO items VALUES(?,?,?,?,?,?,?,?,?)", (uid, 'jin10', iso(h), f'正文{uid}', k, ko, lk, a, ek))
+c.execute("INSERT INTO events VALUES('kkr-z','KKR三季度EPS超预期')"); c.execute("INSERT INTO state VALUES('jin10_last_ts',?)", (iso(2),)); c.commit()
+json.dump([{"id": 11, "domain": "tradfi", "status": 0, "created_at": loc(0), "title": "黄仁勋承认婚外情，NVDA跌4%", "keywords": "NVDA,英伟达"},
+           {"id": 12, "domain": "tradfi", "status": 0, "created_at": loc(0), "title": "美股三大指数大涨，标普涨2%", "keywords": "SPX,标普"},
+           {"id": 13, "domain": "tradfi", "status": 0, "created_at": loc(10), "title": "x", "keywords": "AMD"}], open(f'{q}/b0n.json', 'w'), ensure_ascii=False)
+open(f'{q}/can.tsv', 'w').write(f"{int(now * 1000)}\tnote\t-\t留档\t弃建|CL=F|美油跌3.9%未过5%线|2026-11-10\t\n")
+open(f'{q}/qn.json', 'w').write('{}'); open(f'{q}/bnn.json', 'w').write('[]')
+EOF2
+_cvn=$(B0JSON="$_Q/b0n.json" COVERAGE_QUOTES="$_Q/qn.json" COVERAGE_BN="$_Q/bnn.json" ACTIONS="$_Q/can.tsv" CHANNELS="$_Q/ch.json" COVERAGE_LOG="$_Q/cvn.log" NEWS_ALERT_DB="$_Q/news.db" python3 "$D/coverage.py" 2>&1); _cvnrc=$?
+n=$((n+1)); [ "$_cvnrc" = "2" ] && echo "$_cvn" | grep -q 'COVERAGE: 过线=5 有题=1 弃建=1 漏=3' && echo "$_cvn" | grep -q '✔ 突发 nvda-probe → 有题 11' \
+  && echo "$_cvn" | grep -q '🚨 突发 tariff-x → 漏' && echo "$_cvn" | grep -q '✔ 突发 oil-y → 弃建' && echo "$_cvn" | grep -q '🚨 突发 kkr-z → 漏 「KKR三季度EPS超预期」' \
+  && echo "$_cvn" | grep -q '🚨 突发 amd-ev → 漏' && ! echo "$_cvn" | grep -qE 'low-l2|old-e' && echo "$_cvn" | grep -q '突发库已 1[12][0-9] 分钟没更新' \
+  || { echo "❌ coverage-news(11-10): 应 nvda有题/指数宽匹配不算(tariff漏)/油认CL=F弃建/KKR漏/3h前旧题不算(amd漏)/L2与出窗不列/库停更提示,得: $(echo "$_cvn" | grep -E '突发|COVERAGE|Traceback')"; fail=$((fail+1)); }
 # ②a retro1030:指数/板块 ETF 按各自的线对账(SOXX-7.4% 有「费半」题=有题,QQQ-3% 无题=漏,SPY-1.4% 未过 2% 线不列)
 printf '%s' "[{\"id\":7,\"domain\":\"tradfi\",\"status\":0,\"created_at\":\"$_ct\",\"title\":\"英特尔亚马逊财报引发AI担忧，费半ETF盘中跌7.4%\",\"keywords\":\"费城半导体,半导体\"}]" > "$_Q/b0i.json"
 printf '%s' '{"SOXX":[475.92,513.86,"ETF"],"QQQ":[694.25,715.34,"ETF"],"SPY":[758.34,769.36,"ETF"]}' > "$_Q/qi.json"
@@ -2328,6 +2356,14 @@ n=$((n+1)); echo "$_v4" | grep -q '^失败:能管的错误 4 条 >3' || { echo "
 rm -rf "$_CD"
 fi
 n=$((n+1)); _WT1=$(wc -l < "$_WT_PROD" 2>/dev/null | tr -d ' '); [ "${_WT1:-0}" = "$_WT0" ] || { echo "❌ 权重档案守卫(11-10): 回归往生产 weights-tier.tsv 写了 $((_WT1-_WT0)) 行——WEIGHTS_TIER 必须指向临时文件"; fail=$((fail+1)); }
+# ── retro1110(11-10 每晚复盘):批量预检并发偶发「退出码非 0 且无输出」→ 串行重跑一次,不当被拦 ──────────────
+_FL=$(mktemp -d); touch "$_FL/flake"
+cat > "$_FL/p.txt" <<'PLANEOF'
+create --domain tradfi --title 'Neutron首飞推迟至2027年，RKLB收跌7.8%' --keywords 'RKLB,火箭实验室' --rc 有诱因-多源 --note '回归:并发无输出重跑' --pct 'RKLB=59.18/64.22'
+PLANEOF
+_fo=$(TOPIC_CHECK_FLAKE="$_FL/flake" CONSOLE_FAKE="$_FL/c.json" ACTIONS="$_FL/a.tsv" SNAPSHOTS="$_FL/s.tsv" REJ="$_FL/r.tsv" REJ_OK="$_FL/ok.tsv" UNLOGGED="$_FL/u.tsv" B0JSON="$_FL/b0.json" CHECK_HITS="$_FL/k.tsv" DS_CLASH="$_FL/e.tsv" TOPIC_NO_DOWNSTREAM=1 python3 "$D/topic.py" check "$_FL/p.txt" 2>&1)
+n=$((n+1)); { echo "$_fo" | grep -q '^✔ #1 ' && echo "$_fo" | grep -q '串行重跑' && [ ! -e "$_FL/flake" ]; } || { echo "❌ retro1110[预检重跑]: 并发下无输出失败应串行重跑一次并注明,不得判被拦: $(echo "$_fo" | grep -E '#1|重跑|无输出')"; fail=$((fail+1)); }
+rm -rf "$_FL"
 # 守卫:整套回归跑完,生产 card-usage.tsv 不得多出行(试跑结算靠它)
 n=$((n+1)); _CU1=$({ wc -l < "$_CU_PROD"; } 2>/dev/null | tr -d ' '); [ "${_CU1:-0}" = "$_CU0" ] || { echo "❌ cards1110[守卫]: 回归往生产 card-usage.tsv 写了记录——CARD_USAGE 必须指向临时文件"; fail=$((fail+1)); }
 

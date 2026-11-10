@@ -12,9 +12,10 @@
 指数/板块 ETF(10-30 retro)= IDX 表各自的线(QQQ ±2.5%、SPY ±2%、SOXX ±5%);个股线 10% 永远框不住指数级大跌。
 「有题」= 近 36h status=0 的题关键词/标题里有该 ticker 或公司名;「弃建」= 近 36h 台账 note 含「弃建|<ticker 或名>」。
 
+突发事件(11-10):~/news-alert 强关联入选事件也进对账(见 NEWS_DB 段),行首「突发」。
 用法: coverage.py [--hours 36]      末行 COVERAGE: 过线=N 有题=a 弃建=b 漏=c
 处置: 漏的逐条 建(topic.py create) 或 弃建(log-action.sh note - 留档 "弃建|<标的>|<原因>|<日期>"),重跑到 漏=0。
-注入(回归): COVERAGE_QUOTES=<json {ticker:[last,prev,"EQUITY"]}> COVERAGE_BN=<json 币安24h列表> B0JSON ACTIONS CHANNELS。
+注入(回归): COVERAGE_QUOTES=<json {ticker:[last,prev,"EQUITY"]}> COVERAGE_BN=<json 币安24h列表> B0JSON ACTIONS CHANNELS NEWS_ALERT_DB。
 """
 import json, os, re, subprocess, sys, time, datetime
 COIN_LINE = float(os.environ.get('TS_CRYPTO_LINE', '50'))   # 11-06 用户定:crypto 纯行情线 30%→50%(与 topic.CRYPTO_LINE 同值)
@@ -41,6 +42,88 @@ MAJOR = {'BTC': (5.0, {'比特币', 'bitcoin'}), 'ETH': (7.0, {'以太坊', 'eth
 MAJOR_DAYS = 60
 LOWVOL = 1e8   # v3.7.9 纯行情币成交额下限(币安合约 24h,美元)
 LOG = os.environ.get('COVERAGE_LOG') or os.path.join(D, 'coverage.log.tsv')
+
+# 11-10 用户定(突发源对账):BWE/金十 不整条接进扫描(42h 1650 条、入选 3.5%,漏建主因是门槛与轮次间隔不是源),
+# 改为读突发警报 ~/news-alert 已分级好的结果——强关联(linkage=3)入选事件,看板要么有题、要么有弃建。
+# 当日实测:中美关税调整、谷歌 TPU 8、KKR 财报三件 L3 事件看板既无题也无弃建记录,别的漏建对账都看不到。
+# 「有题」= 事件首条前 3h 起建的 status=0 题命中事件的**单名标的**(个股/山寨币)。指数/大宗/利率/汇率/BTC/ETH 这类宽标的
+#   不认「有题」——首跑实测宽匹配会把中美关税调整算到『美股三大指数大涨』题、谷歌 TPU 算到 10h 前的黄仁勋题,正好盖住真漏;
+#   宽标的事件已由别的题承接的,写「弃建|<event_key>|已由<题号>覆盖」。
+# 「弃建」= 事件首条前 1h 起的台账 note 含「弃建|<event_key 或标的>」(宽标的也认,如『弃建|CL=F|…未过5%线』)。
+NEWS_DB = os.environ.get('NEWS_ALERT_DB') or os.path.expanduser('~/news-alert/news.db')
+NEWS_LINKAGE = int(os.environ.get('COVERAGE_NEWS_LINKAGE') or 3)
+NEWS_ALIAS = {'WTI': {'cl=f', '原油', '美油', '油价'}, 'BRENT': {'bz=f', '布油', '布伦特', '原油', '油价'},
+              'SPX': {'spy', '标普'}, 'NDX': {'qqq', '纳指', '纳斯达克'}, 'XAUUSD': {'gc=f', '黄金', '金价'},
+              'DXY': {'美元指数'}, 'US10Y': {'美债'}, 'BTC': {'比特币', 'bitcoin'}, 'ETH': {'以太坊', 'ethereum'}}
+NEWS_BROAD_MKT = {'index', 'commodity', 'rates', 'fx'}
+NEWS_BROAD_SYM = {'BTC', 'ETH'}
+NEWS_NOTE = []
+
+
+def _iso_ts(s):
+    try:
+        return datetime.datetime.fromisoformat(str(s).replace('Z', '+00:00')).timestamp()
+    except Exception:
+        return None
+
+
+def news_events(hours, now=None):
+    """突发库里近 hours 小时的强关联入选事件 → [(event_key, 首条时间戳秒, [(标的, market)], 标题)]。
+    回归注入 NEWS_ALERT_DB;注入了 COVERAGE_QUOTES 却没注入它=旧用例,不读生产库。只读打开。"""
+    if not os.environ.get('NEWS_ALERT_DB') and os.environ.get('COVERAGE_QUOTES'):
+        return []
+    if not os.path.exists(NEWS_DB):
+        NEWS_NOTE.append(f'没有突发库 {NEWS_DB},突发对账跳过')
+        return []
+    import sqlite3
+    now = now or int(os.environ.get('COVERAGE_NOW_MS') or time.time() * 1000) / 1000
+    try:
+        c = sqlite3.connect(f'file:{NEWS_DB}?mode=ro', uri=True)
+        its = c.execute("SELECT event_key, ts, assets, text FROM items WHERE (keep=1 OR keep_ops=1) AND linkage>=? "
+                        "AND COALESCE(event_key,'')!='' ORDER BY ts", (NEWS_LINKAGE,)).fetchall()
+        hl = dict(c.execute("SELECT event_key, headline FROM events WHERE COALESCE(headline,'')!=''").fetchall())
+        st = dict(c.execute("SELECT k, v FROM state WHERE k IN ('jin10_last_ts','tg_since')").fetchall())
+    except Exception as e:
+        NEWS_NOTE.append(f'突发库读取失败({str(e)[:80]}),突发对账跳过')
+        return []
+    last = max([x for x in (_iso_ts(v) for v in st.values()) if x] or [0])
+    if last and now - last > 3600:
+        NEWS_NOTE.append(f'突发库已 {int((now - last) / 60)} 分钟没更新(news-alert 停了?),突发对账可能缺事件')
+    ev = {}
+    for ek, ts, assets, text in its:
+        t = _iso_ts(ts)
+        if t is None:
+            continue
+        e = ev.setdefault(ek, [t, [], hl.get(ek) or re.sub(r'\s+', ' ', text or '')[:40]])
+        e[0] = min(e[0], t)
+        try:
+            for a in json.loads(assets or '[]'):
+                s = (a.get('symbol') or '').strip()
+                if s and s not in [x[0] for x in e[1]]:
+                    e[1].append((s, a.get('market') or ''))
+        except Exception:
+            pass
+    return sorted([(k, v[0], v[1], v[2]) for k, v in ev.items() if now - v[0] <= hours * 3600], key=lambda r: r[1])
+
+
+def _created_ts(t):
+    try:
+        return datetime.datetime.strptime(t['created_at'], '%Y-%m-%d %H:%M:%S').timestamp()
+    except Exception:
+        return 0
+
+
+def news_covered(ek, t0, syms, tp, lrows):
+    """事件对账:event_key 与全部标的找弃建;单名标的另找题(宽标的不认有题,见 NEWS_DB 段)。"""
+    lv = [t for t in tp if t.get('status') == 0 and _created_ts(t) >= t0 - 3 * 3600]
+    nts = [r[4] for r in lrows if r[0] >= (t0 - 3600) * 1000 and r[1] == 'note' and '弃建' in r[4]]
+    keys = [(ek, set(), False)] + [(s, NEWS_ALIAS.get(s.upper(), set()), m in NEWS_BROAD_MKT or s.upper() in NEWS_BROAD_SYM)
+                                    for s, m in syms]
+    for s, names, broad in keys:
+        v, ref = covered(s, names, [] if broad or s == ek else lv, nts)
+        if v:
+            return v, ref
+    return None, None
 
 
 def _curl(url):
@@ -450,12 +533,25 @@ def main():
         else:
             n_m += 1
         out.append((kind, sym, x, v or '漏', ref or ''))
+    _lr = ledger.rows()
+    for ek, t0, syms, hl in news_events(hours):
+        v, ref = news_covered(ek, t0, syms, tp, _lr)
+        if v == '有题':
+            n_t += 1
+        elif v == '弃建':
+            n_d += 1
+        else:
+            n_m += 1
+        _at = time.strftime('%m-%d %H:%M', time.localtime(t0))
+        out.append(('突发', ek, 0.0, v or '漏', f'{(ref + " ") if ref else ""}「{hl}」{_at} 标的:{",".join(x[0] for x in syms) or "无"}'.strip()))
     try:
         _rows = [l.rstrip('\n').split('\t') for l in open(LOG, encoding='utf-8')]
     except FileNotFoundError:
         _rows = []
     _d0 = int(time.mktime(time.strptime(time.strftime('%Y-%m-%d'), '%Y-%m-%d')) * 1000)
     for kind, sym, x in sticky_misses(_rows, _d0, {(o[0], o[1]) for o in out}):
+        if kind == '突发':   # 事件按窗口对账,出窗口不再追
+            continue
         v, ref = covered(sym, set(), live, notes)
         if v == '弃建':
             n_d += 1
@@ -469,9 +565,13 @@ def main():
             f.write(f'{now}\t{kind}\t{sym}\t{x:+.1f}\t{v}\t{ref}\n')
     for kind, sym, x, v, ref in out:
         mark = '🚨' if v == '漏' else '✔'
-        print(f'{mark} {kind} {sym} {x:+.1f}% → {v} {ref}')
+        print(f'{mark} {kind} {sym} → {v} {ref}' if kind == '突发' else f'{mark} {kind} {sym} {x:+.1f}% → {v} {ref}')
     if n_m:
         print('   处置:逐条 topic.py create 建,或 log-action.sh note - 留档 "弃建|<标的>|<原因>|<日期>",重跑到 漏=0')
+        if any(o[0] == '突发' and o[3] == '漏' for o in out):
+            print('   突发行:按 gates 双要素判;不建就写 "弃建|<event_key>|<原因,如价格未过线/非看板范围>|<日期>"')
+    if NEWS_NOTE:
+        print('⏸ 突发对账:' + ';'.join(NEWS_NOTE))
     if STALE:
         print('⏸ 冻结合约不算过线(行情超过 30 分钟没更新,多半下架结算/停牌;要写这个币改用现货或 Gate 实测):' + '、'.join(STALE))
     if BLIND:
