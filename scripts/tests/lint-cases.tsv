@@ -1,0 +1,26 @@
+# 回归用例(v2.9.83):标题<TAB>domain<TAB>期望(逗号分隔;LEVEL:闸 必须出现;!LEVEL:闸 必须不出现;OK=无FAIL/WARN)
+# 每条 lesson 先问「能不能写成一行用例」——写得成的放这里,checklist.sh verify 每轮跑;跑不过=规则退化
+特朗普加密盟友 David Bailey 遭遇 99%股价崩盘，比特币财库公司 Nakamoto 谋求翻盘	crypto	FAIL:标题长度
+Broadcom Inc.盘后跌5.6%	tradfi	FAIL:法人全名
+$TENDIES上线Crypto.com，阶段性高位盘整后能否再冲高？	crypto	FAIL:疑问句
+比特币需求转负，价格挑战77K关口，市场情绪何去何从？	crypto	FAIL:疑问句
+BNB CHAIN支持37种股票质押，RWA板块阶段性走强	crypto	WARN:伪诱因
+即将发布Cybercab新品发布会，Tesla Inc.涨5.5%	tradfi	FAIL:法人全名,WARN:时段前缀
+BIS探索XRP Ledger新应用，推动区块链创新	crypto	WARN:因果连接词
+油价推升全球债市抛售，德债10Y创2011年来新高	tradfi	WARN:因果连接词
+Dell财报超预期，收涨15.8%报492	tradfi	OK,INFO:收盘定稿
+Snowflake财报超预期上调指引，盘后涨23%	tradfi	OK,!WARN:时段前缀
+ZORA自高点回落38%报0.0075，24h跌17.7%	crypto	INFO:窗口题
+ZORA自8/31高点0.012回落39%报0.0073	crypto	!INFO:窗口题
+MAST于8月29至30日两日拉升近4倍	crypto	!INFO:窗口题
+软件股收跌，PANW跌9.3%、PLTR跌5.8%	tradfi	OK
+博通Q4指引348亿略低预期，盘后一度跌超5%后收窄至1%	tradfi	OK
+CP上线次日跌43%，报0.041	crypto	OK
+Robinhood链日费用超三大公链总和，ARB涨15%	crypto	OK
+AI概念股盘中普跌，PANW跌5.6%、CRWD跌4.5%	tradfi	!WARN:伪诱因
+# v3.6.6(10-10 用户批):价位穿越算价格腿;24h 品种「24小时」算时段
+比特币一度跌破8.05万美元，现报8.3万美元	crypto	!WARN:双要素-缺价格
+特朗普称选前不打伊朗，布伦特原油回落至102美元	tradfi	!WARN:双要素-缺价格
+中东局势升温，布伦特原油24小时涨2.6%报103美元	tradfi	!WARN:时段前缀
+某芯片股24小时涨12%	tradfi	WARN:时段前缀
+某项目注册用户突破100万	crypto	WARN:双要素-缺价格

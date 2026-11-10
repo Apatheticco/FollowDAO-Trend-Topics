@@ -1,0 +1,146 @@
+{
+ "_doc": "风向标排序权重单一定义(v3.7.30,11-09 用户定并当日 review 修订)。目标:美股/宏观大事件提权、小币降权、BTC/ETH 等主流币正常。实测(11-09):①权重直接加进 score,在期题后台约 3 分钟重算,过期题不再重算;②score≤0 的题从热榜消失,所以全部档位不用负数,用「抬高其他档」代替给小币扣分;③前台按建题日期分块,同一天内带「KOL热议/媒体热议」标签的题固定排前面(不看分数),其余按 score 排——权重只能在这两组内部调顺序。判档代码=weight.py,批量同步=weight-sync.py。设计稿 docs/internal/热点风向标-排序权重规则设计-2026-11-09.md",
+ "as_of": "2026-11-09",
+ "trial_until": "2026-11-12",
+ "tiers": {
+  "A": {
+   "name": "大事件",
+   "weight": 600
+  },
+  "B": {
+   "name": "美股重点",
+   "weight": 300
+  },
+  "C": {
+   "name": "正常",
+   "weight": 150
+  },
+  "D": {
+   "name": "小币",
+   "weight": 1
+  }
+ },
+ "default_weight": 1,
+ "major_coins_as_of": "2026-11-09 CoinGecko 市值前 30 去掉稳定币/平台币后的前 20,另加 USDT/USDC(周六周报与 megacap.json 一起刷新)",
+ "major_coins": [
+  "BTC",
+  "ETH",
+  "BNB",
+  "XRP",
+  "SOL",
+  "TRX",
+  "ZEC",
+  "HYPE",
+  "XMR",
+  "DOGE",
+  "LINK",
+  "ADA",
+  "XLM",
+  "BCH",
+  "NEAR",
+  "UNI",
+  "LTC",
+  "CC",
+  "AVAX",
+  "SUI",
+  "USDT",
+  "USDC"
+ ],
+ "major_coin_aliases": [
+  "比特币",
+  "以太坊",
+  "BITCOIN",
+  "ETHEREUM",
+  "SOLANA",
+  "瑞波",
+  "狗狗币",
+  "币安币",
+  "波场",
+  "门罗",
+  "莱特币"
+ ],
+ "crypto_entities": "Tether|TETHER|泰达|Circle|币安|Binance|Coinbase|OKX|欧易|Hyperliquid|贝莱德|BlackRock|灰度|Grayscale",
+ "crypto_hard_event": "SEC|CFTC|FinCEN|OFAC|司法部|美国财政部|起诉|指控|罚款|制裁|切断|吊销|牌照|逮捕|被盗|被黑|遭攻击|黑客|ETF.{0,6}(获批|批准|通过|拒绝|否决)|(获批|批准|通过|拒绝|否决).{0,10}ETF",
+ "crypto_hack_min_usd_yi": 1,
+ "asia_markers": "A股|港股|恒指|恒生|日经|日股|日本|东证|TOPIX|KOSPI|韩股|韩国|台股|台湾加权|创业板|科创|上证|深证|沪深|沪指|北证|中概|国家统计局|三星|SK海力士|海力士|LG|现代汽车|丰田|软银|爱德万|Lasertec|东京电子|任天堂|索尼|腾讯|阿里巴巴|美团|小米|比亚迪|宁德|中芯|华虹|EcoPro|POSCO|铠侠|雅玛多",
+ "asia_note_markers": "\\b\\d{4,6}\\.(T|KS|KQ|HK|SS|SZ|TW)\\b|日股|韩股|港股|A股|台股",
+ "us_index": "标普|道指|道琼斯|纳指|纳斯达克|费半|费城半导体|罗素2000|S&P|SPY|QQQ|DIA|SOXX|美股期货|美股三大指数|VIX|恐慌指数",
+ "macro_cb": "(日本央行|日银|欧洲央行|欧央行|英国央行|英央行|中国人民银行|人民银行|韩国央行).{0,12}(加息|降息|降准|利率|LPR|收益率曲线|干预)",
+ "macro_assets": "金价|黄金|白银|原油|美油|布油|油价|铜价|天然气|美元指数|美元走|美元跌|美元涨|压低美元|推高美元|美元兑|美债|日元|欧元|英镑|离岸人民币|人民币汇率|汇率",
+ "policy": "关税|制裁|出口管制|大选|中期选举|国会|政府停摆|债务上限|行政令|停火|战事|战争",
+ "mega_deal_names": [
+  "Anthropic",
+  "OpenAI",
+  "SpaceX",
+  "xAI"
+ ],
+ "mega_deal_words": "IPO|上市|路演|收购|并购|合并",
+ "mega_deal_min_usd_yi": 100,
+ "core_us_doc": "核心池=channels.json 板块矩阵 29 只;超大盘 10 只在 megacap.json 走 A 档,这里放其余 19 只(ticker:别名)",
+ "core_us": {
+  "AMD": [
+   "超威"
+  ],
+  "MU": [
+   "美光"
+  ],
+  "SNDK": [
+   "闪迪"
+  ],
+  "WDC": [
+   "西部数据"
+  ],
+  "STX": [
+   "希捷",
+   "Seagate"
+  ],
+  "MRVL": [
+   "迈威尔",
+   "Marvell"
+  ],
+  "LITE": [
+   "Lumentum"
+  ],
+  "AAOI": [
+   "应用光电"
+  ],
+  "GLW": [
+   "康宁"
+  ],
+  "COHR": [
+   "Coherent",
+   "相干"
+  ],
+  "LRCX": [
+   "泛林",
+   "Lam Research"
+  ],
+  "CRCL": [
+   "Circle"
+  ],
+  "COIN": [
+   "Coinbase"
+  ],
+  "MSTR": [
+   "微策略"
+  ],
+  "HOOD": [
+   "Robinhood"
+  ],
+  "PLTR": [
+   "Palantir"
+  ],
+  "ASML": [
+   "阿斯麦"
+  ],
+  "AMAT": [
+   "应用材料"
+  ],
+  "KLAC": [
+   "科磊"
+  ]
+ },
+ "sector_pattern": "板块|概念股|股(普|集体|全线|齐)(涨|跌)|股(反弹|重挫|下挫|大涨|大跌|走强|走弱|承压|抛售)|、",
+ "macro_us_explicit": "美联储|联储|FOMC|鲍威尔|非农|美国.{0,6}(CPI|PCE|GDP|零售销售|就业)|美债|美国国债",
+ "macro_generic": "CPI|PCE|GDP|失业率|就业报告|利率决议|议息|会议纪要|加息|降息|国债收益率"
+}

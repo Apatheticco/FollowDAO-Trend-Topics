@@ -1,0 +1,40 @@
+# meme 铁律作用域回归(v3.4.x 起):标题<TAB>keywords<TAB>domain<TAB>期望(1=小币题受三类撤因保护,0=不受)
+# 真小币题(09-15~09-17 线上实例)
+SYN 24小时涨128%，报0.182美元	SYN	crypto	1
+AIN 24小时跌83.8%，报0.0266美元	AIN	crypto	1
+PAID上线MEXC现货，报0.0096美元	PAID	crypto	1
+ORBIO上线AI算力积分，24小时涨151%	ORBIO	crypto	1
+AKE上线OKX永续，24小时涨52.6%	AKE	crypto	1
+Arc链代币ARGUS涨1154%，市值3070万美元	Arc,ARGUS	crypto	1
+龙虾24小时涨17.9%，币安合约成交额3.1亿美元	龙虾,LOBSTER	crypto	1
+LONG链上股权TVL达1450万美元，生态热度走高	LONG	crypto	1
+FLOCK上线OKX永续后回落，报0.0664美元	FLOCK,OKX	crypto	1
+STEEM资金费率触及-2%下限，报0.0599美元	STEEM	crypto	1
+# 非代币题(大写关键词是机构/监管/人物/项目名)——09-16 22:00 Evose 轮 12422/12421 被误拦
+SEC与CFTC合作窗口开启，机构DeFi布局加速？	SEC	crypto	0
+Payward将上线合规Hyperliquid永续，US市场流动性能否爆发？	HYPERLIQUID,PAYWARD	crypto	0
+CZ关注新账号，MARSCOIN能否借势情绪盘走强？	CZ	crypto	0
+BlackRock ETF客户单日抛售1923万美元BTC，机构分歧加剧	BLACKROCK	crypto	0
+孙宇晨奖设立，波场TRON推动数学与AI奖项创新	孙宇晨	crypto	0
+OpenAI 拟 IPO 前融资，估值目标达 1.2 万亿美元	OpenAI	crypto	0
+# 主流白名单优先
+CLARITY受挫，XRP跌7.8%、XLM跌9.0%	XLM,XRP	crypto	0
+# tradfi 一律不受
+SK海力士与英特尔洽谈美国内存芯片生产，Intel Corporation涨5.7%	INTC,Intel Corporation	tradfi	0
+# v3.5.6(09-22) 主流币写成项目全名/平台币:不受三类保护
+NEARPROTOCOL走强，AI叙事被重估？	NEARPROTOCOL	crypto	0
+OKX新品将发布，OKB能否收复失地？	OKB	crypto	0
+DERIVE昨日多项期权指标创新高	DERIVE	crypto	1
+# 09-23 通用名词/平台名全大写(非代币)
+STABLECOIN监管转向，收益禁令再扩围？	STABLECOIN	crypto	0
+STONKFun 24小时收入登顶，PUMPFUN承压？	PUMPFUN	crypto	0
+# 09-23 交易所名全大写(非代币)
+OKX Now定档10月6日，新品悬念待揭	OKX	crypto	0
+# 09-24 人名全大写(非代币):Jack Butcher 为 NFT 艺术家,代币叫 Credits
+JACKBUTCHER Credits隔夜升12倍	JACKBUTCHER	crypto	0
+GALAXY配置1亿美元sUSDS，抵押资格获批	GALAXY	crypto	0
+数据：FOMO 7 日手续费达 32 万美元，仅次于 Phantom 位列 Hyperliquid Builder 第二	FOMO	crypto	0
+BACKPACK支持代币化股票，能否承接新周期？	BACKPACK	crypto	0
+QNT随RWA轮动登上热榜，热度能否延续？	QNT	crypto	0
+LAYERZERO遭起诉，2.92亿美元漏洞责任待厘清	LAYERZERO	crypto	0
+GIWA桥接被指骗局，安全风险升温	GIWA	crypto	0

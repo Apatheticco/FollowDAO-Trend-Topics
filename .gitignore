@@ -5,3 +5,6 @@
 node_modules/
 .claude/plugins/
 .claude/settings.local.json
+# 2026-11-10:脚本镜像进仓库后不再留 .bak,回滚走 git
+*.bak*
+__pycache__/

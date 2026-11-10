@@ -1,0 +1,3 @@
+1788390000000	TG探针	degraded	next-firstscan	total=0 连续3轮,兜底=news全源query
+1788390000000	okx涨榜	ok	-	恢复正常
+1788400430000	okx跌榜	ok	-	恢复:重试后 15 条正常返回

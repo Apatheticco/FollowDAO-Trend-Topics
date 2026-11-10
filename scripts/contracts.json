@@ -1,0 +1,431 @@
+{
+ "_doc": "代币注册表:ticker→链+合约,核实过才入册;lookup 先查这里",
+ "tokens": {
+  "4STOCK": {
+   "chain": "bsc",
+   "address": "0xd270d4e1ec6e6e0d28c0ecb8be966ec75997ffff",
+   "name": "4Stock",
+   "pinned_at": "2026-09-08 23:16",
+   "note": "深潮/Ai姨 09-08 11:02 原文;hot-scan bsc trending #1;注意 solana 有同名仿盘且成交额更大(Edx819…),按 symbol 搜会选错",
+   "mcap_at_pin": 42006652.0
+  },
+  "BNC4": {
+   "chain": "bsc",
+   "address": "0x7c8d5502b544ddaf8852fc46d1174e34876d545c",
+   "name": "Cea Industries",
+   "pinned_at": "2026-09-08 23:16",
+   "note": "BlockTempo/深潮 09-08;首个经 4Stock 上链的股票代币,锚定 CEA Industries(BNC)",
+   "mcap_at_pin": 4921110.0
+  },
+  "FORM": {
+   "chain": "bsc",
+   "address": "0x5b73A93b4E5e4f1FD27D8b3F8C97D69908b5E284",
+   "name": "Four",
+   "pinned_at": "2026-09-08 23:16",
+   "note": "火星财经 09-08 16:29;Four.meme 平台币,name=Four",
+   "mcap_at_pin": 115515045.0
+  },
+  "NUDES": {
+   "chain": "robinhood",
+   "address": "0xbe98b75361935b18d688409424a869a4C3dC7401",
+   "name": "Send Nudes",
+   "pinned_at": "2026-09-08 23:16",
+   "note": "09-08 22:00 轮 dexscreener 全池核价;followin snapshot 只覆盖部分池(差10倍)",
+   "mcap_at_pin": 14112082.0
+  },
+  "PAIR": {
+   "chain": "robinhood",
+   "address": "0x6b1d42927B1a84eC28Fa88d4fC6FA7AF404966be",
+   "name": "PAIR",
+   "pinned_at": "2026-09-08 23:16",
+   "note": "09-08 22:00 轮核价",
+   "mcap_at_pin": 10282447.0
+  },
+  "ZZZ": {
+   "chain": "robinhood",
+   "address": "0x7dbf38976f6D3b9c529e7D9484A71898B409eE6a",
+   "name": "ZZZ",
+   "pinned_at": "2026-09-08 23:16",
+   "note": "09-08 22:00 轮核价;followin 两轮返 null 后 dexscreener 核到",
+   "mcap_at_pin": 15548843.0
+  },
+  "ZCAT": {
+   "chain": "solana",
+   "address": "HcRLc9VDgjLeK154xDawfb1dmVJ98DoSqcwTHGqiDeJR",
+   "name": "Anonymous Cat",
+   "pinned_at": "2026-09-08 23:16",
+   "note": "09-08 22:00 轮核价;此前三轮核不到是因为在 solana 不在 bsc/robinhood",
+   "mcap_at_pin": 105961895.0
+  },
+  "BEN": {
+   "chain": "bsc",
+   "address": "0x7BC70aE0f2A67d2fDc0180a697a611F21c857777",
+   "name": "BEN",
+   "pinned_at": "2026-09-08 23:16",
+   "note": "推断入册:池龄52h与12097建题时间(09-06 20:42)吻合、24h -46% 与 cmc 日线 -49% 吻合;solana 有两个同名仿盘成交额更大(E82X…/DGPu…)。Flap 生态归属未直接验证,若下轮价格与 cmc 序列对不上则解钉",
+   "mcap_at_pin": 3738269.0
+  },
+  "ASTEROID": {
+   "chain": "ethereum",
+   "address": "0xf280B16EF293D8e534e370794ef26bF312694126",
+   "name": "Asteroid Shiba",
+   "pinned_at": "2026-09-08 23:17",
+   "note": "px 0.0000208 与 followin/cmc 日线序列(09-07 close 0.00001908→0.00002074)一致;池龄 2 年。注意 TG jiuyicall 提的是 Sol 版,12170 若指 Sol 版则此钉不适用",
+   "mcap_at_pin": 9446445.0
+  },
+  "STONK": {
+   "chain": "solana",
+   "address": "6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx",
+   "name": "STONK",
+   "pinned_at": "2026-09-09 22:16",
+   "note": "12119「STONK集成LaunchLab」——LaunchLab 是 Raydium 在 Solana 上的发射台,故链必为 solana;该池 vol24h $63.88M 是同名第二位($0.14M)的456倍、mcap $188.9M,池龄904h(37天)与题中集成时点相容;robinhood 侧同名池 mcap=0/24h -94.1% 显为仿盘。09-09 22:00轮 窗口题复核时钉。",
+   "mcap_at_pin": 190200718.0
+  },
+  "ORBIO": {
+   "chain": "robinhood",
+   "address": "0xAa07A0e9209e16aC99708C3EC70159c6eF3128A3",
+   "name": "Orbio.so",
+   "pinned_at": "2026-09-09 22:24",
+   "note": "12210 题述 $ORBIO 是 Robinhood 链代币;同名对仅2个,robinhood 侧 vol24h $5.47M/mcap $31.9M/池龄205.6h 为唯一有流动性的,solana 侧 vol24h=$0/mcap=$0/池龄7611.9h(近1年前的死池)显非题中标的。09-09 22:00轮 ⑤复核时钉。",
+   "mcap_at_pin": 31945648.0
+  },
+  "CATE": {
+   "chain": "solana",
+   "address": "Ai66LHZG9MCzg1WKdawwqduVAXpNDUuV8M3uyq5ppump",
+   "name": "Catecoin",
+   "pinned_at": "2026-09-10 14:59",
+   "note": "12239 题述单日成交1600万美元;该池 vol24h 2076万为同名第二位(34万)的61倍,pump 后缀与 Blockcastcc 09-09「CATE is the top performing coin on Pump Fun…16 million transacted」吻合",
+   "mcap_at_pin": 53544172.0
+  },
+  "MARSCOIN": {
+   "chain": "bsc",
+   "address": "0xFe189E97832DA1573e4e4Ff034F4fFC3a15c7777",
+   "name": "MarsCoin",
+   "pinned_at": "2026-09-10 15:01",
+   "note": "12207 keywords 含 BSC;该池 vol24h 1602万为同名第二位(solana 42万)的38倍,池龄1073h,7777后缀为four.meme BSC发射惯例",
+   "mcap_at_pin": 112357809.0
+  },
+  "BASECAT": {
+   "chain": "base",
+   "address": "0xB2000000000000000000004c27f6523082f41D01",
+   "name": "Basecat",
+   "pinned_at": "2026-09-10 15:03",
+   "note": "12088 同名对9个;该池 vol24h 1148万且池龄613h,另一 base 池 vol=0/池龄10h 显为仿盘,solana 侧 vol=0",
+   "mcap_at_pin": 31198606.0
+  },
+  "JUGGERNAUT": {
+   "chain": "robinhood",
+   "address": "0xD7321801CAae694090694Ff55A9323139F043B88",
+   "name": "The Juggernaut",
+   "pinned_at": "2026-09-10 22:07",
+   "note": "12255;同名对11个,该池 vol24h 3078万为第二位的3000倍,池龄1958h;PANews「据官方页面显示,Robinhood 上线 JUGGERNAUT 和 FRONG」",
+   "mcap_at_pin": 15436731.0
+  },
+  "FRONG": {
+   "chain": "robinhood",
+   "address": "0x6245e67affA44a23077f0Ea7f981a8DC743a0c47",
+   "name": "frong",
+   "pinned_at": "2026-09-10 22:08",
+   "note": "12255;同名对14个,该池 vol24h 2080万为第二位的2000倍,池龄1002h;另一池池龄10.5h 显为跟风仿盘",
+   "mcap_at_pin": 9469796.0
+  },
+  "UBIK": {
+   "chain": "robinhood",
+   "address": "0x812486EAea648819853F8E372dc9f1516C7868Bd",
+   "name": "ubik",
+   "pinned_at": "2026-09-10 22:08",
+   "note": "12163;同名对2个,robinhood 侧 vol24h 308万为唯一活跃池,solana 侧 vol=0",
+   "mcap_at_pin": 17796788.0
+  },
+  "BREW": {
+   "chain": "bsc",
+   "address": "0xfa6d9b504848606eb9aec04ccc161d169b3f2159",
+   "name": "BREW",
+   "pinned_at": "2026-09-11 09:55",
+   "note": "12262;gecko search BREW 首位池 BREW/WBNB vol24h 729万为同名第二位池(BREWFLORK仿盘 fdv48万)主力,池龄5天 reserve 74万",
+   "mcap_at_pin": 13024793.0
+  },
+  "FLYBRAIN": {
+   "chain": "robinhood",
+   "address": "0x4eb990547bce4a982432ca88cf5fae7eed1a2d35",
+   "name": "flybrain",
+   "pinned_at": "2026-09-11 16:12",
+   "note": "12275;gecko search FLYBRAIN 前5池全为同一base token 0x4eb9…2d35(USDG/WETH 多费率池),主池vol24h 2872万;Gate/MEXC已上线FLYBRAIN合约",
+   "mcap_at_pin": 26770102.0
+  },
+  "EMBER": {
+   "chain": "solana",
+   "address": "5dvXTZ5qwgafnHtwu3Ls3QrWx1U4LQsFeCuJgkk4QEC6",
+   "name": "embercurve",
+   "pinned_at": "2026-09-11 22:20",
+   "note": "12279;gecko search EMBER 前5池同一base token 5dvX…QEC6(SOL/MET/USDC多池),主池vol24h 2480万 fdv 2976万",
+   "mcap_at_pin": 28880527.0
+  },
+  "INDEX": {
+   "chain": "robinhood",
+   "address": "0x56910d4409f3a0c78c64dd8d0545ff0705389870",
+   "name": "The Index",
+   "pinned_at": "2026-09-11 22:23",
+   "note": "12285;gecko search INDEX robinhood 前3池同一base token 0x5691…9870,主池vol24h 408万 fdv 4047万;Odaily:Robinhood Chain生态Meme币INDEX现报4407万美元市值,Robinhood Crypto上线INDEX、COOPERATIVE;COOPERATIVE同名池4个fdv均<8万为仿盘不钉",
+   "mcap_at_pin": 41198283.0
+  },
+  "ORE": {
+   "chain": "solana",
+   "address": "oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp",
+   "name": "ORE",
+   "pinned_at": "2026-09-12 09:47",
+   "note": "12294;gecko search ORE 前3池同一base token,主池 ORE/USDC vol24h 953万 fdv 3762万",
+   "mcap_at_pin": 36951143.0
+  },
+  "ANON": {
+   "chain": "robinhood",
+   "address": "0x79bbf4508b1391af3a0f4b30bb5fc4aa9ab0e07c",
+   "name": "HeyAnon",
+   "pinned_at": "2026-09-13 13:00",
+   "note": "12305;gecko search ANON robinhood 前3池同一base token 0x79bb…e07c,主池Anon/WETH vol24h 41.7万 fdv 83.4万",
+   "mcap_at_pin": 8256234.0
+  },
+  "ANTHROPIG": {
+   "chain": "robinhood",
+   "address": "0x04d6aaa3147b9f5b5db255d3151561c07019bdc6",
+   "name": "Anthropig",
+   "pinned_at": "2026-09-13 13:00",
+   "note": "12303;gecko ANTHROPIG/WETH 主池vol24h 3317万为同名USDG池(174万)19倍,fdv 489万;另一ANTHROPIGX为仿盘",
+   "mcap_at_pin": 4473582.0
+  },
+  "DEBIT": {
+   "chain": "bsc",
+   "address": "0x66661c7229901f568f16bd1551b3ba826f83ce49",
+   "name": "Teller",
+   "pinned_at": "2026-09-14 09:43",
+   "note": "hot-scan bsc放量异动;gecko token Teller(DEBIT) fdv 3.93亿 mcap 6809万 vol24h 6113万,池龄493h非新仿盘",
+   "mcap_at_pin": 65922625.0
+  },
+  "PONS": {
+   "chain": "robinhood",
+   "address": "0x39dBED3a2bd333467115dE45665cC57F813C4571",
+   "name": "Pons",
+   "pinned_at": "2026-09-14 09:48",
+   "note": "同名对唯一;vol24h 5739万 mcap 3.44亿 池龄1493h,与12341 Pons交易量题一致",
+   "mcap_at_pin": 344291347.0
+  },
+  "NPC": {
+   "chain": "ethereum",
+   "address": "0x8eD97a637A790Be1feff5e888d43629dc05408F6",
+   "name": "Non-Playable Coin",
+   "pinned_at": "2026-09-15 09:53",
+   "note": "同名三池中市值最大(1.82亿)且池龄27441h为老币真身;base/solana池为桥接或小池",
+   "mcap_at_pin": 181878001.0
+  },
+  "STANDARD": {
+   "chain": "robinhood",
+   "address": "0x88ad8ddf1e3898412146a534538d418c6f8a9062",
+   "name": "STANDARD",
+   "pinned_at": "2026-09-15 22:49",
+   "note": "gecko robinhood 同一base token 6个池;主池STANDARD/WETH mcap 3136万 vol24h 5461万;@0xSisyphus称most liquid token on Robinhood",
+   "mcap_at_pin": 31377633.0
+  },
+  "PAID": {
+   "chain": "solana",
+   "address": "98kfF7rmsg1QDUEoCqNE7g7M1FdrTt92TEp2CLzypump",
+   "name": "Paid",
+   "pinned_at": "2026-09-16 09:53",
+   "note": "hot-scan 09-16 首扫命中;MEXC 现货 PAIDUSDT 直连 0.0131 与 dexscreener 0.01292 一致",
+   "mcap_at_pin": 12373920.0
+  },
+  "牛来": {
+   "chain": "bsc",
+   "address": "0xBEEA1D618e533a387D941F58a7d4c9b7bD377777",
+   "name": "牛来",
+   "pinned_at": "2026-09-16 09:53",
+   "note": "12217 币安现货题锚;dexscreener 四池同址 FDV 1.146亿",
+   "mcap_at_pin": 114620549.0
+  },
+  "ARGUS": {
+   "chain": "arc",
+   "address": "0xeCe5cA8bf9220718E5727754026757512212cb3c",
+   "name": "Argus",
+   "pinned_at": "2026-09-16 14:48",
+   "note": "dexscreener arc 链 29 池同址聚合 vol24h=2045万 FDV=2081万 liq=126万;09-16 Arc主网上线当日",
+   "mcap_at_pin": 20816673.0
+  },
+  "COOL": {
+   "chain": "arc",
+   "address": "0xEb64987643db71c76b2a2BE7E723DECC995E5b37",
+   "name": "usdc is cool",
+   "pinned_at": "2026-09-16 14:48",
+   "note": "dexscreener arc 链 23 池同址 主池 vol24h=309万 FDV=629万;与 ARGUS 同为 Arc 首日活跃代币",
+   "mcap_at_pin": 6257419.0
+  },
+  "AKE": {
+   "chain": "bsc",
+   "address": "0x2c3a8Ee94dDD97244a93Bc48298f97d2C412F7Db",
+   "name": "AKE",
+   "pinned_at": "2026-09-16 14:54",
+   "note": "binance fapi AKEUSDT 24h+52.96% 成交额5.81亿为涨幅榜内最大;链上 bsc 0x2c3a8Ee9 px0.02861 +52.61% mcap6.52亿 与CEX一致;okx 09-16 15:00 新上永续",
+   "mcap_at_pin": 648821602.0
+  },
+  "龙虾": {
+   "chain": "bsc",
+   "address": "0xeCCBb861c0dda7eFd964010085488B69317e4444",
+   "name": "龙虾",
+   "pinned_at": "2026-09-16 14:54",
+   "note": "binance fapi 龙虾USDT 24h+30.95% 成交额2.909亿;链上 bsc 9池聚合 px0.2307 +31.23% FDV2.307亿 liq417万,与CEX一致",
+   "mcap_at_pin": 230710262.0
+  },
+  "SYN": {
+   "chain": "ethereum",
+   "address": "0x0f2D719407FdBeFF09D87557AbB7232601FD9F29",
+   "name": "Synapse",
+   "pinned_at": "2026-09-16 14:55",
+   "note": "Synapse 协议代币,池龄44265h为同名对中最老且成交额最大;链上 mcap3210万 24h+76.2% 与币安现货SYNUSDT 0.13988/+73.98% 一致",
+   "mcap_at_pin": 30371223.0
+  },
+  "BLUECHIP": {
+   "chain": "base",
+   "address": "0xB200000000000000000000cFbdF64a8706a94a01",
+   "name": "BLUE CHIP",
+   "pinned_at": "2026-09-17 09:47",
+   "note": "base同地址聚合vol24h=735万 FDV=1578万 24h+44.5%,同名第二大仅arc 3.5万尘埃盘",
+   "mcap_at_pin": 15777213.0
+  },
+  "BR": {
+   "chain": "bsc",
+   "address": "0xFf7d6A96ae471BbCD7713aF9CB1fEeB16cf56B41",
+   "name": "Bedrock",
+   "pinned_at": "2026-09-17 09:47",
+   "note": "bsc 池龄13117h mcap6.71亿 +171% 与币安fapi BRUSDT +175%/bybit +175%一致",
+   "mcap_at_pin": 198749112.0
+  },
+  "CASHCAT": {
+   "chain": "robinhood",
+   "address": "0x020bfC650A365f8BB26819deAAbF3E21291018b4",
+   "name": "Cash Cat",
+   "pinned_at": "2026-09-17 15:06",
+   "note": "唯一同名对 vol24h 1532万 mcap 1.946亿;okx CASHCAT-USDT-SWAP +24.26% 一致",
+   "mcap_at_pin": 194611307.0
+  },
+  "AI": {
+   "chain": "robinhood",
+   "address": "0x2E8c31162b855A2ffa90F6F8634643Ad6F111e18",
+   "name": "Artificial Inu",
+   "pinned_at": "2026-09-17 15:06",
+   "note": "同名对成交额最大 vol24h 1731万 mcap 2.716亿 池龄1396h",
+   "mcap_at_pin": 271592058.0
+  },
+  "GENIUS": {
+   "chain": "bsc",
+   "address": "0x1F12B85aAC097E43Aa1555b2881E98a51090e9A6",
+   "name": "Genius",
+   "pinned_at": "2026-09-17 22:02",
+   "note": "bsc同名对成交额最大 mcap1.22亿 池龄3775h +21.1%,与币安fapi GENIUSUSDT +20.49%一致;另两个池龄1.6h 7777尾号为仿盘",
+   "mcap_at_pin": 122249703.0
+  },
+  "GSTOCK": {
+   "chain": "bsc",
+   "address": "0xcAFdBCE93477261Db8250e42BdAe6E66733F9E20",
+   "name": "Gstock",
+   "pinned_at": "2026-09-18 14:45",
+   "note": "bsc同名对成交额最大 vol24h 614万 mcap 1280万 24h+3897% 池龄17h,其余同名对成交额均<60万",
+   "mcap_at_pin": 12936009.0
+  },
+  "MUSEBOOK": {
+   "chain": "robinhood",
+   "address": "0x91A2DAe9699f0B82540B5886b0d8759C22820bA3",
+   "name": "musebook",
+   "pinned_at": "2026-09-23 09:44",
+   "note": "同名14对中成交额最大($38.3M)且池龄最长(164h);其余两对池龄<22h、mcap≈0为蹭名盘",
+   "mcap_at_pin": 32010347.0
+  },
+  "TRUE": {
+   "chain": "base",
+   "address": "0x21CFCFc3d8F98fC728f48341D10Ad8283F6EB7AB",
+   "name": "True",
+   "pinned_at": "2026-09-23 09:44",
+   "note": "Trueo预测市场官方代币在Base(迁移公告原文:从Base迁回以太坊);池龄13485h成交额最大,其余solana对池龄<8h为蹭名盘",
+   "mcap_at_pin": 12578536.0
+  },
+  "AGI": {
+   "chain": "robinhood",
+   "address": "0xFa31d04462746aAA24bC7E5626403E09E4B106ec",
+   "name": "Artificial Girlfriend Intelligence",
+   "pinned_at": "2026-09-23 22:10",
+   "note": "同名19对中成交额最大($3.33M)且24h +484%与素材『200万→300万美元』吻合;素材提及Robinhood AI launchpad",
+   "mcap_at_pin": 2162434.0
+  },
+  "XDP": {
+   "chain": "base",
+   "address": "0x07b3d902783c3c12b077508c3b5c00113d1291d0",
+   "name": null,
+   "pinned_at": "2026-09-29 09:43",
+   "note": "Binance Alpha上线公告带CA",
+   "mcap_at_pin": null,
+   "verified_by": "Followin News 1790605806060: $XDP live on Binance Alpha 2.0 CA: 0x07b3d902783c3c12b077508c3b5c00113d1291d0"
+  },
+  "ZC": {
+   "chain": "ethereum",
+   "address": "0x4e67db19044549ff420860834c91b45bad298722",
+   "name": null,
+   "pinned_at": "2026-09-29 21:57",
+   "note": "KOL推文带CA且与dex最大池一致",
+   "mcap_at_pin": null,
+   "verified_by": "@0xAn2026 1790648293『ZC狂拉17M 0x4e67db19044549ff420860834c91b45bad298722』;dex ethereum最大池同地址 vol24h $10.7M mcap $13.0M;MEXC合约/Gate Trenches已上线"
+  },
+  "SI": {
+   "chain": "solana",
+   "address": "DEW9dSN6QpWyNthphCpMmAbZP1Q4cEKR9xQXAri98WDP",
+   "name": "Super Inu",
+   "pinned_at": "2026-10-08 14:44",
+   "note": "同名22池中成交额/市值最大(Super Inu,市值2170万,池龄399h);@cryptodiane称$SI曾到8100万市值与其历史相符;另一+137%池为Stupid Inu市值236万仿盘",
+   "mcap_at_pin": 21704304.0
+  }
+ },
+ "blocked": {
+  "LAPTOP": {
+   "note": "官方 09-09 才在 Base 上线(12140);hot-scan 抓到的 base 0x4fb636… 池龄16h/-85% 是仿盘。上线后按官方合约地址 pin,在此之前不得用任何同名池的价格",
+   "at": "2026-09-08 23:16"
+  },
+  "HEMI": {
+   "note": "真身有 CEX 价(binance 小时线 $0.0084,followin 可取),不走 dex;dexscreener 同名 13 对全是 bsc 仿盘,其一成交额 $14.4B/市值 $890M(16倍量级失配,v2.9.59 该拦)。Upbit 09-08 取消其上线(12172)",
+   "at": "2026-09-08 23:17"
+  }
+ },
+ "price_map": {
+  "_doc": "gate.py/Evose 取价注册表(v3.5.8,09-22):代号→Gate 用哪个市场(spot/futures/null=Gate 同代号不是这个币)＋CoinGecko id(Gate 没有时用)。核实过才入册,依据写 why",
+  "ONE": {
+   "gate": "futures",
+   "cg_id": "harmony",
+   "why": "09-22:Gate 永续 0.00381 ≈ 币安 ONEUSDT 0.00380 ≈ CoinGecko harmony 0.00386;Gate 现货 0.00503 是另一个币(差约30%)"
+  },
+  "BP": {
+   "gate": null,
+   "cg_id": "backpack",
+   "why": "09-22:Gate BP 永续 0.9593 vs CoinGecko backpack 0.8547(Backpack 交易所/Meteora),差12%,认不出是否同一币"
+  },
+  "BNCB": {
+   "cg_id": "cea-industries-bstocks-tokenized-stock",
+   "why": "09-22:Gate 无;CoinGecko 仅币安 BNCB/USDT 6.25"
+  },
+  "KNOTS": {
+   "cg_id": "knots",
+   "why": "09-22:Gate 无;CoinGecko LBank/Raydium/Meteora"
+  },
+  "GENIUS": {
+   "cg_id": "genius-3",
+   "why": "09-22:Gate 现货 0.3507/永续 0.3509 ≈ CoinGecko genius-3 0.3497;CG 池子合约前缀 0x1F12B8 与 tokens.GENIUS 登记一致"
+  },
+  "ORBIO": {
+   "gate": "futures",
+   "cg_id": "orbio-so",
+   "why": "09-22:Gate 仅永续 0.06851 ≈ CoinGecko orbio-so 0.06857;CG 池子合约前缀 0xAA07A0 与 tokens.ORBIO 登记一致"
+  },
+  "ARC": {
+   "cg_id": "ai-rig-complex",
+   "why": "09-22:Gate 现货 0.0777 ≈ CoinGecko ai-rig-complex 0.0779;另有同名 cg id=arc(市值排名2125)不是这个"
+  },
+  "CFG": {
+   "cg_id": "centrifuge-2",
+   "why": "09-22:Gate 现货 0.13449 ≈ CoinGecko centrifuge-2(币安0.1336/OKX 0.13352)"
+  }
+ }
+}

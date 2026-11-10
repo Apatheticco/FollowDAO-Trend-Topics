@@ -1,0 +1,19 @@
+{
+  "_doc": "超大盘股名单(11-09 用户定):市值前10的个股,有实在直接诱因时单名门槛 3%(其余单名 5%)。topic.tradfi_floor 读本文件;as_of 超 14 天 topic.py 提示复核,周六周报时按实测市值刷新。",
+  "as_of": "2026-11-06",
+  "source": "followin metrics market snapshot(fmp marketCap),11-06 收盘;BRK.B 未取到(历史量级在第11名 LLY 1.28万亿之后)",
+  "cut": "市值前10;第10名 AVGO 1.42万亿,第11名 LLY 1.28万亿",
+  "floor_pct": 3,
+  "names": {
+    "AAPL": ["苹果", "Apple"],
+    "NVDA": ["英伟达", "NVIDIA", "Nvidia", "黄仁勋"],
+    "MSFT": ["微软", "Microsoft"],
+    "GOOGL": ["GOOG", "谷歌", "Alphabet", "Google"],
+    "AMZN": ["亚马逊", "Amazon"],
+    "TSM": ["台积电", "TSMC", "2330.TW"],
+    "SPCX": ["SpaceX", "太空探索技术"],
+    "META": ["Meta Platforms"],
+    "TSLA": ["特斯拉", "Tesla"],
+    "AVGO": ["博通", "Broadcom"]
+  }
+}

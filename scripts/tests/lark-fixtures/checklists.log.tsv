@@ -1,0 +1,7 @@
+# mode=首扫 ts=1788399480000 src=channels.json
+B0console	✅(75条 09-02~09-03 total<limit)
+B0机审	✅ AUDIT: 在线=66 ≤8h=4 待审=14 窗口题=2 聚簇组=5 标题命中=12 超长=15 系统新建=5
+价格10币5+5	✅(10:BTC77442 ETH2391 SOL100.3)
+TG探针或兜底	❌degraded total=0→兜底:news全源query已覆盖exploit
+event-watch待办	✅ DUE=4,处置4项(close done×4;新add×3 09-04 review)
+---

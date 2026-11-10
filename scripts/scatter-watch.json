@@ -1,0 +1,119 @@
+{
+ "_doc": "散点监控清单(v3.1.7)。expect=该概念**允许**的完整定义处数,通常 1(单点事实源);判据与执行者天然分离的给 2(文档定判据+脚本执行)。实际命中 > expect = 散点。",
+ "_指纹原则": "指纹必须用【不随被监控值变化的锚】(概念名/结构词)定位整行,再由 value_pattern 抽出要比对的值。**反例(v3.1.7 首版的错误)**:指纹写成 `±30%.{0,160}整数关口`——把被监控的 30% 写进了定位条件,于是有人把它改成 ±40% 时指纹直接失配、该处从统计里消失,指标反而报『一致』。注入分叉的验证当场戳穿了这一点:**一个抓不住注入故障的指标等于没有**。",
+ "_加新概念的判据": "问一句『改这条判据时,漏改哪处会让同一道题两版判反?』——会,才值得监控。",
+ "baseline": 0,
+ "concepts": [
+  {
+   "name": "meme豁免三选一",
+   "source": "gates.md 闸:A闸『① 24h ±30% ② 24h 全市场成交额>2亿 ③ 市值本轮首次突破整数关口』(v3.0.5 声明单点事实源＝本行;v3.6.2 改门槛)",
+   "expect": 1,
+   "fingerprint": "[^\\n]*整数关口[^\\n]*",
+   "scope": [
+    "references/gates.md",
+    "references/review-agent.md",
+    "SKILL.md",
+    "references/data-quickref.md"
+   ],
+   "mode": "sync",
+   "_why_sync": "复审员/跑单侧需要就地拿到判据,不能要求它加载全量 gates;故允许副本,但用数值指纹守住不分叉",
+   "value_pattern": "±\\s*\\d+%|>\\s*\\d+\\s*亿",
+   "source_file": "references/gates.md"
+  },
+  {
+   "name": "主流标的白名单",
+   "source": "majors.json(v3.1.4 抽出;此前 b0-cull.py 与 log-action.sh 各一份)",
+   "expect": 1,
+   "fingerprint": "[\\[{](?=[^\\]}]*[\"']BTC[\"'])(?=[^\\]}]*[\"']ETH[\"'])(?=[^\\]}]*[\"']SOL[\"'])[^\\]}]*[\\]}]|MAJORS=[\"'](?=[^\"']*\\bBTC\\b)(?=[^\"']*\\bETH\\b)(?=[^\"']*\\bSOL\\b)[^\"']*[\"']",
+   "scope": [
+    "majors.json",
+    "b0-cull.py",
+    "log-action.sh",
+    "lint.py",
+    "quotes.py"
+   ],
+   "mode": "single",
+   "_fingerprint_history": "11-03 换指纹:旧指纹 [\"']BTC[\"']\\s*,\\s*[\"']ETH[\"']\\s*,\\s*[\"']SOL[\"'] 要求 BTC,ETH,SOL 相邻,majors.json 改成按字母排序的多行列表后零命中,scatter 报告仍显示 ✅(零命中当通过),这一项实际无人看守。新指纹不依赖顺序:列表/集合字面量里同时出现 BTC/ETH/SOL,或 shell 的 MAJORS=\"…\" 字符串。"
+  },
+  {
+   "name": "缺诱因幅度门槛(tradfi±10/crypto±50)",
+   "source": "gates.md 闸:双要素『tradfi 单名 ≥±10%｜crypto ≥±50%』",
+   "expect": 1,
+   "fingerprint": "[^\\n]*tradfi[^\\n]*crypto[^\\n]*",
+   "scope": [
+    "references/gates.md",
+    "references/review-agent.md",
+    "SKILL.md",
+    "references/cards.md"
+   ],
+   "mode": "sync",
+   "_why_sync": "复审员/跑单侧需要就地拿到判据,不能要求它加载全量 gates;故允许副本,但用数值指纹守住不分叉",
+   "value_pattern": "±\\s*\\d+%",
+   "source_file": "references/gates.md",
+   "_cards_1110": "判据卡(v3.7.33)是 gates 双要素的摘要副本,纳入 sync 守值不分叉"
+  },
+  {
+   "name": "标题长度30字硬上限",
+   "source": "gates.md(判据) + lint.py(唯一执行者) —— 判据与执行天然两处,expect=2",
+   "expect": 2,
+   "fingerprint": "30\\s*字[^\\n]{0,20}(硬上限|上限)|>\\s*30[^\\n]{0,16}硬上限",
+   "scope": [
+    "references/gates.md",
+    "references/review-agent.md",
+    "SKILL.md",
+    "lint.py"
+   ],
+   "mode": "single"
+  },
+  {
+   "name": "reason_code枚举",
+   "source": "log-action.sh 的 R_CREATE/R_CULL/R_UPDATE/R_OTHER(工具层唯一定义)",
+   "expect": 1,
+   "fingerprint": "R_CULL\\s*=|reason_code 枚举[^\\n]{0,20}=[^\\n]{0,40}灌水",
+   "scope": [
+    "log-action.sh",
+    "references/gates.md",
+    "references/review-agent.md",
+    "SKILL.md"
+   ],
+   "mode": "single"
+  },
+  {
+   "name": "美股四时段表",
+   "source": "gates.md 闸:时段『美股四时段总表』(v2.9.54 立表,v3.0.5 铁律⓪ 定为查价通道唯一事实源)",
+   "expect": 1,
+   "fingerprint": "\\|[^\\n]*盘前[^\\n]*\\|",
+   "scope": [
+    "references/gates.md",
+    "references/review-agent.md",
+    "SKILL.md",
+    "references/data-quickref.md"
+   ],
+   "mode": "sync",
+   "_why_sync": "复审员/跑单侧需要就地拿到判据,不能要求它加载全量 gates;故允许副本,但用数值指纹守住不分叉",
+   "value_pattern": "盘前|盘中|盘后|夜盘",
+   "source_file": "references/gates.md",
+   "disabled": true,
+   "_why_disabled": "指纹难以精确锚定:表格行级匹配会把任何含『盘前』的行都算进来,导致 data-quickref 的普通提及被误判为副本。**宁可先不监控,也不要留一条会误报的**——指标的假阳性会训练人忽略告警。待用表结构(四行齐备)重写指纹后再启用。"
+  },
+  {
+   "name": "热点候选阈值(≤8h/≥3)",
+   "source": "lint.py 的 HOT_RULE 字符串——运行阈值从它解析,故它既是代码行为又是文档指纹(v3.3.1)",
+   "expect": 1,
+   "fingerprint": "[^\\n]*同一实体族建题[^\\n]*",
+   "scope": [
+    "lint.py",
+    "references/gates.md",
+    "SKILL.md"
+   ],
+   "mode": "sync",
+   "_why_sync": "改了 lint 的阈值而没改 gates(或反过来),机审⑦亮不亮灯与人读闸的判断会分叉——热点模式决定撤/留的组织方式,分叉=同批题两版判反",
+   "value_pattern": "≤\\s*\\d+\\s*h|≥\\s*\\d+",
+   "source_file": "lint.py"
+  }
+ ],
+ "_模式": "single=能真正单点化的(如白名单),超 expect 即散点;sync=跨进程/跨文件必须留副本的(如 review-agent.md 给 haiku 子进程读,让它 cat 103KB 的 gates 会爆上下文),允许多份但副本间数值指纹必须一致,分叉才算散点。**强行把 sync 类归一会让复审员读不到判据——那是把可用性换指标好看**。",
+ "_值抽取原则": "value_pattern 抽的是【值的形状】(如 `±\\d+%`),绝不能写具体值。v3.1.7 首版两次栽在同一处:先是指纹含 30%、后是 value_pattern 含 30%——只要被监控的值出现在匹配条件里,改动它就会让该处从统计中消失,指标反而更绿。",
+ "_scope原则": "sync 比对只放同语言的文档副本。代码文件不纳入——lint.py 里幅度门槛是正则常量、措辞与文档天然不同,用文本比对必然假阳性;代码与判据的一致性由回归用例守(更强的手段)。",
+ "_baseline说明": "当前 0 = 所有受监控判据的副本之间没有分叉。加新规则时若把某条判据又写了一份且值不同,立刻超基线并 fail。"
+}

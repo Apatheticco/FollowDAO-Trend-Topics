@@ -1,0 +1,9 @@
+# v3.6.0 方案B 回归:标题<TAB>keywords<TAB>domain<TAB>期望(1/0)。token_exist 结果由 tests/token-exist-fixture.json 注入(离线)
+# 无交易证据(公司/交易所/项目名这类)→ 不受保护
+ZZCORP配置1亿美元sUSDS，抵押资格获批	ZZCORP	crypto	0
+# 交易所/注册表/dex 有证据的真小币 → 保护
+ZZMEME 24小时涨128%，报0.182美元	ZZMEME	crypto	1
+# 数据源没查成(未知)→ 保守照样保护
+ZZUNKNOWN 24小时跌40%，报0.01美元	ZZUNKNOWN	crypto	1
+# 一题两个候选,只要有一个是真币就保护
+ZZCORP联手ZZMEME发布新品，ZZMEME涨50%	ZZCORP,ZZMEME	crypto	1

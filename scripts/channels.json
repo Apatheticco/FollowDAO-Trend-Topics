@@ -1,0 +1,189 @@
+{
+ "_meta": {
+  "version": "v3.7.1",
+  "purpose": "通道清单单一事实源——checklist.sh start 从此生成模板;改通道只改本文件,禁止在 SKILL/脚本里另立清单",
+  "modes": [
+   "刷新",
+   "首扫"
+  ],
+  "note": "mode=both 两种模式都跑;mode=首扫 仅首扫。key 必须与历史 checklists.log.tsv 行名兼容(mark 用子串匹配)；v2.9.81 加 B0机审(机械闸产物,verify 强制)；v3.3.0 okx 三通道由 MCP 改为 okx.py 直连(用户 09-08 裁定去掉 OKX MCP)",
+  "changed": "v3.7.1 加「漏建对账」(第一个衡量漏建的数);v3.7.29(11-09) 首扫加「美股期货+夜盘」「本周前瞻(周一)」;v3.7.30(11-09) 加「权重同步」"
+ },
+ "channels": [
+  {
+   "key": "B0console",
+   "mode": "both",
+   "call": "console list_trending_topics(24h,全状态,limit=100)",
+   "guard": "11-07 Q16:与 B0机审(b0-fetch 自动翻页)窗口不同(本行 24h、fetch 默认近 3 天)且同打一个 console-mcp 端点,total 本就不相等,不作交叉校验;本行只作 MCP 视图对照,截断问题由 b0-fetch 翻页解决"
+  },
+  {
+   "key": "B0机审",
+   "mode": "both",
+   "call": "~/.trend-scout/b0-audit.sh --fetch [start end] [--since 上轮ts]（v2.9.81：b0-fetch.py 直连 console-mcp HTTP 拉 B0，自动翻页，写 b0-latest.json）",
+   "guard": "填法＝脚本末行 AUDIT: 在线=N ≤8h=N(含隔夜N) 待审=N 窗口题=N 聚簇组=N 标题命中=N 超长=N 系统新建=N 机械撤候选=N(未检查=N) 热点候选=N，七清单(①待审 ②窗口题 ③聚簇 ④标题闸 ⑤系统新建 ⑥机械撤候选 ⑦热点候选)逐项处置；①待审喂「待审status2清零」行、⑤系统新建喂「系统建status0过闸」行；⑥码与内容对不上先判该不该撤(硬事件不撤)；收尾 log-snapshot.sh json b0-latest.json 直灌快照"
+  },
+  {
+   "key": "热点扫描",
+   "mode": "both",
+   "call": "~/.trend-scout/hot-scan.py all（v3.3.3 四层前置信号:L1 GeckoTerminal 速通新池/放量 · L2 news-fetch.py SSE直连followin落dump→hot-names.py 新名字跨语种共现 · L3 Binance |费率|≥1%/永续上新 · 全免鉴权不走会话MCP）",
+   "guard": "填法=脚本末行 HOTSCAN: 候选=N 新名字=N 观察=N 上新=N 半盲=N;候选≥1 即切热点模式(gate.sh 大热点):用脚本给的合约地址画实体图,再决定建改撤;半盲≥1 不得说「无异动/无新名字」(09-08 4Stock 三层独立亮灯实录见 LESSONS「gates 10-24 沉降」⑧)"
+  },
+  {
+   "key": "价格10币5+5",
+   "mode": "both",
+   "call": "followin metrics market 两批:[BTC,ETH,SOL,BNB,XRP]+[DOGE,ADA,AVAX,LINK,HYPE]",
+   "guard": "keywords硬上限5/批"
+  },
+  {
+   "key": "金XAUT",
+   "mode": "both",
+   "call": "followin metrics market [XAUT,PAXG] crypto交叉"
+  },
+  {
+   "key": "油CL=F",
+   "mode": "both",
+   "call": "tradingview yahoo_price CL=F",
+   "guard": "CLUSD已废(quirk⑬返FRED历史错值)"
+  },
+  {
+   "key": "美元DXY+SPY/QQQ",
+   "mode": "both",
+   "call": "followin metrics tradfi [DXY,SPY,QQQ,DIA,VIX](keywords ≤5)",
+   "guard": "spx必fail,SPY/QQQ/DIA兜底预判直塞(DIA 11-06 进 IDX)",
+   "fallback": "fmp 限流/degraded → 长桥 quote SPY.US/QQQ.US/DIA.US + Yahoo DX-Y.NYB;VIX 用 Yahoo ^VIX,偶返空无兜底记 ⚠️"
+  },
+  {
+   "key": "news事件面",
+   "mode": "both",
+   "call": "news crypto media 4h(刷新)/1d(首扫) + listing/解锁/SEC/漏洞 query"
+  },
+  {
+   "key": "news美股兜底",
+   "mode": "both",
+   "call": "news query 不传asset_type",
+   "guard": "tradfi头条news已砍(quirk④每次返0)"
+  },
+  {
+   "key": "Wave5鲸鱼",
+   "mode": "both",
+   "call": "signal trader_position/kol_call",
+   "fallback": "signal连degraded→news media已覆盖鲸鱼面即可标⚠️;链上红线:匿名多空对赌不入题"
+  },
+  {
+   "key": "okx涨榜",
+   "mode": "both",
+   "call": "~/.trend-scout/okx.py movers --top 12（直连okx公开端点,一次出涨跌两榜,不走MCP）",
+   "guard": "成交额=volCcy24h×last,不是 volCcy24h 本身;脚本已本地排序,涨跌两榜同一次调用产出"
+  },
+  {
+   "key": "okx跌榜",
+   "mode": "both",
+   "call": "同上一次调用的下半段（okx.py movers 同时打印跌榜,不需第二次调用）",
+   "guard": "与涨榜同一次 okx.py movers 产出,填法可写「同涨榜同一次调用」;跌榜是抓「昨天建的涨题今天翻绿」的主通道,不得省"
+  },
+  {
+   "key": "okx-OI",
+   "mode": "both",
+   "call": "~/.trend-scout/okx.py oi --top 12（直连;变化率由自存快照 okx-oi-snap.json 对比得出）",
+   "guard": "公开端点只给当下 OI 快照,变化率跨度=两次跑的实际间隔(不是固定4H);首次跑无基线时脚本打印「首次·无基线」且变化率列为 n/a,此时清单填「✅(首次无基线,N个标的)」不得虚报变化率"
+  },
+  {
+   "key": "A1主栈",
+   "mode": "both",
+   "call": "Agent haiku dump list 2046422494643687464(刷新10条/首扫15条)",
+   "guard": "W1同波起,禁主进程直调list_tweets。**取数 server 降级梯(v3.3.7,09-09 实证)**:①主用 `followin`;②仅当 followin 返 quota_exceeded 或取数失败时,降级 `followdao-test`——两者 twitter 配额池**相互独立**(09-09 实测 followin 报 used 2500/2500 耗尽的同一时刻,followdao-test 是 used 10/2500),但 followdao-test 是 dev 端点、可能带未发布行为,故只作备选不作主用;③**两个都试过才允许 circuit.sh 判死**——09-09 我只试了 followin 一家就 fused 528h,还在备注里臆断「同族 server 共用配额池」,若不更正会白丢到 10-01 的全部推特定向取样。"
+  },
+  {
+   "key": "A1科技栈",
+   "mode": "both",
+   "call": "Agent haiku dump list 2051854001608724654(刷新8条/首扫12条)",
+   "guard": "同 A1主栈的 server 降级梯:followin 优先,配额耗尽/取数失败才降 followdao-test(独立配额池,dev 端点只作备选);两个都试过才允许判死。两条 list 共用 followin 侧同一配额,一条报耗尽即视为两条同时受影响。"
+  },
+  {
+   "key": "TG探针或兜底",
+   "mode": "both",
+   "call": "从本轮 news 全源调用(不传 sources)的返回里抽 TG 条目——social[] 中 source_name 带 @telegram 或 provenance=tg_kol_feeds 的条目;sources=[telegram] 单拉只作可选试探",
+   "fallback": "全源 news 本轮 TG 条目为 0 → 记 ⚠️ 半盲,exploit 面由 news 全源 media 覆盖",
+   "guard": "11-07 用户定(Q14=A):sources=telegram 单拉对具体币种词也间歇性 degraded 0 条(11-06/11-07 BTC、ETH 均 0),本周 6 轮未单拉却记 ✅——承认降级,通道改为从全源 news 抽 TG。填法=「✅(N:全源 news 里 TG 条目 N 条,频道名…)」;N=0 只能记 ⚠️,不得 ✅"
+  },
+  {
+   "key": "event-watch待办",
+   "mode": "both",
+   "call": "跑 ~/.trend-scout/event.sh due,逐项处置(建/update/close)",
+   "guard": "mark 必填「DUE=N,处置N项」,数字对不上=漏办(v2.9.79);入册 event.sh add 禁手写printf"
+  },
+  {
+   "key": "待审status2清零",
+   "mode": "both",
+   "call": "b0-audit ① 待审积压清单(b0-audit.sh --fetch 自动翻页拉齐 status=1/2) —— 逐条二选一:补价格腿/改标题后推 status=0,或撤;不许留在待审",
+   "guard": "收尾必须复查 total==0;填法「N条:上线a/撤b」,数字对不上=漏办。⚠️这是系统建的题,不进 actions.tsv 也不进复审员取数范围,唯一入口就是本行｜v2.9.83:先看 b0-audit ⑥ 机械撤候选,命中的用 b0-cull.py 批撤(自动落账),人只判例外;填法不变"
+  },
+  {
+   "key": "系统建status0过闸",
+   "mode": "both",
+   "call": "B0 里 status=0 且不在本轮 actions.tsv 的题(=系统自建或早于 run_ts 建的),逐条过双要素闸+验价",
+   "guard": "填法「查N条:改m/撤k/放行j」。2026-09-01 2777(联发科)即因未过此闸被复审员挑出。⚠️ 系统建 tradfi 题有效期常只有几小时,到下一轮多已过期:处置一律按 gates 闸:系统建过闸 决策表＋闸:过期题 处置表(窗口内只撤不改、过期后可改措辞数字不改、内容错就撤),本行不另存判据副本(v3.7.6);每轮⑤复核回查编辑是否被回滚"
+  },
+  {
+   "key": "下游回读",
+   "mode": "both",
+   "call": "~/.trend-scout/downstream.py <run_ts>（v3.7.0 回读本轮建/改/上线题在 Followin 资讯流的成品:下游标的/领域挂对没有;topic.py 建题时已逐条回读,收尾再全量跑一次）",
+   "guard": "填法=末行 DOWNSTREAM: 回读=N 匹配=M 错标=K…;错标/域不符≥1 当轮 topic.py update --rc tag修正 --keywords \"<去掉误导词>\" 改到 0 再 mark(10-15 RKLB 关键词 Neutron→NTRN 币);清 tag(--tags '[]')实测不生效,下游按关键词实时匹配;同名代币化股票/股票永续(TSM→Robinhood Chain TSM)按用户 10-15 定为等效、不算错标;「正文不符」只记录不必修;本轮无建改题填「✅(0:本轮无建改题)」",
+   "fallback": "资讯流取数失败→ topic.py get --lang en 核英文标题+记 ⚠️半盲,下轮补跑"
+  },
+  {
+   "key": "漏建对账",
+   "mode": "both",
+   "call": "~/.trend-scout/coverage.py（v3.7.1 过线涨跌逐个对账:美股/亚股=板块矩阵+近36h看板题 ticker 中 |日涨跌|≥10%;指数=IDX 线(QQQ±2.5% SPY/DIA±2% SOXX±5% KOSPI/日经/恒指/台股±3%);币=币安永续成交额≥2000万且|24h|≥50%(11-06 用户定由30%上调);BTC/ETH 另按 ±5%/±7% 或 60 天新高新低(11-09);要么有题要么有弃建,否则报漏）",
+   "guard": "填法=末行 COVERAGE: 过线=N 有题=a 弃建=b 漏=c;漏≥1 逐条 topic.py create 建或 log-action.sh note - 留档 \"弃建|<标的>|<原因>|<日期>\",重跑到 漏=0 再 mark;**三大指数(SPY/QQQ/DIA)过线只能建,不写弃建(11-06 用户定;coverage 只认读数差 ≤1pp 的旧指数弃建)**;病例 10-15 ASTS 撤了原因写错的系统题后既没按真因(Piper Sandler 下调目标价)另建也没弃建",
+   "fallback": "Yahoo/币安取数失败→ 手查板块矩阵过线标的并记 ⚠️半盲"
+  },
+  {
+   "key": "权重同步",
+   "mode": "both",
+   "call": "~/.trend-scout/weight-sync.py --apply（v3.7.30 排序权重:在期 status=0 题按四档补设——weights-tier.tsv 记过档的以记档为准,没记过的(系统建题)按 weight.py 现判;记 weights-snap.tsv 快照;放在收尾第 2 步末尾=漏建对账补建之后、起复审员之前;--apply 会先重拉看板）",
+   "guard": "11-09 用户定并当日 review 修订(四档全部为正:score≤0 会从榜上消失;过期题不重算故不做过期复位):填法=末行 WEIGHT: 在期=N 已对=a 改=b 记档=c 现判=d 人工档=e → 「✅(WEIGHT: …)」;写失败行≥1 记 ❌ 并当轮重跑;判错的已建题用 weight-sync.py set --id … --tier X --why \"…\" 改",
+   "fallback": "console 写失败→本轮不写、记 ⚠️,下轮补"
+  },
+  {
+   "key": "W-HL条件项",
+   "mode": "both",
+   "call": "curl hyperliquid xyz metaAndAssetCtxs",
+   "guard": "条件触发三选一:美股非regular时段/followin no_match/需OI成交额;universe名带xyz:前缀"
+  },
+  {
+   "key": "Wave5上币",
+   "mode": "首扫",
+   "call": "news listing/launch query 1d"
+  },
+  {
+   "key": "板块矩阵6批",
+   "mode": "首扫",
+   "call": "长桥 quote 为主(gates 闸:时段 铁律⓪,一次可传全部 29 只);降级=followin metrics tradfi categories=[market] query='quote' 6批固定分法(v2.9.82,别现场拼):B1[NVDA,AMD,AVGO,TSM,TSLA] B2[MSFT,GOOGL,META,AAPL,AMZN] B3[MU,SNDK,WDC,STX,MRVL] B4[LITE,AAOI,GLW,COHR,LRCX] B5[CRCL,COIN,MSTR,HOOD,PLTR] B6[ASML,AMAT,KLAC,SPCX](降级通道 ASML被服务端扩成ASML+ASML.AS占2槽,B6只装4个;RKLB降按需)",
+   "guard": "美股时段闸:休市/盘前=上收盘陈旧,标注跳过开盘后再拉｜query 写 quote,写 'daily close change' 会触发基本面兜底返无用警告"
+  },
+  {
+   "key": "国债DGS",
+   "mode": "首扫",
+   "call": "followin metrics macro [DGS10,DGS2]"
+  },
+  {
+   "key": "econ日历",
+   "mode": "首扫",
+   "call": "metrics macro-calendar date_from=今天 date_to=+5d(quirk⑫前瞻)"
+  },
+  {
+   "key": "美股期货+夜盘",
+   "mode": "首扫",
+   "call": "Yahoo ES=F/NQ=F/YM=F(coverage.py 同口径,IDX 线 2%/2.5%/2%)+长桥 quote 超大盘 10 只(名单=~/.trend-scout/megacap.json)取 overnight 块 vs 周五/上一交易日收盘",
+   "guard": "11-09 用户定(周一上午榜单题少,NVDA 黄仁勋调查夜盘-3.2%险些漏):首扫必跑,周一尤其——期货周日 18:00 ET=周一 07:00 北京开盘、长桥夜盘 20:00-04:00 ET。判线:期货按 IDX 线(过线=要么建要么弃建,漏建对账同口径);超大盘夜盘有诱因 ≥3%、无诱因 ≥10%;标题带「期货/夜盘」时段前缀,开盘后按正式盘 update。填法「✅(N:ES x% NQ y% YM z%;夜盘最大 X ±a%)」",
+   "fallback": "Yahoo 取不到→Hyperliquid xyz:XYZ100/OKX QQQ-USDT-SWAP 作期货替身并标 ⚠️;长桥失败→HL xyz 股票永续"
+  },
+  {
+   "key": "本周前瞻(周一)",
+   "mode": "首扫",
+   "call": "周一首扫:followin metrics 经济日历(本周)+财报日历(关注名单)+event.sh upcoming+news『week ahead/下周必关注』,按 gate.sh 预告题 准入三档建本周前瞻预告题,同轮 event.sh add 挂承接行",
+   "guard": "11-09 用户定(周一上午榜单题少,选 A):周一必跑,非周一填「✅(0:非周一)」;只建过准入三档(时点到日/多源/影响面够大)的,不为凑数降闸;单源日期(如 KOL 说的 MSCI 11号)不建,入册待核。填法「✅(N:建x条/弃y条)」"
+  }
+ ]
+}
