@@ -2117,6 +2117,20 @@ _bm7=$(cd "$D" && COVERAGE_BN="$_cb7" COVERAGE_BN_EQUITY=X python3 -W ignore -c 
 n=$((n+1)); [ "$_bm7" = "BTC" ] || { echo "❌ major1109c: BTC -5.6% 应进对账、ETH -6% 未过 7% 不进,得 $_bm7"; fail=$((fail+1)); }
 rm -f "$_KL" "$_cb7"
 
+# hot1111(用户 11-11 定「ZEC这种热点主流币大跌，可以留」):币安合约 24h 成交 ≥10 亿美元的加密币纯行情线 ±10%;非 COIN 永续(韩股/商品)不进币侧对账
+_ht=$(cd "$D" && env -u TS_CRYPTO_LINE python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('t','topic.py');t=u.module_from_spec(s);s.loader.exec_module(t)
+f=lambda ti,n='x':t.crypto_amp('纯行情-A定则','crypto',ti,n) is None
+print(f('ZEC 24小时跌14.8%','币安合约成交30亿美元,市值165亿美元'), f('ZEC 24小时跌14.8%','币安合约成交30亿美元'), f('ZEC 24小时跌8%','币安合约成交30亿美元,市值165亿美元'), f('XYZ 24小时跌15%','币安合约成交5亿美元,市值20亿美元'), f('INIT 24小时涨16%','币安合约成交15亿美元,市值0.5亿美元'))")
+n=$((n+1)); [ "$_ht" = "True False False False False" ] || { echo "❌ hot1111a: 热点主流币线判定得 $_ht"; fail=$((fail+1)); }
+_cbh=$(mktemp); printf '%s' '[{"symbol":"ZECUSDT","priceChangePercent":"-14.9","quoteVolume":"3000000000","closeTime":9999999999999},{"symbol":"SOLUSDT","priceChangePercent":"-9.0","quoteVolume":"1800000000","closeTime":9999999999999},{"symbol":"XYZUSDT","priceChangePercent":"-15.0","quoteVolume":"500000000","closeTime":9999999999999},{"symbol":"SKHYNIXUSDT","priceChangePercent":"12.0","quoteVolume":"1400000000","closeTime":9999999999999},{"symbol":"INITUSDT","priceChangePercent":"16.2","quoteVolume":"1500000000","closeTime":9999999999999}]' > "$_cbh"
+_mch=$(mktemp); printf '%s' '{"ZEC":16500000000,"INIT":54000000}' > "$_mch"
+_bmh=$(cd "$D" && COVERAGE_BN="$_cbh" COVERAGE_MCAP="$_mch" COVERAGE_BN_EQUITY=SKHYNIXUSDT python3 -W ignore -c "import importlib.util as u;s=u.spec_from_file_location('c','coverage.py');c=u.module_from_spec(s);s.loader.exec_module(c);print(','.join(x[0] for x in c.bn_movers()), c.HOT_VOL, c.HOT_LINE, c.HOT_MCAP)")
+n=$((n+1)); [ "$_bmh" = "ZEC 1000000000.0 10.0 1000000000.0" ] || { echo "❌ hot1111b: ZEC(成交30亿 -14.9% 市值165亿)应进对账,SOL(-9%)/XYZ(成交5亿)/SKHYNIX(非币)/INIT(市值0.5亿)不进,得 $_bmh"; fail=$((fail+1)); }
+_bmu=$(cd "$D" && COVERAGE_BN="$_cbh" COVERAGE_BN_EQUITY=SKHYNIXUSDT python3 -W ignore -c "import importlib.util as u;s=u.spec_from_file_location('c','coverage.py');c=u.module_from_spec(s);s.loader.exec_module(c);r=','.join(x[0] for x in c.bn_movers());print(r, any('市值取不到' in b for b in c.BLIND))")
+n=$((n+1)); [ "$_bmu" = "ZEC,INIT True" ] || { echo "❌ hot1111c: 市值取不到时热点币应按过线报并记半盲,得 $_bmu"; fail=$((fail+1)); }
+rm -f "$_cbh" "$_mch"
+
 # monday1109(用户 11-09 定):美股期货进指数对账线(ES 2%/NQ 2.5%/YM 2%);首扫通道含期货夜盘与周一前瞻
 _fq=$(mktemp); printf '%s' '{"ES=F":[7200,7402,"FUTURE"],"NQ=F":[27000,27085,"FUTURE"]}' > "$_fq"
 _fu=$(cd "$D" && COVERAGE_QUOTES="$_fq" python3 -W ignore -c "

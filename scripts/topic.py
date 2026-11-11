@@ -1107,9 +1107,30 @@ def crypto_amp(rc, domain, title, note, kws=''):
         return (f'主流币 {sym} 纯行情题须 24h ≥±{line:g}% 或「关口+阶段新高/新低」(11-09 用户定)'
                 f'{"(本题 " + m.group(1) + "%)" if m else ""}——关口写法要在 --note 写「阶段高低已核:<币安日线依据>」;都不满足改落弃建')
     if m and float(m.group(1)) < CRYPTO_LINE:
+        # 11-11 用户定「热点主流币大跌可以留」:币安合约 24h 成交 ≥10 亿美元(coverage.HOT_VOL)的加密币,线降到 ±10%(coverage.HOT_LINE)。
+        # 成交额从标题/备注「成交X亿美元」读(与 lowvol 同口径,复审员抽查真伪);没写=按 50% 线拦
+        hv, hl, hm = _hot_line()
+        blob = (title or '') + ' ' + (note or '')
+        q = re.search(r'成交(?:额)?\s*(\d+(?:\.\d+)?)\s*亿\s*美元', blob)
+        c = re.search(r'市值\s*(\d+(?:\.\d+)?)\s*亿\s*美元', blob)
+        if q and c and float(q.group(1)) * 1e8 >= hv and float(c.group(1)) * 1e8 >= hm and float(m.group(1)) >= hl:
+            return None
         return (f'纯行情币题 24h 幅度 {m.group(1)}% < {CRYPTO_LINE:g}%(11-06 用户定:由 30% 上调到 50%)——'
-                f'改落 log-action.sh note - 留档 "弃建|<标的>|24h X%未达50%纯行情线…";有可指名诱因/硬事件就换对应 rc 建')
+                f'热点主流币例外(11-11 用户定):币安合约 24h 成交 ≥{hv / 1e8:g} 亿美元、市值 ≥{hm / 1e8:g} 亿美元且幅度 ≥{hl:g}% 可建,'
+                f'须在备注写「币安合约成交X亿美元」「市值X亿美元(CoinGecko)」;'
+                f'否则改落 log-action.sh note - 留档 "弃建|<标的>|24h X%未达纯行情线…";有可指名诱因/硬事件就换对应 rc 建')
     return None
+
+
+def _hot_line():
+    """11-11:热点主流币线,单一定义在 coverage.HOT_VOL/HOT_LINE/HOT_MCAP;读不到按成交 10 亿/10%/市值 10 亿。"""
+    try:
+        import importlib.util as _u
+        _s = _u.spec_from_file_location('_cov', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'coverage.py'))
+        _c = _u.module_from_spec(_s); _s.loader.exec_module(_c)
+        return _c.HOT_VOL, _c.HOT_LINE, _c.HOT_MCAP
+    except Exception:
+        return 1e9, 10.0, 1e9
 
 
 def lowvol(rc, domain, title, note):

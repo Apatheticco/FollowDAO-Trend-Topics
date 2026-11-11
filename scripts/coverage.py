@@ -40,6 +40,11 @@ IDX = {'QQQ': (2.5, {'纳指', '纳斯达克', 'nasdaq'}), 'SPY': (2.0, {'标普
 # 主流大币另设线——24h 涨跌 BTC ±5% / ETH ±7%,或创 MAJOR_DAYS 天(约 2 个月)新高/新低。单一定义在此,lint/topic 从这里读。
 MAJOR = {'BTC': (5.0, {'比特币', 'bitcoin'}), 'ETH': (7.0, {'以太坊', 'ethereum'})}
 MAJOR_DAYS = 60
+# 11-11 用户定(ZEC 24h -14.8%、币安合约成交 30 亿美元排加密币第 3,被 50% 线撤掉):「热点主流币大跌可以留」——
+# 币安合约 24h 成交额 ≥HOT_VOL 的加密币(underlyingType=COIN),纯行情线降到 ±HOT_LINE。BTC/ETH 仍按 MAJOR。单一定义在此,topic 从这里读。
+HOT_VOL = 1e9
+HOT_LINE = 10.0
+HOT_MCAP = 1e9   # 11-11 同日用户加:市值 ≥10 亿美元(CoinGecko)。近 30 天回放命中 5 次,INIT(0.5 亿)/JCT(0.7 亿)这类小市值合约炒作被挡,ZEC/HYPE/NEAR 留
 LOWVOL = 1e8   # v3.7.9 纯行情币成交额下限(币安合约 24h,美元)
 LOG = os.environ.get('COVERAGE_LOG') or os.path.join(D, 'coverage.log.tsv')
 
@@ -320,7 +325,8 @@ def stale_min(x):
 
 def bn_equity():
     """11-03:币安 TradFi 股票永续(MVLL=2倍做多MRVL的ETF)混在 24hr 表里,被当币报「漏」。
-    exchangeInfo 里 underlyingType=EQUITY 的剔除;注入 COVERAGE_BN_EQUITY=逗号分隔;取不到=不剔(保守)。"""
+    exchangeInfo 里 underlyingType 不是 COIN 的剔除(11-11 由只剔 EQUITY 扩大:KR_EQUITY 的 SKHYNIX、COMMODITY 的 XAU/CL、
+    HK/CN_EQUITY、INDEX、FX、PREMARKET 原先都被当币;主流币线降到 10% 后会误报);注入 COVERAGE_BN_EQUITY=逗号分隔;取不到=不剔(保守)。"""
     inj = os.environ.get('COVERAGE_BN_EQUITY')
     if inj is not None:
         return {x.strip() for x in inj.split(',') if x.strip()}
@@ -328,15 +334,36 @@ def bn_equity():
         return set()
     try:
         d = _curl('https://fapi.binance.com/fapi/v1/exchangeInfo')
-        return {x['symbol'] for x in d.get('symbols', []) if x.get('underlyingType') == 'EQUITY'}
+        return {x['symbol'] for x in d.get('symbols', []) if x.get('underlyingType') not in (None, 'COIN')}
     except Exception:
         return set()
+
+
+def coin_mcaps(syms):
+    """11-11:热点主流币市值门槛用。CoinGecko /coins/markets?symbols= 批量取,同符号多币取最大市值;1000PEPE 这类去掉倍数前缀。
+    注入 COVERAGE_MCAP=json 路径({"ZEC":1.65e10});回归注入了 COVERAGE_BN 却没注入它时返回空(不连网)。取不到的符号不在返回里。"""
+    inj = os.environ.get('COVERAGE_MCAP')
+    if inj:
+        return json.load(open(inj))
+    if os.environ.get('COVERAGE_BN') or not syms:
+        return {}
+    base = {s: re.sub(r'^1(000)+', '', s) for s in syms}
+    d = _curl('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=250&symbols=' + ','.join(sorted({b.lower() for b in base.values()})))
+    if not isinstance(d, list):
+        return {}
+    best = {}
+    for c in d:
+        k = (c.get('symbol') or '').upper()
+        if c.get('market_cap'):
+            best[k] = max(best.get(k, 0), float(c['market_cap']))
+    return {s: best[b] for s, b in base.items() if b in best}
 
 
 def bn_movers():
     inj = os.environ.get('COVERAGE_BN')
     d = json.load(open(inj)) if inj else _curl('https://fapi.binance.com/fapi/v1/ticker/24hr')
     out = []
+    hot = []
     eq = bn_equity()
     if not isinstance(d, list):
         # 10-21 15:53 实测:币安限流返回 {"code":-1003,...} 字典,原逻辑逐字符迭代直接崩;改为标半盲,不得报「币侧漏=0」
@@ -351,12 +378,30 @@ def bn_movers():
         except Exception:
             continue
         _ml = MAJOR.get(s[:-4], (None,))[0]
+        _hot = not _ml and qv >= HOT_VOL and HOT_LINE <= abs(pc) < COIN_LINE   # 11-11 用户定:热点主流币(成交≥10亿)±10%,市值门槛下面批量核
+        if _hot:
+            hot.append((s, pc, qv, x))
+            continue
         if (abs(pc) >= COIN_LINE and qv >= 2e7) or (_ml and abs(pc) >= _ml):   # 11-06 用户定 30→50;11-09 BTC/ETH 用 MAJOR 线
             age = stale_min(x)
             if age is not None:   # 10-21:下架结算的合约(EPICUSDT SETTLING)行情冻结,不算过线,单列提示
                 STALE.append(f'{s[:-4]}({pc:+.1f}% 已 {age} 分钟没更新)')
                 continue
             out.append((s[:-4], pc, qv))
+    if hot:   # 11-11:热点主流币另需市值 ≥HOT_MCAP;取不到市值的宁可报过线(记半盲)也不漏
+        mc = coin_mcaps([h[0][:-4] for h in hot])
+        miss = []
+        for s, pc, qv, x in hot:
+            sym = s[:-4]
+            if stale_min(x) is not None:
+                continue
+            if sym not in mc:
+                miss.append(sym)
+                out.append((sym, pc, qv))
+            elif mc[sym] >= HOT_MCAP:
+                out.append((sym, pc, qv))
+        if miss:
+            BLIND.append(f'热点主流币市值取不到(按过线报,人工核市值≥{HOT_MCAP / 1e8:g}亿美元):' + ','.join(miss))
     return out
 
 
@@ -519,7 +564,8 @@ def main():
     out = []
     for kind, sym, x, names in sorted(rows, key=lambda r: -abs(r[2])):
         _lv, _nt = (live, notes) if kind == '币' else (live_s, notes_s)
-        _line = (MAJOR[sym][0] if kind == '币' and sym in MAJOR else None) or {'股': 10, '币': COIN_LINE}.get(kind) or IDX.get(sym, (None,))[0]
+        _line = (MAJOR[sym][0] if kind == '币' and sym in MAJOR else None) or (HOT_LINE if kind == '币' and qvs.get(sym, 0) >= HOT_VOL else None) \
+            or {'股': 10, '币': COIN_LINE}.get(kind) or IDX.get(sym, (None,))[0]
         v, ref = covered(sym, names, _lv, _nt, x, _line, _cn if kind == '股' else None, idx=(kind == '指数'))
         if sym in _ms and kind == '币':
             ref = ((ref or '') + ' ' + _ms[sym]).strip()
