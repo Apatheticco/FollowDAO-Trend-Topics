@@ -942,13 +942,26 @@ def _same_asset(t, o):
     return bool(_kw(t) & _kw(o) or _fam(t) & _fam(o))
 
 
-def opposite_after_create(t, topics):
-    """建题后列出同标的/同品种族、方向相反的在线题(过期题处置表:新建反向题须撤方向相反的老题)。只提示不拦——撤哪条要人判。"""
+def _live(x, now_ms=None):
+    """11-14 用户定(Q18):前台按日期分组,题只出现在有效期内的那几天(11-14 实测 trendingTopicList)。
+    已过期的老题不会和新题同列,撤它只会删掉那天正确的历史——反向检查只看仍在有效期内的题。没有 closed_ts 的按在期算。"""
+    c = x.get('closed_ts')
+    if not c:
+        return True
+    try:
+        return int(c) > (now_ms if now_ms is not None else time.time() * 1000)
+    except (TypeError, ValueError):
+        return True
+
+
+def opposite_after_create(t, topics, now_ms=None):
+    """建题后列出同标的/同品种族、方向相反、仍在有效期内的在线题(过期题处置表:新建反向题须撤方向相反的老题;
+    11-14 Q18 收窄:已过期的反向老题不撤)。只提示不拦——撤哪条要人判。"""
     d = _dir(t.get('title'))
     if not d:
         return []
     return [o for o in topics or [] if str(o.get('id')) != str(t.get('id')) and o.get('status') == 0
-            and _same_asset(t, o) and _dir(o.get('title')) == -d]
+            and _live(o, now_ms) and _same_asset(t, o) and _dir(o.get('title')) == -d]
 
 
 def opposite_live(t, topics, note):
@@ -957,10 +970,10 @@ def opposite_live(t, topics, note):
     if '方向相反仍恢复' in (note or ''):
         return None
     d = _dir(t.get('title'))
-    if not d:
+    if not d or not _live(t):      # 11-14 Q18:恢复的是已过期题→前台只在它自己那几天出现,不与新题同列
         return None
     for o in topics or []:
-        if str(o.get('id')) == str(t.get('id')) or o.get('status') != 0:
+        if str(o.get('id')) == str(t.get('id')) or o.get('status') != 0 or not _live(o):
             continue
         if _same_asset(t, o) and _dir(o.get('title')) == -d:
             return (f'同标的在线题 {o["id"]}「{o.get("title")}」方向相反——过期题闸:跨日同标的方向一致才并存,方向相反撤老题;'
@@ -1386,7 +1399,7 @@ def _main():
         except Exception:
             _tops = []
         for o in opposite_after_create({'title': a.title, 'keywords': a.keywords}, _tops):
-            print(f'⚠️ 反向在线题 {o["id"]}「{o.get("title")}」与新题同标的/同品种、方向相反——过期题处置表:新建反向题须撤方向相反的老题(10-26 复盘)\n'
+            print(f'⚠️ 反向在线题 {o["id"]}「{o.get("title")}」与新题同标的/同品种、方向相反且仍在有效期内——过期题处置表:新建反向题须撤方向相反的老题(10-26 复盘;11-14 Q18:已过期的不撤)\n'
                   f'   $ ~/.trend-scout/topic.py cull --id {o["id"]} --rc 反转错向 --note "…"')
     elif a.cmd == 'update':
         cmd_update(a, c)

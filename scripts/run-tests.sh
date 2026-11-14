@@ -1755,6 +1755,12 @@ r=[o['id'] for o in topic.opposite_after_create({'title':'特朗普称暂不打�
 assert r==[3262], r
 assert [o['id'] for o in topic.opposite_after_create({'title':'WTI盘中涨2%','keywords':'WTI'},old)]==[4]
 assert topic.opposite_after_create({'title':'CL概念股跌5%','keywords':'CL'},old)==[]
+# 11-14 用户定 Q18:已过期的反向老题不提示撤、不拦恢复(前台按日期分组,过期题不与新题同列)
+_o=[{'id':7,'status':0,'title':'KOSPI收跌7.6%','keywords':'KOSPI','closed_ts':1000},{'id':8,'status':0,'title':'KOSPI收跌3%','keywords':'KOSPI','closed_ts':9e15}]
+assert [o['id'] for o in topic.opposite_after_create({'title':'KOSPI收涨4.4%','keywords':'KOSPI'},_o)]==[8]
+assert not topic.opposite_live({'id':9,'title':'KOSPI收涨2%','keywords':'KOSPI','closed_ts':1000},_o,'')        # 恢复的题已过期
+assert not topic.opposite_live({'id':9,'title':'KOSPI收涨2%','keywords':'KOSPI','closed_ts':9e15},[_o[0]],'')   # 反向在线题已过期
+assert topic.opposite_live({'id':9,'title':'KOSPI收涨2%','keywords':'KOSPI','closed_ts':9e15},_o,'')            # 都在期仍拦
 # 11-12 用户令修:中文关键词的指数题认不出同标的(3767 台股收跌 vs 3739 台股加权指数收涨)
 tw=[{'id':3739,'status':0,'title':'台股加权指数收涨3.6%，台积电涨4.8%','keywords':'台股,台湾加权指数,台积电,TSMC'},
     {'id':3746,'status':0,'title':'光通信股大涨，剑桥科技港股收涨23%、中际旭创A股涨15%','keywords':'光通信,剑桥科技'},
@@ -2001,6 +2007,9 @@ n=$((n+1)); [ "$_ce" = "True False True False True False" ] || { echo "❌ topic
 n=$((n+1)); grep -q '改数字-回落' "$D/log-action.sh" || { echo "❌ log-action.sh(retro1102b): 枚举缺 改数字-回落"; fail=$((fail+1)); }
 # retro1114b:b0-fetch 翻页上限由 21 页提到可配(默认60),存量全审 09-01 起 3184 条曾只拉到 2100
 n=$((n+1)); grep -q "MAX_PAGES=int(os.environ.get('B0_MAX_PAGES','60'))" "$D/b0-fetch.py" && ! grep -q "pages>20" "$D/b0-fetch.py" || { echo "❌ b0-fetch(retro1114b): 翻页上限仍是 21 页"; fail=$((fail+1)); }
+# 11-14 Q19 第一步:复审员手册与判据卡须带宏观资产例外与美股期货线(漏了复审员会误判)
+_RA="$(dirname "$D")/skills/create-trending-topic/references"; [ -d "$_RA" ] || _RA="$HOME/Desktop/FollowDAO-Trend-Topics/skills/create-trending-topic/references"
+n=$((n+1)); grep -q 'TF_MACRO' "$_RA/review-agent.md" && grep -q 'ES/YM' "$_RA/review-agent.md" && grep -q '宏观资产不受这条个股门槛' "$_RA/cards.md" && grep -q '美股期货同现货线' "$_RA/cards.md" || { echo "❌ review-agent/cards(Q19-1114): 缺宏观资产例外或期货线"; fail=$((fail+1)); }
 # retro1113:伪诱因无撤因码,系统题「板块集体下挫」作诱因被迫借「缺诱因-未达线」(3778 复审挑战成立,撤因码重犯22次)
 n=$((n+1)); grep -q '归因-伪诱因' "$D/log-action.sh" || { echo "❌ log-action.sh(retro1113): 撤因枚举缺 归因-伪诱因"; fail=$((fail+1)); }
 n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import importlib.util as u;s=u.spec_from_file_location('lp','$D/lark-push.py');m=u.module_from_spec(s);s.loader.exec_module(m);assert '归因-伪诱因' in m.enum_rcs() and '归因-伪诱因' in m.RC_HUMAN" 2>/dev/null || { echo "❌ lark-push.py(retro1113): 归因-伪诱因 未解析进枚举或缺人话映射"; fail=$((fail+1)); }
