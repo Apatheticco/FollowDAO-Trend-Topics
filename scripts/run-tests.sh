@@ -87,7 +87,7 @@ done
 LP="/tmp/lark-render.$$"
 if python3 "$D/lark-push.py" render 1788399480000 --fixture "$D/tests/lark-fixtures" > "$LP" 2>"$LP.err"; then
   n=$((n+1))
-  for pat in '建2 改1 撤4' '🗑 撤 4' '✏️ 改 1' '➕ 建 2' '⚠️ 发现的问题' '🔧 修复／处置' '🟡 待裁 1' '📅 到期事件' 'R1 · 处置全清单' 'R2 · 复审与自审' 'R3 · 当前话题' 'R4 · 弃建记录' '独立重算' '覆盖不全，缺 1 条：11985' '挑战 1 条（逐条附处置）' '条发现（全文见台账' '没有标的被定价' '已自推上线' '通道 4/5 ✅' '通道故障 TG探针' '工具层拒写 1 次' '通道恢复 okx跌榜' '📍 用户点名 1 条' '补丁草稿待拍板' 'dev 单 2 条待评估' 'v3.0.1 复审对账改由推送独立重算' '📉 漂移哨兵' 'reason_code 全在 45 项内' '复审抽样自检率'; do
+  for pat in '建2 改1 撤4' '🗑 撤 4' '✏️ 改 1' '➕ 建 2' '⚠️ 发现的问题' '🔧 修复／处置' '🟡 待裁 1' '📅 到期事件' 'R1 · 处置全清单' 'R2 · 复审与自审' 'R3 · 当前话题' 'R4 · 弃建记录' '独立重算' '覆盖不全，缺 1 条：11985' '挑战 1 条（逐条附处置）' '条发现（全文见台账' '没有标的被定价' '已自推上线' '通道 4/5 ✅' '通道故障 TG探针' '工具层拒写 1 次' '通道恢复 okx跌榜' '📍 用户点名 1 条' '补丁草稿待拍板' 'dev 单 2 条待评估' 'v3.0.1 复审对账改由推送独立重算' '📉 漂移哨兵' 'reason_code 全在 46 项内' '复审抽样自检率'; do
     grep -q "$pat" "$LP" || { echo "❌ lark-push render 缺: $pat"; fail=$((fail+1)); }
   done
   grep -qE 'api_key=|Bearer [A-Za-z0-9]|sk-ant-' "$LP" && { echo "❌ lark-push render 疑似凭证泄漏"; fail=$((fail+1)); }
@@ -203,7 +203,7 @@ import importlib.util,os,sys,json,tempfile,shutil,subprocess
 D=os.path.expanduser('~/.trend-scout')
 sp=importlib.util.spec_from_file_location('lp',os.path.join(D,'lark-push.py'))
 lp=importlib.util.module_from_spec(sp); sp.loader.exec_module(lp)
-assert len(lp.enum_rcs())==45, ('枚举应从 log-action.sh 解析到 45 项(v3.7.0 加 纠错-自纠;11-02 加 改数字-回落)', len(lp.enum_rcs()))
+assert len(lp.enum_rcs())==46, ('枚举应从 log-action.sh 解析到 46 项(v3.7.0 加 纠错-自纠;11-02 加 改数字-回落;11-13 加 归因-伪诱因)', len(lp.enum_rcs()))
 T=tempfile.mkdtemp()
 shutil.copytree(os.path.join(D,'tests/lark-fixtures'), T, dirs_exist_ok=True)
 shutil.copy2(os.path.join(D,'log-action.sh'), T)
@@ -1255,6 +1255,14 @@ n=$((n+1)); [ "$(_qa)" = "1 1 1 1" ] || { echo "❌ qualify(v3.7.1): 盲审 18/2
 printf '%s\t\t9001\t错标\tx\n' "$_now" > "$_Q/d.tsv"
 printf '%s\tupdate\t9002\t纠错-自纠\t回归\tA→B\n' "$_now" >> "$_Q/a.tsv"
 n=$((n+1)); [ "$(_qa)" = "1 0 0 1" ] || { echo "❌ qualify(v3.7.1): 下游错标/纠错-自纠 应各判 ✗,得 $(_qa)"; fail=$((fail+1)); }
+# retro1114:推送 run_ts 比清单开跑早 13 秒仍算同轮已推送;10 分钟外无推送仍判 ✗
+_qs=$((_now-7200000)); printf '# mode=刷新 ts=%s src=x\n' "$_qs" > "$_Q/c.tsv"; printf '%s\t%s\tround\t0\t0\toc\tom_x\tok\t-\n' "$_now" "$((_qs-13000))" > "$_Q/l.tsv"
+_q4=$(BLIND_AUDIT="$_Q/b.tsv" DOWNSTREAM_LOG=/dev/null UNLOGGED=/dev/null CHECKLOG="$_Q/c.tsv" CHECKLIST_CUR=/dev/null LARK_LOG="$_Q/l.tsv" ACTIONS=/dev/null python3 -c "import sys;sys.path.insert(0,'$D');import qualify;r=qualify.check(int(sys.argv[1])-10800000,int(sys.argv[1])+1);print([('1' if x[1] else '0') for x in r if x[0]=='跑挂没消息'][0])" "$_now")
+n=$((n+1)); [ "$_q4" = "1" ] || { echo "❌ qualify(retro1114): 推送 run_ts 早于开跑 13 秒应算已推送,得 $_q4"; fail=$((fail+1)); }
+printf '%s\t%s\tround\t0\t0\toc\tom_x\tok\t-\n' "$_now" "$((_qs-1800000))" > "$_Q/l.tsv"
+_q4=$(BLIND_AUDIT="$_Q/b.tsv" DOWNSTREAM_LOG=/dev/null UNLOGGED=/dev/null CHECKLOG="$_Q/c.tsv" CHECKLIST_CUR=/dev/null LARK_LOG="$_Q/l.tsv" ACTIONS=/dev/null python3 -c "import sys;sys.path.insert(0,'$D');import qualify;r=qualify.check(int(sys.argv[1])-10800000,int(sys.argv[1])+1);print([('1' if x[1] else '0') for x in r if x[0]=='跑挂没消息'][0])" "$_now")
+n=$((n+1)); [ "$_q4" = "0" ] || { echo "❌ qualify(retro1114): 30 分钟外才有推送应判无推送,得 $_q4"; fail=$((fail+1)); }
+: > "$_Q/c.tsv"; : > "$_Q/l.tsv"
 # ② 漏建对账:过线且无题无弃建=漏;有题/弃建按名字或 ticker 对上
 _ct=$(python3 -c 'import time;print(time.strftime("%Y-%m-%d %H:%M:%S"))')
 printf '%s' "[{\"id\":1,\"domain\":\"tradfi\",\"status\":0,\"created_at\":\"$_ct\",\"title\":\"巴克莱下调戴尔评级，DELL收跌11%\",\"keywords\":\"DELL,戴尔\"},{\"id\":2,\"domain\":\"tradfi\",\"status\":3,\"created_at\":\"$_ct\",\"title\":\"遭遇诉讼，AST SpaceMobile Inc.跌10%\",\"keywords\":\"ASTS,AST SpaceMobile Inc.\"},{\"id\":3,\"domain\":\"tradfi\",\"status\":3,\"created_at\":\"$_ct\",\"title\":\"x\",\"keywords\":\"NBIS\"}]" > "$_Q/b0.json"
@@ -1747,6 +1755,14 @@ r=[o['id'] for o in topic.opposite_after_create({'title':'特朗普称暂不打�
 assert r==[3262], r
 assert [o['id'] for o in topic.opposite_after_create({'title':'WTI盘中涨2%','keywords':'WTI'},old)]==[4]
 assert topic.opposite_after_create({'title':'CL概念股跌5%','keywords':'CL'},old)==[]
+# 11-12 用户令修:中文关键词的指数题认不出同标的(3767 台股收跌 vs 3739 台股加权指数收涨)
+tw=[{'id':3739,'status':0,'title':'台股加权指数收涨3.6%，台积电涨4.8%','keywords':'台股,台湾加权指数,台积电,TSMC'},
+    {'id':3746,'status':0,'title':'光通信股大涨，剑桥科技港股收涨23%、中际旭创A股涨15%','keywords':'光通信,剑桥科技'},
+    {'id':9,'status':0,'title':'KOSPI收涨3.1%','keywords':'韩国综合指数'}]
+r=[o['id'] for o in topic.opposite_after_create({'title':'英伟达高层风波冲击供应链，台股收跌2.6%、纬颖跌6.5%','keywords':'台股,台湾加权指数,6669.TW,2382.TW'},tw)]
+assert r==[3739], r
+assert [o['id'] for o in topic.opposite_after_create({'title':'恒指收跌3%','keywords':'恒生指数'},tw)]==[], '港股个股题不得算恒指同标的'
+assert [o['id'] for o in topic.opposite_after_create({'title':'韩股收跌3%，三星跌5%','keywords':'^KS11,三星电子'},tw)]==[9]
 PYR
 n=$((n+1)); _o=$(ACTIONS="$(mktemp)" SNAPSHOTS=/dev/null REJ="$(mktemp)" "$D/log-action.sh" note - 系统建放行 '判据=x；实测=y；落此code因=z' 2>&1); echo "$_o" | grep -q 'note 可用: .*留档' || { echo "❌ log-action(10-26 复盘): note rc 非枚举须列出可用码"; fail=$((fail+1)); }
 
@@ -1983,6 +1999,11 @@ print(bool(t.close_too_early('央行研究稳市工具，沪深300报4013点','1
       bool(t.close_too_early('苹果财报超预期，AAPL收涨3%','非当日收盘',['AAPL'],T(2026,11,2,15,0,0))))")
 n=$((n+1)); [ "$_ce" = "True False True False True False" ] || { echo "❌ topic.py(retro1102b): 收盘前写收盘应拦、收盘后/例外放行,得 $_ce"; fail=$((fail+1)); }
 n=$((n+1)); grep -q '改数字-回落' "$D/log-action.sh" || { echo "❌ log-action.sh(retro1102b): 枚举缺 改数字-回落"; fail=$((fail+1)); }
+# retro1114b:b0-fetch 翻页上限由 21 页提到可配(默认60),存量全审 09-01 起 3184 条曾只拉到 2100
+n=$((n+1)); grep -q "MAX_PAGES=int(os.environ.get('B0_MAX_PAGES','60'))" "$D/b0-fetch.py" && ! grep -q "pages>20" "$D/b0-fetch.py" || { echo "❌ b0-fetch(retro1114b): 翻页上限仍是 21 页"; fail=$((fail+1)); }
+# retro1113:伪诱因无撤因码,系统题「板块集体下挫」作诱因被迫借「缺诱因-未达线」(3778 复审挑战成立,撤因码重犯22次)
+n=$((n+1)); grep -q '归因-伪诱因' "$D/log-action.sh" || { echo "❌ log-action.sh(retro1113): 撤因枚举缺 归因-伪诱因"; fail=$((fail+1)); }
+n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import importlib.util as u;s=u.spec_from_file_location('lp','$D/lark-push.py');m=u.module_from_spec(s);s.loader.exec_module(m);assert '归因-伪诱因' in m.enum_rcs() and '归因-伪诱因' in m.RC_HUMAN" 2>/dev/null || { echo "❌ lark-push.py(retro1113): 归因-伪诱因 未解析进枚举或缺人话映射"; fail=$((fail+1)); }
 
 # v3.7.22 检查计数 + 减法候选(用户 11-03 定):拦截/豁免都要记得上检查名,retro 才能列退役候选
 _K=$(mktemp -d); echo '[]' > "$_K/b0.json"
@@ -2130,6 +2151,42 @@ n=$((n+1)); [ "$_bmh" = "ZEC 1000000000.0 10.0 1000000000.0" ] || { echo "❌ ho
 _bmu=$(cd "$D" && COVERAGE_BN="$_cbh" COVERAGE_BN_EQUITY=SKHYNIXUSDT python3 -W ignore -c "import importlib.util as u;s=u.spec_from_file_location('c','coverage.py');c=u.module_from_spec(s);s.loader.exec_module(c);r=','.join(x[0] for x in c.bn_movers());print(r, any('市值取不到' in b for b in c.BLIND))")
 n=$((n+1)); [ "$_bmu" = "ZEC,INIT True" ] || { echo "❌ hot1111c: 市值取不到时热点币应按过线报并记半盲,得 $_bmu"; fail=$((fail+1)); }
 rm -f "$_cbh" "$_mch"
+
+# retro1111:①亚洲指数弃建只认备注日期=今天(台股 11-10 弃建备注引了错读数 +7.6%,盖住 11-11 收涨 3.6%)②restore 可用「用户点名」
+_r11=$(cd "$D" && COVERAGE_NOW_MS=1794379446000 python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('c','coverage.py');c=u.module_from_spec(s);s.loader.exec_module(c)
+old='弃建|台股加权|Yahoo ^TWII 显示+7.6%系前收取错;按11-09收算今收=+2.5%,未过±3%线|2026-11-10'
+new='弃建|台股加权|今收+3.3%,测试|2026-11-11'
+print(c.covered('^TWII',{'台股'},[],[old],pct=3.6,line=3.0,idx=True)[0], c.covered('^TWII',{'台股'},[],[new],pct=3.6,line=3.0,idx=True)[0], c.covered('SPY',{'标普'},[],['弃建|SPY|盘中-2.5%|2026-11-10'],pct=-2.6,line=2.0,idx=True)[0])")
+n=$((n+1)); [ "$_r11" = "None 弃建 弃建" ] || { echo "❌ retro1111①: 亚洲指数弃建应只认当天备注(美股不受影响),得 $_r11"; fail=$((fail+1)); }
+_R11=$(mktemp -d)
+ACTIONS="$_R11/a.tsv" SNAPSHOTS="$_R11/s.tsv" REJ="$_R11/r.tsv" bash "$D/log-action.sh" restore 99990001 用户点名 "测试:用户点名恢复,回归用例" >/dev/null 2>&1
+n=$((n+1)); grep -q '用户点名' "$_R11/a.tsv" 2>/dev/null || { echo "❌ retro1111②: restore+用户点名 应放行"; fail=$((fail+1)); }
+rm -rf "$_R11"
+
+# weight1112(用户 11-12 批):①判档三修——DIA 词边界/点名公司认发行价与估值金额/加密域认美股代码 ②系统建美股题窗口短且属 A/B 档→机审⑤提示自建承接
+_w12=$(cd "$D" && python3 -W ignore -c "
+import sys;sys.path.insert(0,'.');import weight as W
+c=lambda d,t,k='':W.classify(d,t,k)[0]
+print(c('tradfi','MEDIA板块走强，PARA涨8%'),c('tradfi','印度Sensex收跌3%，INDIA ETF跌2.8%'),c('tradfi','董事会据报准备罢免黄仁勋，NVIDIA Corporation盘后跌7.3%','NVDA'),c('tradfi','美股三大指数收涨，SPY涨1.3%、QQQ涨2.3%'),c('crypto','MSCI将Strategy剔出指数，MSTR夜盘跌2.2%'),c('crypto','Coinbase永续新增GRAM、GRASS、QNT、ZRO','GRAM'),c('tradfi','FT称Anthropic拟上调发行价，估值或超1.5万亿美元'),c('tradfi','Anthropic发布新模型，估值传闻不改'))")
+n=$((n+1)); [ "$_w12" = "B C A A B C A C" ] || { echo "❌ weight1112①: 判档得 $_w12"; fail=$((fail+1)); }
+_s12=$(cd "$D" && python3 -W ignore -c "
+import sys;sys.path.insert(0,'.');import lint
+N=1794448000000
+a=lint.short_window({'domain':'tradfi','created_at':'2026-11-12 08:02:36','closed_ts':1794441922537,'title':'董事会据报准备罢免黄仁勋，NVIDIA Corporation盘后跌7.3%','keywords':'NVDA'},N) or ''
+b=lint.short_window({'domain':'tradfi','created_at':'2026-11-12 08:02:36','closed_ts':1794441922537,'title':'拟通过优质贷款融资，CoreWeave Inc.盘后跌6.8%','keywords':'CRWV'},N) or ''
+d=lint.short_window({'domain':'tradfi','created_at':'2026-11-12 09:48:20','closed_ts':1794534500000,'title':'CoreWeave重燃AI交易，费半收涨5.7%'},N)
+print('自建' in a, '不必承接' in b, d is None)")
+n=$((n+1)); [ "$_s12" = "True True True" ] || { echo "❌ weight1112②: 窗口短提示得 $_s12"; fail=$((fail+1)); }
+
+# retro1112(11-12 每晚复盘):①大宗/宏观资产不进 tradfi 单名 5% 门槛(金价两次靠例外放行) ②--pct 写成 bn:/yahoo: 时提示先跑 pct.py 拿数字
+_r12=$(cd "$D" && python3 -W ignore -c "
+import sys;sys.path.insert(0,'.');import topic,pct
+a=topic.tradfi_floor('tradfi','美联储加息押注升温，COMEX金价跌2.8%失守3900美元','x')
+b=topic.tradfi_floor('tradfi','订单不及预期，ABCD跌2.8%','x')
+c=pct.check('JCT 24小时跌50%',['JCT=bn:JCTUSDT'])
+print(a is None, b is not None, 'pct.py bn' in c[0][1])")
+n=$((n+1)); [ "$_r12" = "True True True" ] || { echo "❌ retro1112: 大宗豁免/--pct 提示得 $_r12"; fail=$((fail+1)); }
 
 # monday1109(用户 11-09 定):美股期货进指数对账线(ES 2%/NQ 2.5%/YM 2%);首扫通道含期货夜盘与周一前瞻
 _fq=$(mktemp); printf '%s' '{"ES=F":[7200,7402,"FUTURE"],"NQ=F":[27000,27085,"FUTURE"]}' > "$_fq"

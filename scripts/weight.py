@@ -76,6 +76,12 @@ def classify(domain, title, kws='', note=''):
         return tier, T[tier]['weight'], why
 
     if domain == 'crypto':
+        # 11-12 修:加密域标题出现美股大写代码(MSTR/COIN 等整词;不认 Coinbase/Circle 这类机构名)→按美股主体判
+        #   实录:「MSCI将Strategy剔出指数，MSTR夜盘跌2.2%」原判 D 小币
+        for names, tier, lab in ((_megacap_names(), 'A', '超大盘股'), (c.get('core_us') or {}, 'B', '核心池')):
+            for tk in names:
+                if re.search(r'(?<![A-Za-z])' + re.escape(tk) + r'(?![A-Za-z])', title):
+                    return out(tier, f'{lab}({tk},加密域)')
         majors = set(c['major_coins'])
         if any(k.upper() in majors for k in ks) or any(re.search(r'(?<![A-Za-z])' + m + r'(?![A-Za-z])', title) for m in majors) \
                 or any(a.upper() in hay.upper() for a in c.get('major_coin_aliases', [])):
@@ -118,8 +124,10 @@ def classify(domain, title, kws='', note=''):
 
     if not asia and re.search(c['us_index'], title):
         return out('A', f'美股指数({re.search(c["us_index"], title).group(0)})')
-    if re.search(c['mega_deal_words'], title) and (any(n.lower() in title.lower() for n in c['mega_deal_names'])
-                                                   or _yi_usd(title) >= c.get('mega_deal_min_usd_yi', 100)):
+    # 11-12 修:点名公司(Anthropic 等)另认发行价/定价/招股/估值+金额——「FT称Anthropic拟上调发行价，估值或超1.5万亿美元」原判 C
+    _named = any(n.lower() in title.lower() for n in c['mega_deal_names'])
+    if (_named and re.search(c.get('mega_deal_name_words') or c['mega_deal_words'], title)) or \
+            (re.search(c['mega_deal_words'], title) and _yi_usd(title) >= c.get('mega_deal_min_usd_yi', 100)):
         return out('A', '百亿美元级IPO/并购')
 
     # 单名题看主体;认不出主体才看全标题

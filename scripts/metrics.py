@@ -96,7 +96,7 @@ def main():
 
     # ⑤ 返工率：我建的题在 8h 内被我 update(非状态修正)
     ct={rid:ts for ts,rid,_ in _cr}
-    REWORK_RC={'改归因','改口径-时段','事实错误-数字','事实错误-定义','反转错向','归因-借源造因','归因-反向','tag修正','纠错-自纠'}   # v3.7.0 加 纠错-自纠  # 定稿/命名/承接是正常代谢,不算返工
+    REWORK_RC={'改归因','改口径-时段','事实错误-数字','事实错误-定义','反转错向','归因-借源造因','归因-伪诱因','归因-反向','tag修正','纠错-自纠'}   # v3.7.0 加 纠错-自纠  # 定稿/命名/承接是正常代谢,不算返工
     rework={str(r[2]) for r in acts if r[1]=='update' and r[3] in REWORK_RC and str(r[2]) in ct and 0<r[0]-ct[str(r[2])]<=8*3600*1000}
     P(f"\n## ⑤ 返工率：{len(rework)}/{len(ct)} = {100*len(rework)/max(1,len(ct)):.0f}%（建后 8h 内改归因/改口径/事实错误/反转；定稿与命名不算）")
     for i in sorted(rework): P(f"  - {i}")

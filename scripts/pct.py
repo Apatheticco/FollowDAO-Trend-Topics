@@ -64,7 +64,7 @@ def check(title, specs):
     for sp in specs:
         m = re.fullmatch(r'\s*(.+?)\s*=\s*([\d.]+)\s*/\s*([\d.]+)\s*', sp)
         if not m:
-            out.append(('FAIL', f'--pct 格式应为 标签=现价/前收,收到「{sp}」'))
+            out.append(('FAIL', f'--pct 格式应为 标签=现价/前收,收到「{sp}」' + ('——--pct 只收数字:先跑 pct.py bn <合约> 或 pct.py yahoo <代码> 拿现价/前收(或开盘)再填' if re.search(r'=\s*(bn|yahoo|okx)\b', sp) else '')))
             continue
         lab, last, prev = m.group(1), m.group(2), m.group(3)
         x = change(last, prev)

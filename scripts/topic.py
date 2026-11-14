@@ -855,7 +855,7 @@ def dup_target(rc, note, self_id, getter):
             return None
         seen.append(i)
     return (f'备注引用的留存题 {",".join(seen)} 都已不在线——没有留存题就不是重复;按真因换码'
-            f'(诱因对不上=归因-借源造因,数字被推翻=事实错误-数字,未过线=缺诱因-未达线)')
+            f'(诱因对不上=归因-借源造因,诱因只是复述价格=归因-伪诱因,数字被推翻=事实错误-数字,未过线=缺诱因-未达线)')
 
 
 def _ts(x):
@@ -911,10 +911,31 @@ def _kw(x):
     return {k.strip().lower() for k in re.split(r'[,，]', x.get('keywords') or '') if re.search(r'[A-Za-z]', k) and not re.search(r'[\u4e00-\u9fff]', k)}
 
 
+# 11-12 用户令修:建 10000003767「台股收跌2.6%」没提示撤 10000003739「台股加权指数收涨3.6%」——两题关键词全是中文
+#   (台股/台湾加权指数),_kw 只认含字母的词,FAMILY 又没有指数族。指数族单一定义在 coverage.IDX(对账线同一张表),
+#   这里只去掉常作个股前缀的泛词(「剑桥科技港股收涨」「XX日股跌」会被误当成恒指/日经)。
+IDX_BROAD = {'港股', '日股', '韩股'}
+_IDX_FAM = None
+
+
+def _idx_family():
+    global _IDX_FAM
+    if _IDX_FAM is None:
+        try:
+            import importlib.util as _u
+            _s = _u.spec_from_file_location('_cov', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'coverage.py'))
+            _c = _u.module_from_spec(_s); _s.loader.exec_module(_c)
+            _IDX_FAM = [tuple({k.lower().lstrip('^')} | {w.lower() for w in ws if w not in IDX_BROAD}) for k, (_, ws) in _c.IDX.items()]
+        except Exception:
+            _IDX_FAM = []
+    return _IDX_FAM
+
+
 def _fam(x):
     s = ((x.get('title') or '') + ',' + (x.get('keywords') or '')).lower()
     toks = set(re.findall(r'[a-z][a-z0-9=]*', s))
-    return {i for i, g in enumerate(FAMILY) if any((w in toks) if re.match(r'[a-z]', w) else (w in s) for w in g)}
+    return {i for i, g in enumerate(FAMILY + _idx_family())
+            if any((w in toks) if re.fullmatch(r'[a-z][a-z0-9=]*', w) else (w in s) for w in g)}
 
 
 def _same_asset(t, o):
@@ -1000,6 +1021,8 @@ def close_too_early(title, note, kws, now=None):
 
 
 # 11-07 周报通读:单字「指」把「业绩指引/指控/指出」也当成指数词放行,5% 门槛形同虚设——只认完整指数名
+# 11-12 复盘:5% 门槛是给单名个股定的;大宗/宏观资产(金价、原油、美元、美债)两次被它拦、都靠「低于5%仍建」放行(10000003523、10000003781),改为不进此闸
+TF_MACRO = re.compile(r'金价|黄金|白银|银价|原油|布油|美油|油价|WTI|天然气|铜价|美元指数|美债|收益率|汇率|GC=F|CL=F|BZ=F|SI=F|XAU')
 TF_INDEX = re.compile(r'指数|成指|台指|国指|科指|ETF|KOSPI|日经|标普|纳指|道指|恒指|恒生|沪深|上证|深证|创业板|科创|费半|SPY|QQQ|SOXX|DIA|股集体|板块|概念股|类股')
 
 
@@ -1050,7 +1073,7 @@ def tradfi_floor(domain, title, note, kws=None):
     """11-02 用户定(W43/W44 盲审分歧):tradfi 单名有实在直接诱因时幅度门槛 5%,<5% 视同无诱因。
     11-09 用户定(NVDA 黄仁勋调查夜盘 -3.2% 被 5% 线拦、用户点名「建」后改规则):市值前10超大盘股(megacap.json)门槛 3%。
     只看标题里「涨/跌X%」;没有百分数(宏观题报X)、含指数/ETF/板块词的不拦;例外在备注写「低于5%仍建:<理由>」。"""
-    if (domain or '') != 'tradfi' or '低于5%仍建' in (note or '') or TF_INDEX.search(title or ''):
+    if (domain or '') != 'tradfi' or '低于5%仍建' in (note or '') or TF_INDEX.search(title or '') or TF_MACRO.search(title or ''):
         return None
     xs = [float(x) for x in re.findall(r'(?:涨|跌)(\d+(?:\.\d+)?)%', title or '')]
     mc = megacap_hit(title, kws)

@@ -462,6 +462,14 @@ def created_notes(hours=48):
         return {}
 
 
+ASIA_IDX = {'^KS11', '^N225', '^HSI', '^TWII'}
+
+
+def _today_cst():
+    now = int(os.environ.get('COVERAGE_NOW_MS') or time.time() * 1000) / 1000
+    return time.strftime('%Y-%m-%d', time.gmtime(now + 8 * 3600))
+
+
 def covered(sym, names, live, notes, pct=None, line=None, cnotes=None, idx=False):
     """pct 给了就比方向(10-22 复盘:AGT 当日 +34% 被匹配到 10-21『AGT 24小时跌35%』算有题,漏建被盖住)——
     题目标题只含涨(或只含跌)且与当前涨跌方向相反,不算有题;涨跌都含或都不含的不判。"""
@@ -499,6 +507,12 @@ def covered(sym, names, live, notes, pct=None, line=None, cnotes=None, idx=False
             # 指数的弃建只在当时读数与现读数相差 ≤1 个百分点时算数,行情明显扩大就得重判(多半该建)
             if idx and pct is not None and (not _nums or abs(pct) - max(_nums) > 1.0):
                 continue
+            # 11-11 复盘:台股今收 +3.6% 被 11-10 的『弃建|台股加权|Yahoo 显示+7.6%系前收取错…今收+2.5%…|2026-11-10』盖住——
+            # 备注里引的错读数(7.6)当了 max,≤1pp 闸失效。亚洲指数每天一个交易日:弃建只认备注日期=今天(北京时间)的
+            if idx and sym in ASIA_IDX:
+                _d = re.search(r'[|｜]\s*(\d{4}-\d{2}-\d{2})\s*$', n.strip())
+                if _d and _d.group(1) != _today_cst():
+                    continue
             return '弃建', n[:40]
     return None, None
 

@@ -56,6 +56,7 @@ def main():
     if 'error' in r: raise SystemExit(f"🚨 initialize 失败: {r['error']}")
     try: rpc(url,headers,{"jsonrpc":"2.0","method":"notifications/initialized"},sid)
     except Exception: pass
+    MAX_PAGES=int(os.environ.get('B0_MAX_PAGES','60'))
     topics=[]; offset=0; total=None; pages=0
     while True:
         args={"start_date":start,"end_date":end,"limit":100,"offset":offset}
@@ -67,7 +68,7 @@ def main():
         if not txt: raise SystemExit(f"🚨 无 text 内容: {json.dumps(r)[:300]}")
         d=json.loads(txt)
         topics+=d.get('topics',[]); total=d.get('total'); pages+=1
-        if not d.get('has_more') or pages>20: break
+        if not d.get('has_more') or pages>=MAX_PAGES: break   # 11-14 周报:原 >20 页即停,存量全审 09-01 起 3184 条只拉到 2100
         offset+=100
     seen=set(); uniq=[]
     for t in topics:

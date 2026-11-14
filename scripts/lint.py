@@ -493,7 +493,10 @@ def audit(path, since=None):
     # 7 系统建 status=0 新题
     hdr('⑤ 系统建 status=0 且非我建(过双要素闸;--since 后建的)')
     sysnew=[t for t in online if str(t['id']) not in mine and (since is None or _ts(t.get('created_at'))>since)]
-    for t in sysnew: rows.append(f"  {t['id']}  {t['_age']:.1f}h  {t['title']}")
+    for t in sysnew:
+        rows.append(f"  {t['id']}  {t['_age']:.1f}h  {t['title']}")
+        _sw=short_window(t,_now_ms)
+        if _sw: rows.append('      '+_sw)
     if not sysnew: rows.append('  (无)')
     # ⑥ 灌水形态机械撤候选(v2.9.83):待审 + 系统新建 里无价格腿且命中形态的,给撤因;只列不撤,执行用 b0-cull.py
     # v3.1.5(提案5-2) 价格动作前置检查:形态命中 ≠ 可撤。A闸铁律「有真实价格动作一律留」优先于形态判定——
@@ -585,6 +588,32 @@ def audit(path, since=None):
     if not hot: rows.append('  (无)')
     rows.append(f"\nAUDIT: 在线={len(online)} ≤8h={len(le8)}(含隔夜{len(ovn)}) 待审={len(pend)}(s2={sum(1 for t in pend if t.get('status')==2)},s1={sum(1 for t in pend if t.get('status')==1)}) 窗口题={len(w)} 聚簇组={g} 标题命中={hits} 超长={longn} 系统新建={len(sysnew)} 机械撤候选={nj}(未检查={nck}) 热点候选={hot}")
     return '\n'.join(rows)
+
+def short_window(t, now_ms):
+    """11-12 用户批:系统建美股题有效期短——已过期,或到期早于建题当天 23:59(北京时间)——前台就不显示
+    (今日列表只列有效期内的题,往日列表只列当天 23:59 仍有效的题),权重同步也碰不到。属 A/B 档 → 自建 24 小时题承接、原题撤(重复-同标的)。
+    实录:11-12 08:02「董事会据报准备罢免黄仁勋」系统题 08:05 到期,当天最大新闻前台缺席。返回提示文字或 None。"""
+    if (t.get('domain') or '') != 'tradfi' or not t.get('closed_ts'):
+        return None
+    c = _ts(t.get('created_at'))
+    if not c:
+        return None
+    close = float(t['closed_ts'])
+    day_end = (int((c / 1000 + 8 * 3600) // 86400) + 1) * 86400 - 8 * 3600 - 60   # 建题当天 23:59 北京时间(秒)
+    if close >= day_end * 1000 and close >= now_ms:
+        return None
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import weight as _W
+        tier = _W.classify(t.get('domain'), t.get('title') or '', t.get('keywords') or '')[0]
+    except Exception:
+        tier = '?'
+    left = (close - now_ms) / 3.6e6
+    state = '已过期·前台不显示' if left < 0 else f'剩{left:.1f}h·当天23:59前到期'
+    if tier in ('A', 'B'):
+        return f'⏳ 窗口短({state}),{tier}档 → 自建24小时题承接、原题撤 重复-同标的(11-12 用户批)'
+    return f'⏳ 窗口短({state}),{tier}档 → 不必承接'
+
 
 def _ts(created):
     try: return int(datetime.datetime.strptime(created,'%Y-%m-%d %H:%M:%S').timestamp()*1000)

@@ -89,7 +89,11 @@ def check(lo, hi):
             starts.append(m.group(1))       # 进行中的轮次也算:开了跑却没推,正是这条要抓的
     # 主消息发出即算有消息:partial=主卡已到、线程回复被 429 限流(10-09/10-13 各一次),不是「没消息」
     ok = {x[1] for x in _tsv(_p('LARK_LOG', 'lark-push.log.tsv')) if len(x) >= 8 and x[7] in ('ok', 'partial') and x[6] not in ('', '-')}
-    miss = [s for s in starts if s not in ok and int(s) < hi - 3600 * 1000]   # 开跑不足 1 小时的不判
+    # 11-14 周报:推送 run_ts 常取 §0 的 date 时刻,比 checklist.sh start 早十几秒(11-12/13 四轮均已推送却被判「无推送」)
+    # ——同轮判据改为 ±10 分钟内有成功推送(两轮最短间隔 >3h,不会串轮)
+    _okn = sorted(int(t) for t in ok if str(t).isdigit())
+    _near = lambda s: any(abs(t - int(s)) <= 600 * 1000 for t in _okn)
+    miss = [s for s in starts if s not in ok and not _near(s) and int(s) < hi - 3600 * 1000]   # 开跑不足 1 小时的不判
     res.append(('跑挂没消息', not miss, f'{len(starts)} 轮,无推送 {len(miss)} 轮'
                 + (' (' + ','.join(time.strftime('%m-%d %H:%M', time.localtime(int(s) / 1000)) for s in miss[:4]) + ')' if miss else '')))
     return res
