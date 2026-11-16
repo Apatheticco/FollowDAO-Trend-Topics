@@ -740,7 +740,7 @@ VOL_EXEMPT_AMP = float(os.environ.get('TS_VOL_AMP', '50'))   # 11-06 用户定:�
 
 
 def vol_only_exempt(note):
-    """v3.7.18(10-26 用户定「收紧到±15%」):meme 豁免②「24h 成交额>2亿」单独成立时,还须 24h 涨跌 ≥±15%。
+    """v3.7.18(10-26 用户定「收紧到±15%」,11-06 再上调到 ±50%,常量 VOL_EXEMPT_AMP):meme 豁免②「24h 成交额>2亿」单独成立时,还须 24h 涨跌 ≥±50%(实际已与①重合,成交额只作佐证)。
     由来:盲审 W42 BAT 涨11%(靠成交额留)用户判撤;同周 IN 涨2.2%、CAP 涨15% 也是只靠成交额留的。
     四查只有成交额 ✓、其余全 ✗ 时,备注里的 24h 读数须有一个 |x|≥15,否则拦(该撤:缺诱因-未达线,四查行成交额记 ✗)。"""
     n = note or ''
@@ -797,6 +797,9 @@ def _meme_24h(sym):
     return None
 
 
+STABLES = {'USDT','USDC','PYUSD','RLUSD','DAI','USDE','USDS','FDUSD','TUSD','USD1','USDG','FRAX','GHO','USDD','USDP'}
+
+
 def sicha_auto(t, rc, note, reader=_meme_24h):
     """11-05 用户定「交给工具」:撤 meme 题四查行近 30 天拦 18 次、12 道补完照撤——前三格工具算,只有硬事件人判。
     返回 (动作, 内容):('skip',None) 不适用;('block',提示) 拦;('fill',四查行) 工具写好的四查行(四格全 ✗)。
@@ -814,9 +817,13 @@ def sicha_auto(t, rc, note, reader=_meme_24h):
     title = t.get('title') or ''
     kws = [k.strip() for k in re.split(r'[,，]', t.get('keywords') or '') if k.strip()]
     sym = next((k for k in kws if re.fullmatch(r'[A-Za-z0-9]{2,12}', k)), None) or (re.findall(r'\b[A-Z][A-Z0-9]{1,11}\b', title) or [None])[0]
+    # retro1114:稳定币不是 meme,四查不适用(14042 RLUSD/PYUSD 撤题被拦两次、第二次被改码成缺诱因-未达线)
+    if (sym or '').upper() in STABLES or any(k.upper() in STABLES for k in kws):
+        return 'skip', None
     got = reader(sym) if sym else None
     if got is None:
-        return 'block', f'meme 四查①幅度取不到数({sym or "认不出代号"}:币安永续/现货、OKX 永续都没有)——人工实测后自己写四查行'
+        return 'block', (f'meme 四查①幅度取不到数({sym or "认不出代号"}:币安永续/现货、OKX 永续都没有)——人工实测后自己写四查行,'
+                         f'格式须逐字:「四查: 幅度✗ 成交额✗ 市值关口✗ 硬事件✗」(✓/✗ 按实测填)')
     x, qv, src = got
     amp = abs(x) >= CRYPTO_LINE
     m = re.search(r'成交额?\s*([\d.]+)\s*亿', title)
@@ -1271,6 +1278,10 @@ def cmd_check(path):
     for ln in src:
         ln = ln.strip()
         if not ln or ln.startswith('#'):
+            continue
+        # 11-16:批量文件真写时逐行 eval,双引号里的 $1/$7 会被 shell 展开吞掉(3806『$109B』→『09B』、3807『$70 to $78』→『0 to 8』)
+        if re.search(r'"[^"]*\$[0-9A-Za-z_{(][^"]*"', ln):
+            cmds.append((ln, None, '双引号里有「$数字/$变量」,逐行 eval 真写时会被 shell 展开吞字——美元写成「美元」或改用单引号'))
             continue
         try:
             args = shlex.split(ln)

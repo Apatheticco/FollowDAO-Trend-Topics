@@ -10,7 +10,7 @@ case "$S" in
     echo "▶ status=0 ≤8h(轮内射程):"
     if [ -n "$DEV" ]; then
       D=$(echo "$DEV" | tr -d '%+-')
-      B=$(awk -v d="$D" 'BEGIN{ if(d>=50)print "强撤(>50%反向=退场复查)"; else if(d>25)print "撤(>25%)"; else if(d>=10)print "升温update(≥10%)"; else print "容差内不动(<10%)" }')
+      B=$(awk -v d="$D" 'BEGIN{ if(d>50)print "强撤(>50%反向=退场复查)"; else if(d>25)print "撤(>25%)"; else if(d>=10)print "升温update(≥10%)"; else print "容差内不动(<10%)" }')
       echo "  ↳ 偏差 ${DEV}% → $B"
     else
       echo "  偏差档:≥10%升温update ｜ >25%撤 ｜ >50%反向强撤"

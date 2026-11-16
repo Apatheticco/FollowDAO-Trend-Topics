@@ -16,6 +16,9 @@ export DS_CLASH="$(mktemp)" DS_NAMES="$(mktemp)"; echo '{}' > "$DS_NAMES"
 # 11-10:「建题前须有本轮 B0」这道检查读的是生产 b0-latest.json 的新旧——轮外跑回归、B0 超 2 小时时,凡是走 topic.py create 的旧用例
 #   全被它先拦下(11-10 12:30 实测 12 条假失败)。回归里统一关掉;这道检查自己的用例(q1107)用 env -u 单独打开。
 export TS_NO_B0CHECK=1
+# 11-15:meme 闸用例里的 SHROOM 是真实小币,依赖交易所实时上架状态;它下架后 5 条用例同时变红(不是规则退化)。
+# 用例里的真实代币一律钉在 tests/token-exist-pinned.json,单条用例自带 TOKEN_EXISTS_JSON 的照旧用自己的
+export TOKEN_EXISTS_JSON="${TOKEN_EXISTS_JSON:-$D/tests/token-exist-pinned.json}"
 # v3.7.33 判据卡试跑:打印记录/去重状态落临时文件(试跑结算靠生产 card-usage.tsv,回归不许刷);
 #   旧用例不看卡片,一律只记不打(CARD_QUIET),免得改变它们比对的输出。卡片自己的用例(cards1110)单独打开。
 export CARD_USAGE="$(mktemp)" CARD_SEEN="$(mktemp)" CARD_QUIET=1
@@ -2010,6 +2013,23 @@ n=$((n+1)); grep -q "MAX_PAGES=int(os.environ.get('B0_MAX_PAGES','60'))" "$D/b0-
 # 11-14 Q19 第一步:复审员手册与判据卡须带宏观资产例外与美股期货线(漏了复审员会误判)
 _RA="$(dirname "$D")/skills/create-trending-topic/references"; [ -d "$_RA" ] || _RA="$HOME/Desktop/FollowDAO-Trend-Topics/skills/create-trending-topic/references"
 n=$((n+1)); grep -q 'TF_MACRO' "$_RA/review-agent.md" && grep -q 'ES/YM' "$_RA/review-agent.md" && grep -q '宏观资产不受这条个股门槛' "$_RA/cards.md" && grep -q '美股期货同现货线' "$_RA/cards.md" || { echo "❌ review-agent/cards(Q19-1114): 缺宏观资产例外或期货线"; fail=$((fail+1)); }
+# retro1114c:稳定币撤题不走 meme 四查;有事件诱因后并列第二标的给 WARN
+n=$((n+1)); python3 -c "
+import sys,importlib.util as u;sys.path.insert(0,'$D')
+s=u.spec_from_file_location('tp','$D/topic.py');tp=u.module_from_spec(s);s.loader.exec_module(tp)
+assert tp.sicha_auto({'title':'RLUSD市值反超PYUSD，稳定币格局生变','keywords':'PYUSD,RLUSD'},'缺价格腿','x',reader=lambda s:None)==('skip',None)
+import lint
+w=lambda t:'并列暗示因果' in [x[1] for x in lint.lint_title(t,'tradfi')]
+assert w('NBIS财报后续跌，收跌9.9%、CRWV跌6.1%') and w('美国调查超微电脑涉服务器走私，IONQ跌6.8%、SMCI跌3%')
+assert not w('费半指数收跌3.4%，AMD跌8.8%、MRVL跌4.7%') and not w('光通信股大涨，COHR收涨17%、LITE涨11%')
+" 2>/dev/null || { echo "❌ topic/lint(retro1114c): 稳定币四查豁免或并列暗示因果 WARN 失效"; fail=$((fail+1)); }
+# retro1114d:route.sh 强撤边界与 gates:104「>50pp」对齐(正好 50 不算强撤)
+n=$((n+1)); "$D/route.sh" 0 2 50 2>/dev/null | grep -q '强撤' && { echo "❌ route.sh(retro1114d): 偏差正好 50pp 不应判强撤"; fail=$((fail+1)); }
+n=$((n+1)); "$D/route.sh" 0 2 51 2>/dev/null | grep -q '强撤' || { echo "❌ route.sh(retro1114d): 偏差 51pp 应判强撤"; fail=$((fail+1)); }
+# retro1116:批量预检拦双引号内 $数字(eval 真写会吞字)
+_DQ=$(mktemp); printf '%s\n' 'create --domain tradfi --title "X涨10%" --keywords "X" --rc 有诱因-多源 --note "营收到$109B"' > "$_DQ"
+n=$((n+1)); "$D/topic.py" check "$_DQ" 2>&1 | grep -q '双引号里有' || { echo "❌ topic.py check(retro1116): 双引号内 \$数字 应被拦"; fail=$((fail+1)); }
+rm -f "$_DQ"
 # retro1113:伪诱因无撤因码,系统题「板块集体下挫」作诱因被迫借「缺诱因-未达线」(3778 复审挑战成立,撤因码重犯22次)
 n=$((n+1)); grep -q '归因-伪诱因' "$D/log-action.sh" || { echo "❌ log-action.sh(retro1113): 撤因枚举缺 归因-伪诱因"; fail=$((fail+1)); }
 n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import importlib.util as u;s=u.spec_from_file_location('lp','$D/lark-push.py');m=u.module_from_spec(s);s.loader.exec_module(m);assert '归因-伪诱因' in m.enum_rcs() and '归因-伪诱因' in m.RC_HUMAN" 2>/dev/null || { echo "❌ lark-push.py(retro1113): 归因-伪诱因 未解析进枚举或缺人话映射"; fail=$((fail+1)); }

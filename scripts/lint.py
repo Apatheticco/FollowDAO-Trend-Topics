@@ -34,6 +34,8 @@ WINDOW   = re.compile(r'短时|短期|短线|九小时|24小时|24h|日内|两�
 STALE    = re.compile(r'[收]?[涨跌]\s*\d+(\.\d+)?%|报\s*[\d.]|市值[^，。]{0,4}[\d.]|创?新高|创?新低')
 RELATION = re.compile(r'连涨|连跌|新高|新低|首次|最长|最大|以来|创纪录|纪录|史上|翻倍|腰斩|N倍|[0-9]+倍')
 CAUSAL   = re.compile(r'压涨幅|推升|拖累|抵消|受.{1,8}(影响|提振|拖累)|带动|提振|引发|推动|导致|因.{1,10}而')
+PAIR_LEAD = re.compile(r'财报|指引|业绩|营收|调查|诉讼|起诉|罚款|下调|上调|评级|收购|并购|合作|获批|批准|遭|辞任|离任|增发|融资|回购')
+PAIR_TAIL = re.compile(r'、\s*[A-Za-z][A-Za-z0-9.\-]{0,9}\s*(?:盘中|盘前|盘后|夜盘|收)?(?:涨|跌)')
 FORECAST = re.compile(r'将于|拟于|将公布|待公布|即将|今晚|明日|定于|本周将|下周|本月将|将进行|待揭晓')   # 10-23 补:13473「本月将进行链上表决」、13495「规则待揭晓」
 
 
@@ -266,6 +268,10 @@ def lint_title(t, domain='crypto'):
     if m: out.append(('INFO','关系型修饰',f'「{m.group(0)}」须当场校验(52w高低/源原句),复查时单独验关系是否仍成立','v2.9.30/40/10'))
     m=CAUSAL.search(t)
     if m: out.append(('WARN','因果连接词',f'「{m.group(0)}」须有源直接说出这句归因;把它换成「同时」念一遍,信息量不减=硬加的','v2.9.51/52'))
+    # retro1114:有事件诱因的标题后面再「、X涨/跌」并列第二个标的,读者会读成两者同因(3799 NBIS财报+CRWV,复审挑战·归因重犯13次)
+    _lead, _sep, _rest = re.split(r'([，,])', t, maxsplit=1) if re.search(r'[，,]', t) else (t, '', '')
+    if _sep and PAIR_LEAD.search(_lead) and PAIR_TAIL.search(_rest):
+        out.append(('WARN','并列暗示因果',f'诱因「{_lead}」后又并列「{PAIR_TAIL.search(_rest).group(0)}」——源里须同句说它也因此而动,否则拆开或删(硬闸1:两件事并列同样算暗示因果)','retro1114'))
     if FORECAST.search(t): out.append(('INFO','预告题','豁免价格反应腿,禁拿事件前价格充数;同轮 event.sh add 挂承接','v2.9.57/65'))
     if AMOUNT.search(t): out.append(('INFO','量级自洽','写绝对金额前用市值除一次:成交额/市值>20倍、单日资金流/市值>50% 先当自己算错','v2.9.59'))
     return out
