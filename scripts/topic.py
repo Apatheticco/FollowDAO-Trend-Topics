@@ -230,6 +230,33 @@ def lint_and_pct(title, domain, pcts, act, tid, rc):
             block('涨跌幅不符:' + ';'.join(bad), act, tid, rc, check='pct_check')
 
 
+def uncovered_move(title, pcts, note='', old_title=None):
+    """retro1116b:给了 --pct 却漏掉标题里另一处「涨/跌X%」= 那个数没人核(11-16 3814 为凑 30 字把海力士 -7.89% 写成「跌8%」,
+    只给 KOSPI 传 --pct,预检就放过了)。只在传了 --pct 时查;「一度/曾/最高/最多」后的盘中极值算不出不查;
+    改题时旧标题里原样出现过的「涨/跌X%」不查;确属无法核的在 --note 写「豁免涨跌幅核对:<理由>」。"""
+    if not pcts or '豁免涨跌幅核对' in (note or ''):
+        return None
+    specs = [q.strip() for p0 in pcts for q in re.split(r'[,，](?=[^,，=]+=)', p0) if q.strip()]
+    moves = [m for m in re.finditer(r'(涨|跌)\s*(\d+(?:\.\d+)?)%', title)
+             if not re.search(r'(一度|曾|最高|最多|高点|低点)[^，,、]{0,4}$', title[:m.start()])]
+    covered = set()
+    for sp in specs:
+        lab = sp.split('=', 1)[0].strip()
+        i = title.find(lab)
+        if i < 0:
+            bare = re.sub(r'^(盘中|盘前|盘后|夜盘|尾盘|午盘|收盘|收)', '', lab)
+            i = title.find(bare) if bare else -1
+        if i < 0:
+            continue
+        nxt = [m for m in moves if m.start() >= i]
+        if nxt:
+            covered.add(nxt[0].start())
+    miss = [m.group(0) for m in moves if m.start() not in covered and not (old_title and m.group(0) in old_title)]
+    if miss:
+        return (f'标题里的{"、".join("「"+x+"」" for x in miss)}没有对应的 --pct,这个数没被核过(11-16 3814「海力士跌8%」)'
+                f'——给它补一组 --pct 标签=现价/前收;盘中极值等确实算不出的在 --note 写「豁免涨跌幅核对:<理由>」')
+    return None
+
 def ds_clash(title, kws, note=''):
     """撞名表(11-10 架构 review;downstream.py 错标时自动登记):关键词里有上次把下游带偏的词 → 拦;只在标题里出现 → 只提示。
     由来:建题前的 spot_clash 只比「关键词与现货代币完全同名」,而实际撞的是单词/前缀——Rocket Lab→LAB(11-05、11-10)、
@@ -452,6 +479,10 @@ def cmd_create(a, c):
     if not kw or len(kw) > 4:
         block(f'keywords 须 1~4 个(主标的 ticker+名+核心概念),收到 {len(kw or [])} 个', 'create', '-', a.rc, check='keywords_count', fatal=True)
     lint_and_pct(a.title, a.domain, a.pct, 'create', '-', a.rc)
+    if a.domain == 'tradfi':
+        _um = uncovered_move(a.title, a.pct, note_of(a))
+        if _um:
+            block(_um, 'create', '-', a.rc, check='uncovered_move')
     if a.domain == 'crypto':
         import pct as _pc
         _bt = _pc.bn_title_mismatch(a.title, kw)
@@ -629,6 +660,10 @@ def cmd_update(a, c, status=None, act='update'):
             block(f'{a.id} 是系统建 tradfi 题且还在窗口内:改标题会被系统刷回(10-01/10-09 实测)。'
                   f'内容错→topic.py cull;措辞差→不动;确要改加 --force-system-edit', act, a.id, a.rc, check='system_edit')
         lint_and_pct(new_title, t.get('domain', 'crypto'), getattr(a, 'pct', None), act, a.id, a.rc)
+        if t.get('domain') == 'tradfi':
+            _um = uncovered_move(new_title, getattr(a, 'pct', None), note_of(a), old_title=t.get('title'))
+            if _um:
+                block(_um, act, a.id, a.rc, check='uncovered_move')
         if t.get('domain') == 'tradfi':
             _ce = close_too_early(new_title, note_of(a), kw if kw else [k.strip() for k in (t.get('keywords') or '').split(',')])
             if _ce:

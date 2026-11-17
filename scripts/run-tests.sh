@@ -2030,6 +2030,14 @@ n=$((n+1)); "$D/route.sh" 0 2 51 2>/dev/null | grep -q '强撤' || { echo "❌ r
 _DQ=$(mktemp); printf '%s\n' 'create --domain tradfi --title "X涨10%" --keywords "X" --rc 有诱因-多源 --note "营收到$109B"' > "$_DQ"
 n=$((n+1)); "$D/topic.py" check "$_DQ" 2>&1 | grep -q '双引号里有' || { echo "❌ topic.py check(retro1116): 双引号内 \$数字 应被拦"; fail=$((fail+1)); }
 rm -f "$_DQ"
+# retro1116b:传了 --pct 却漏核标题里另一处「涨/跌X%」(11-16 3814 海力士 -7.89% 写成「跌8%」只核了 KOSPI)
+n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import topic as t
+assert t.uncovered_move('英伟达财报前芯片股承压，KOSPI跌3.6%、海力士跌8%',['KOSPI=5100.5/5290.5'])
+assert not t.uncovered_move('英伟达财报前韩股承压，KOSPI跌3.6%、海力士跌7.9%',['KOSPI=5100.5/5290.5,海力士=1120000/1216000'])
+assert not t.uncovered_move('黄仁勋辞任，NVDA一度跌14%、收跌4.3%',['NVDA=1/1'])
+assert not t.uncovered_move('F5新品发布，FFIV盘中涨3.2%',None)
+assert not t.uncovered_move('A涨5%、B跌6%',['A=1.05/1'],old_title='A涨4%、B跌6%')
+assert not t.uncovered_move('A涨5%、B跌6%',['A=1.05/1'],note='豁免涨跌幅核对:B为盘中极值')" 2>/dev/null || { echo "❌ topic.py(retro1116b): 漏核涨跌幅判定不对"; fail=$((fail+1)); }
 # retro1113:伪诱因无撤因码,系统题「板块集体下挫」作诱因被迫借「缺诱因-未达线」(3778 复审挑战成立,撤因码重犯22次)
 n=$((n+1)); grep -q '归因-伪诱因' "$D/log-action.sh" || { echo "❌ log-action.sh(retro1113): 撤因枚举缺 归因-伪诱因"; fail=$((fail+1)); }
 n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import importlib.util as u;s=u.spec_from_file_location('lp','$D/lark-push.py');m=u.module_from_spec(s);s.loader.exec_module(m);assert '归因-伪诱因' in m.enum_rcs() and '归因-伪诱因' in m.RC_HUMAN" 2>/dev/null || { echo "❌ lark-push.py(retro1113): 归因-伪诱因 未解析进枚举或缺人话映射"; fail=$((fail+1)); }
