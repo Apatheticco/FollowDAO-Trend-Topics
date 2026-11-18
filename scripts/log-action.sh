@@ -204,6 +204,10 @@ printf '%s' "$_OK" | tr ' ' '\n' | grep -qx "$RC" || {
 [ "$ACT" = "update" ] && [ -z "$DELTA" ] && {
   echo "⚠️ update 未带标题变更(第5参数)。若本次只改 status/tag 不改标题,传 '-' 显式声明"; reject "update缺标题变更:$ID $RC"; }
 
+# retro1117:note+纠错-自纠 且标题不动 = 只更正备注里的事实(11-04/11-07/11-17 三次被拦后改用 note 留档),直接转记留档不再拦
+[ "$ACT" = "note" ] && [ "$RC" = "纠错-自纠" ] && { [ -z "$DELTA" ] || [ "$DELTA" = "-" ] || ! printf '%s' "$DELTA" | grep -q '→'; } && {
+  echo "ℹ️ note 用了「纠错-自纠」但标题没变——自动转记为「留档」,备注前加「自纠:」(retro1117)"
+  RC="留档"; case "$NOTE" in 自纠*) ;; *) NOTE="自纠:$NOTE";; esac; }
 [ "$RC" = "纠错-自纠" ] && { [ -z "$DELTA" ] || [ "$DELTA" = "-" ] || ! printf '%s' "$DELTA" | grep -q '→'; } && {
   echo "🚨 纠错-自纠(v3.7.0)必须带「旧标题→新标题」——改的是我写错的内容,标题没变就不是纠错(改 tag 用 tag修正;只更正备注里的事实、标题不动,用 note <id> 留档)"
   reject "纠错缺标题变更:$ID"; }

@@ -127,6 +127,10 @@ def load_errors():
         if len(p) >= 5 and p[4] in ('有题', '弃建'):
             caught.add((_fmt_day(p[0]), p[2], int(p[0])))
     for e in errs.values():
+        # retro1117:「标题与币安现读差」是工具在真写前拦下行情漂移(拦下即未流出),同 漏建·当轮拦下 记 🟢,不算重犯
+        if e['cls'].startswith('工具拦截·标题「…」与币安现读'):
+            e['cls'] = '行情漂移·当轮拦下'
+    for e in errs.values():
         if e['cls'] == '漏建' and any(d == e['day'] and tk == e['tid'] and ts > e['ts'] for d, tk, ts in caught):
             e['cls'] = '漏建·当轮拦下'
     return errs
@@ -185,6 +189,8 @@ def cmd_day(a):
         after = [e for e in es if last_fix and e['ts'] > last_fix]
         if cls == '漏建·当轮拦下':
             state = '🟢 对账当轮拦下并已补建/弃建(流程起效,不计流出)'
+        elif cls == '行情漂移·当轮拦下':
+            state = '🟢 真写前工具重读拦下行情漂移(未流出,不计重犯)'
         elif after:
             state = f'🔴 修过({len(fx)}次)仍重犯——上次修法无效,换一层修(规则文字→脚本/用例)'
         elif fx and last_fix and all(e['ts'] <= last_fix for e in es):
@@ -299,7 +305,7 @@ def prune(days=30, errs=None, fixes=None, now=None):
         if cls.startswith('工具拦截') and k >= 5 and not fixes.get(cls):
             out.append(f'- ③ {cls}:近 {days} 天拦 {k} 次、一次没修——要么限制定错了(放宽/删),要么这一步交给工具做')
     for cls, fx in fixes.items():
-        if cls == '漏建·当轮拦下':   # 11-07 复盘:🟢 类=对账当轮捞出并补建,出现越多说明闸越起效,不是「越修越多」
+        if cls in ('漏建·当轮拦下', '行情漂移·当轮拦下'):   # 11-07 复盘:🟢 类=对账当轮捞出并补建,出现越多说明闸越起效,不是「越修越多」
             continue
         last = max(f['ts'] for f in fx)
         again = [e for e in errs.values() if e['cls'] == cls and e['ts'] > last]

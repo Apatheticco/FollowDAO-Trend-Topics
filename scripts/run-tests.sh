@@ -2038,6 +2038,20 @@ assert not t.uncovered_move('黄仁勋辞任，NVDA一度跌14%、收跌4.3%',['
 assert not t.uncovered_move('F5新品发布，FFIV盘中涨3.2%',None)
 assert not t.uncovered_move('A涨5%、B跌6%',['A=1.05/1'],old_title='A涨4%、B跌6%')
 assert not t.uncovered_move('A涨5%、B跌6%',['A=1.05/1'],note='豁免涨跌幅核对:B为盘中极值')" 2>/dev/null || { echo "❌ topic.py(retro1116b): 漏核涨跌幅判定不对"; fail=$((fail+1)); }
+# retro1117:note+纠错-自纠 且标题不动 → 自动转记留档(不再拦);update 不带标题变更仍拦
+_T7=$(mktemp -d); printf '[]' > "$_T7/b0.json"
+n=$((n+1)); ACTIONS="$_T7/a.tsv" SNAPSHOTS="$_T7/s.tsv" REJ="$_T7/r.tsv" B0JSON="$_T7/b0.json" "$D/log-action.sh" note 9901 纠错-自纠 "回归用例:撤因更正" >/dev/null 2>&1; { [ -s "$_T7/a.tsv" ] && cut -f4 "$_T7/a.tsv" | grep -qx '留档' && cut -f5 "$_T7/a.tsv" | grep -q '^自纠:' && [ ! -s "$_T7/r.tsv" ]; } || { echo "❌ log-action.sh(retro1117): note+纠错-自纠无标题变更应转记留档"; fail=$((fail+1)); }
+n=$((n+1)); ACTIONS="$_T7/a2.tsv" SNAPSHOTS="$_T7/s.tsv" REJ="$_T7/r2.tsv" B0JSON="$_T7/b0.json" "$D/log-action.sh" update 9901 纠错-自纠 "回归用例" - >/dev/null 2>&1 && { echo "❌ log-action.sh(retro1117): update+纠错-自纠无标题变更仍应拦"; fail=$((fail+1)); }
+rm -rf "$_T7"
+# retro1117:「标题与币安现读差」工具拦截=真写前拦下行情漂移,归 🟢「行情漂移·当轮拦下」
+n=$((n+1)); python3 - <<'PYEOF' || { echo "❌ retro.py(retro1117): 币安现读差拦截应归「行情漂移·当轮拦下」"; fail=$((fail+1)); }
+import os,sys,tempfile; d=tempfile.mkdtemp()
+open(d+'/err.tsv','w').write('1794880000000\ty1\t工具拦截·标题「…」与币安现读 N% 差 N 个百\t-\tt\t工具拦截\t2026-11-17\n1794880000001\ty2\t工具拦截·纠错缺标题变更\t-\tt\t工具拦截\t2026-11-17\n')
+open(d+'/cov.tsv','w').write('')
+os.environ['COVERAGE_LOG']=d+'/cov.tsv'; os.environ['ERRORS']=d+'/err.tsv'
+import importlib.util; s=importlib.util.spec_from_file_location('retro',os.path.expanduser('~/.trend-scout/retro.py')); r=importlib.util.module_from_spec(s); s.loader.exec_module(r)
+e=r.load_errors(); assert e['y1']['cls']=='行情漂移·当轮拦下' and e['y2']['cls']=='工具拦截·纠错缺标题变更', e
+PYEOF
 # retro1113:伪诱因无撤因码,系统题「板块集体下挫」作诱因被迫借「缺诱因-未达线」(3778 复审挑战成立,撤因码重犯22次)
 n=$((n+1)); grep -q '归因-伪诱因' "$D/log-action.sh" || { echo "❌ log-action.sh(retro1113): 撤因枚举缺 归因-伪诱因"; fail=$((fail+1)); }
 n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import importlib.util as u;s=u.spec_from_file_location('lp','$D/lark-push.py');m=u.module_from_spec(s);s.loader.exec_module(m);assert '归因-伪诱因' in m.enum_rcs() and '归因-伪诱因' in m.RC_HUMAN" 2>/dev/null || { echo "❌ lark-push.py(retro1113): 归因-伪诱因 未解析进枚举或缺人话映射"; fail=$((fail+1)); }
