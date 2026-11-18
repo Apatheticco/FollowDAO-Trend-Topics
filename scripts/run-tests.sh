@@ -2052,6 +2052,31 @@ os.environ['COVERAGE_LOG']=d+'/cov.tsv'; os.environ['ERRORS']=d+'/err.tsv'
 import importlib.util; s=importlib.util.spec_from_file_location('retro',os.path.expanduser('~/.trend-scout/retro.py')); r=importlib.util.module_from_spec(s); s.loader.exec_module(r)
 e=r.load_errors(); assert e['y1']['cls']=='行情漂移·当轮拦下' and e['y2']['cls']=='工具拦截·纠错缺标题变更', e
 PYEOF
+# retro1118a:Yahoo 亚洲指数前收——今天日线缺失时按日期取「今天之前最后一根」;官方前收等于更早某天收盘=旧值弃用(11-17 台股误读 -8.2%)
+n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import importlib.util as u;s=u.spec_from_file_location('p','$D/pct.py');p=u.module_from_spec(s);s.loader.exec_module(p)
+b=[('2026-11-13',43675.1),('2026-11-16',41040.1),('2026-11-17',40092.1)]
+d,v,w=p.prev_from_bars(b,'2026-11-18',43675.1); assert (d,v)==('2026-11-17',40092.1) and w and '旧值' in w,(d,v,w)
+d,v,w=p.prev_from_bars(b,'2026-11-17',None); assert (d,v)==('2026-11-16',41040.1),(d,v)
+d,v,w=p.prev_from_bars(b,'2026-11-18',40500.0); assert v==40500.0 and w and '不一致' in w,(d,v,w)" 2>/dev/null || { echo "❌ pct.py(retro1118a): 亚洲指数前收取法不对"; fail=$((fail+1)); }
+# retro1118b:near_line 不把「10%线/准入线」当读数(09:40 轮误拦 11 条),真实读数 +8.5% 仍拦
+n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import topic as t
+assert t.near_line('缺诱因-未达线','tradfi','DELL +6.25%未过tradfi无诱因10%线') is None
+assert t.near_line('缺诱因-未达线','tradfi','均未过10%准入线') is None
+assert t.near_line('缺诱因-未达线','tradfi','实测 DELL +8.5%,未过线')" 2>/dev/null || { echo "❌ topic.py(retro1118b): 近线复测闸门槛写法/真实读数判定不对"; fail=$((fail+1)); }
+# retro1118c:--pct「标签=bn」自动取币安合约 24h 现价/开盘(离线:假 _curl);冻结行情原样留着由 pct.check 拦
+n=$((n+1)); python3 -c "import sys,time;sys.path.insert(0,'$D');import topic as t,pct
+pct._curl=lambda u:{'lastPrice':'0.24','openPrice':'0.12','closeTime':int(time.time()*1000)}
+assert t.expand_bn(['MMT 24小时=bn'])==['MMT 24小时=0.24/0.12']
+assert t.expand_bn(['MMT 24小时=0.2/0.1'])==['MMT 24小时=0.2/0.1']
+pct._curl=lambda u:{'lastPrice':'1','openPrice':'2','closeTime':1}
+assert t.expand_bn(['EPIC 24小时=bn'])==['EPIC 24小时=bn']" 2>/dev/null || { echo "❌ topic.py(retro1118c): --pct =bn 自动取数不对"; fail=$((fail+1)); }
+# retro1118d:crypto 纯行情题关键词只留代币代码(14129「Momentum」把下游挂到 MASS)
+n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import topic as t
+assert t.pure_kw_ticker_only('crypto','纯行情-A定则',['MMT','Momentum'])
+assert t.pure_kw_ticker_only('crypto','纯行情-A定则',['PIPPIN','比特币']) is None
+assert t.pure_kw_ticker_only('crypto','有诱因-多源',['Backpack','BP']) is None
+assert t.pure_kw_ticker_only('tradfi','纯行情-A定则',['BTDR','Bitdeer']) is None
+assert t.pure_kw_ticker_only('crypto','纯行情-A定则',['ZEC','Zcash'],'关键词已核:同名唯一') is None" 2>/dev/null || { echo "❌ topic.py(retro1118d): 纯行情币题关键词判定不对"; fail=$((fail+1)); }
 # retro1113:伪诱因无撤因码,系统题「板块集体下挫」作诱因被迫借「缺诱因-未达线」(3778 复审挑战成立,撤因码重犯22次)
 n=$((n+1)); grep -q '归因-伪诱因' "$D/log-action.sh" || { echo "❌ log-action.sh(retro1113): 撤因枚举缺 归因-伪诱因"; fail=$((fail+1)); }
 n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import importlib.util as u;s=u.spec_from_file_location('lp','$D/lark-push.py');m=u.module_from_spec(s);s.loader.exec_module(m);assert '归因-伪诱因' in m.enum_rcs() and '归因-伪诱因' in m.RC_HUMAN" 2>/dev/null || { echo "❌ lark-push.py(retro1113): 归因-伪诱因 未解析进枚举或缺人话映射"; fail=$((fail+1)); }

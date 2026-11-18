@@ -199,24 +199,43 @@ def pick_prev(bar_prev, official_prev, tol=0.1):
     return bar_prev, None
 
 
+def prev_from_bars(bars, today, official=None):
+    """11-18 复盘(台股/恒指/上证三次读错前收):Yahoo 亚洲指数有时还没生成「今天」那根日线,按「倒数第二根=昨天」取会拿到前天收盘;
+    range=1d 的 chartPreviousClose 对亚洲指数常是更早几天的值,不一致时却被当官方采用(11-17 台股误读 -8.2%)。
+    改为:bars=[(date, close)],today=行情时间所在日(交易所本地);前收=today 之前最后一根;official 若等于更早某根收盘=旧值,弃用。
+    返回 (前收日期, 前收, 提示或 None)。"""
+    prior = [b for b in bars if b[0] < today]
+    if not prior:
+        raise SystemExit('🚨 没有今天之前的日线')
+    d0, p0 = prior[-1]
+    if official:
+        if any(abs(official / c - 1) < 0.0005 for _, c in prior[:-1]):
+            return d0, p0, f'官方前收 {official:.4f} 等于更早某天收盘(旧值),弃用,按 {d0} 日线收盘算'
+        p1, warn = pick_prev(p0, official)
+        return d0, p1, warn
+    return d0, p0, None
+
+
 def _yahoo(sym):
     import datetime
     d = _curl(f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=10d')
     r = d['chart']['result'][0]
+    m = r['meta']
+    gmt = m.get('gmtoffset') or 0
+    ld = lambda t: datetime.datetime.fromtimestamp(t + gmt, datetime.timezone.utc).strftime('%Y-%m-%d')
     ts, cl = r['timestamp'], r['indicators']['quote'][0]['close']
-    bars = [(datetime.datetime.fromtimestamp(t).strftime('%Y-%m-%d'), c) for t, c in zip(ts, cl) if c is not None]
+    bars = [(ld(t), c) for t, c in zip(ts, cl) if c is not None]
     if len(bars) < 2:
         raise SystemExit('🚨 有效日线不足两根')
-    (d0, p0), (d1, p1) = bars[-2], bars[-1]
-    m = r['meta']
+    today = ld(m.get('regularMarketTime') or ts[-1])
     try:
         off = _curl(f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=1d')['chart']['result'][0]['meta'].get('chartPreviousClose')
     except Exception:
         off = None
-    p0, warn = pick_prev(p0, off)
-    last = m.get('regularMarketPrice') or p1
+    d0, p0, warn = prev_from_bars(bars, today, off)
+    last = m.get('regularMarketPrice') or bars[-1][1]
     x = change(last, p0)
-    print(f'{sym} 前一交易日 {d0} 收 {p0:.4f} → 最后一根 {d1} 现价 {last}(盘中则为实时) {x:+.4f}% → 写 {word(x)}{fmt(x)}%')
+    print(f'{sym} 前一交易日 {d0} 收 {p0:.4f} → 最后一根 {today} 现价 {last}(盘中则为实时) {x:+.4f}% → 写 {word(x)}{fmt(x)}%')
     if warn:
         print(f'  ⚠️ {warn}')
     elif off is None:

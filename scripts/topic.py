@@ -56,7 +56,7 @@ def hit(check, outcome, act, tid, rc):
 # 备注里的豁免词 → 它放行的检查(写入成功才记「豁免」;豁免词出现但检查本不会拦的也会计入,只作信号)
 WAIVERS = (('射程外仍改', 'out_of_scope'), ('豁免价格腿', 'succession_price_leg'), ('方向相反仍恢复', 'opposite_live'),
            ('非当日收盘', 'close_too_early'), ('低于5%仍建', 'tradfi_floor'), ('豁免成交额', 'lowvol'),
-           ('仅措辞', 'style_rc'), ('方向不明确', 'price_only'), ('他币关键词仍用', 'token_word_clash'), ('同名代币已核', 'spot_clash'), ('未拉B0仍建', 'b0_stale'), ('撞名已核', 'ds_clash'))
+           ('仅措辞', 'style_rc'), ('方向不明确', 'price_only'), ('他币关键词仍用', 'token_word_clash'), ('同名代币已核', 'spot_clash'), ('未拉B0仍建', 'b0_stale'), ('撞名已核', 'ds_clash'), ('关键词已核', 'pure_kw_ticker_only'))
 
 
 def log_waivers(a, act, tid):
@@ -202,6 +202,44 @@ def _hour():
     return int(h) if h else datetime.datetime.now().hour
 
 
+def expand_bn(specs):
+    """retro1118c(「--pct 标签=bn」被拦第 6 次,提示文字改了 5 次仍重犯 → 换层):标签=bn 直接取币安合约滚动 24h 现价/开盘价代入。
+    合约号取标签里第一个大写代码(「MMT 24小时」→MMTUSDT);取不到或行情冻结(下架结算)原样留着,照旧由 pct.check 拦。"""
+    import pct
+    out = []
+    for sp in specs:
+        m = re.match(r'\s*([^=]+?)\s*=\s*bn\s*$', sp)
+        t = re.search(r'[A-Z][A-Z0-9]{1,14}', m.group(1)) if m else None
+        if not t:
+            out.append(sp)
+            continue
+        sym = t.group(0) if t.group(0).endswith('USDT') else t.group(0) + 'USDT'
+        try:
+            d = pct._curl(f'https://fapi.binance.com/fapi/v1/ticker/24hr?symbol={sym}')
+        except Exception:
+            d = None
+        if not isinstance(d, dict) or 'lastPrice' not in d or pct.stale_min(d) is not None:
+            out.append(sp)
+            continue
+        new = f'{m.group(1)}={d["lastPrice"]}/{d["openPrice"]}'
+        print(f'  ↳ --pct 自动取数(retro1118c): {sp} → {new}(币安合约滚动24h)')
+        out.append(new)
+    return out
+
+
+def pure_kw_ticker_only(domain, rc, keywords, note=''):
+    """retro1118d(下游错标第 7 次:14129 关键词「MMT,Momentum」被挂到 MASS;BREV/Brevis 同型):
+    crypto 纯行情题的关键词只留代币代码(全大写/数字)或中文名;英文项目名/普通英文词容易被下游打标串到别的币 → 拦。
+    确认无碍在 --note 写「关键词已核:<理由>」。"""
+    if domain != 'crypto' or rc != '纯行情-A定则' or '关键词已核' in (note or ''):
+        return None
+    bad = [k for k in (keywords or []) if re.fullmatch(r'[A-Za-z][A-Za-z0-9 .-]*', k) and not re.fullmatch(r'[A-Z0-9]{2,15}', k)]
+    if bad:
+        return (f'纯行情币题关键词只留代币代码:「{"、".join(bad)}」是英文项目名,下游打标容易串到别的币(11-18 14129 MMT 被挂 MASS)'
+                '——删掉它;确属必要在 --note 写「关键词已核:<理由>」')
+    return None
+
+
 def lint_and_pct(title, domain, pcts, act, tid, rc):
     import lint, pct
     res = lint.lint_title(title, domain)
@@ -222,6 +260,7 @@ def lint_and_pct(title, domain, pcts, act, tid, rc):
     if pcts:
         # 11-06 复盘:一个 --pct 里塞了两组「费半ETF=a/b,纳指100=c/d」被当成一个标签——按「,标签=」拆开
         pcts = [q.strip() for p0 in pcts for q in re.split(r'[,，](?=[^,，=]+=)', p0) if q.strip()]
+        pcts = expand_bn(pcts)
         r = pct.check(title, pcts)
         for lv, msg in r:
             print(f'  {lv} 涨跌幅: {msg}')
@@ -478,6 +517,9 @@ def cmd_create(a, c):
         block('keywords 必须是逗号分隔字符串,不能带 [ 或 "(数组会被存成字面量,打标必 miss)', 'create', '-', a.rc, check='keywords_format', fatal=True)
     if not kw or len(kw) > 4:
         block(f'keywords 须 1~4 个(主标的 ticker+名+核心概念),收到 {len(kw or [])} 个', 'create', '-', a.rc, check='keywords_count', fatal=True)
+    _pk = pure_kw_ticker_only(a.domain, a.rc, kw, note_of(a))
+    if _pk:
+        block(_pk, 'create', '-', a.rc, check='pure_kw_ticker_only')
     lint_and_pct(a.title, a.domain, a.pct, 'create', '-', a.rc)
     if a.domain == 'tradfi':
         _um = uncovered_move(a.title, a.pct, note_of(a))
@@ -755,6 +797,9 @@ def near_line(rc, domain, note):
     for m in re.finditer(r'(?<![±\d.])([+-]?\d+(?:\.\d+)?)%', note or ''):   # 10-19:不把「±10%」这类阈值写法当读数
         # 10-26 影子跑(10000003270):「远低于 tradfi 10%」是在说门槛,不是读数——门槛写法前缀跳过
         if re.search(r'(tradfi|crypto|准入线?|门槛|阈值|低于|高于|不到|未达|[≥≤<>])\s*$', (note or '')[max(0, m.start() - 8):m.start()]):
+            continue
+        # 11-18 复盘(09:40 轮误拦 11 条):「未过tradfi无诱因10%线」「过10%准入线」——百分数后紧跟 线/准入/门槛 的是在说门槛,不是读数
+        if re.match(r'\s*(线|准入|门槛|阈值)', (note or '')[m.end():m.end() + 3]):
             continue
         v = abs(float(m.group(1)))
         if line - 3 <= v < line + 3 and '复测' not in (note or ''):
