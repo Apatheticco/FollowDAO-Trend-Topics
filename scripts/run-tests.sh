@@ -2188,6 +2188,23 @@ _cb7=$(mktemp); printf '%s' '[{"symbol":"BTCUSDT","priceChangePercent":"-5.6","q
 _bm7=$(cd "$D" && COVERAGE_BN="$_cb7" COVERAGE_BN_EQUITY=X python3 -W ignore -c "import importlib.util as u;s=u.spec_from_file_location('c','coverage.py');c=u.module_from_spec(s);s.loader.exec_module(c);print(','.join(x[0] for x in c.bn_movers()))")
 n=$((n+1)); [ "$_bm7" = "BTC" ] || { echo "❌ major1109c: BTC -5.6% 应进对账、ETH -6% 未过 7% 不进,得 $_bm7"; fail=$((fail+1)); }
 rm -f "$_KL" "$_cb7"
+# macro1118(用户 11-18 点名:现货黄金失守 3800 创逾一年新低只跌 1.3%,无线触发而漏):大宗「破整数关口+创 60 天新低/新高」进对账
+_MK=$(mktemp); python3 - "$_MK" <<'PYEOF'
+import json,sys
+def k(n,base_lo,base_hi,ref_close,last_lo,last_hi):
+    r=[[1790000000000+i*86400000,'0',str(base_hi),str(base_lo),str((base_lo+base_hi)/2)] for i in range(n)]
+    r[-3][4]=str(ref_close); r[-1][3]=str(last_lo); r[-1][2]=str(last_hi); return r
+json.dump({'GC=F':k(63,3835,4200,3853,3793,3860),   # 破3800且低于60天最低3835 → 报新低
+           'SI=F':k(63,46.0,52,47.2,45.8,47.5),     # 新低45.8但(45.8,47.2]无5的整数倍 → 不报
+           'CL=F':k(63,79.0,95,81.0,79.5,82.0),     # 破80关口但未低于60天最低79 → 不报
+           'BZ=F':k(63,80.0,99,98.0,97.0,100.5)},   # 站上100关口且创新高 → 报新高
+          open(sys.argv[1],'w'))
+PYEOF
+_mc=$(cd "$D" && COVERAGE_MACRO_KLINES="$_MK" python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('c','coverage.py');c=u.module_from_spec(s);s.loader.exec_module(c)
+print([(a,b,int(lv)) for a,b,lv,_,_ in c.macro_milestones()])")
+n=$((n+1)); [ "$_mc" = "[('GC=F', '新低', 3800), ('BZ=F', '新高', 100)]" ] || { echo "❌ macro1118: 大宗破关口+60天新低/新高判定不对,得 $_mc"; fail=$((fail+1)); }
+rm -f "$_MK"
 
 # hot1111(用户 11-11 定「ZEC这种热点主流币大跌，可以留」):币安合约 24h 成交 ≥10 亿美元的加密币纯行情线 ±10%;非 COIN 永续(韩股/商品)不进币侧对账
 _ht=$(cd "$D" && env -u TS_CRYPTO_LINE python3 -W ignore -c "

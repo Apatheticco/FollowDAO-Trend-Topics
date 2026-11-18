@@ -40,6 +40,13 @@ IDX = {'QQQ': (2.5, {'纳指', '纳斯达克', 'nasdaq'}), 'SPY': (2.0, {'标普
 # 主流大币另设线——24h 涨跌 BTC ±5% / ETH ±7%,或创 MAJOR_DAYS 天(约 2 个月)新高/新低。单一定义在此,lint/topic 从这里读。
 MAJOR = {'BTC': (5.0, {'比特币', 'bitcoin'}), 'ETH': (7.0, {'以太坊', 'ethereum'})}
 MAJOR_DAYS = 60
+# 11-18 用户定(现货黄金 10:06 失守 3800 美元、为 2025-09-30 以来首次,当日只跌 1.3%,没有任何线触发而漏):
+# 「跌破整数位、触及新低的行情是要上的」——大宗宏观资产同 BTC/ETH:破整数关口且创 MAJOR_DAYS 天新低(或站上关口且创新高)即过线。
+# step=整数关口间距。行情取 Yahoo 期货日线。单一定义在此。
+MACRO = {'GC=F': (100.0, {'黄金', '金价', '现货黄金', 'xau', 'xauusd', 'xaut'}),
+         'SI=F': (5.0, {'白银', '银价', '现货白银', 'xag'}),
+         'CL=F': (10.0, {'原油', '美油', '油价', 'wti'}),
+         'BZ=F': (10.0, {'布油', '布伦特', '油价', 'brent'})}
 # 11-11 用户定(ZEC 24h -14.8%、币安合约成交 30 亿美元排加密币第 3,被 50% 线撤掉):「热点主流币大跌可以留」——
 # 币安合约 24h 成交额 ≥HOT_VOL 的加密币(underlyingType=COIN),纯行情线降到 ±HOT_LINE。BTC/ETH 仍按 MAJOR。单一定义在此,topic 从这里读。
 HOT_VOL = 1e9
@@ -431,6 +438,47 @@ def major_milestones(days=None):
     return out
 
 
+def macro_milestones(days=None):
+    """11-18:大宗宏观资产「破整数关口+创 days 天新低/新高」。recent=今天与昨天两根日线,prior=再往前 days 根;
+    ref=recent 之前那根的收盘。新低且 (最低价, ref] 之间有 step 的整数倍 → 过线;新高同理。
+    返回 [(sym, '新低'|'新高', 关口, 极值, 对照日期)]。注入(回归):COVERAGE_MACRO_KLINES=<json {sym:[[ts,o,h,l,c],...]}>"""
+    days = days or MAJOR_DAYS
+    inj = os.environ.get('COVERAGE_MACRO_KLINES')
+    if not inj and (os.environ.get('COVERAGE_BN') or os.environ.get('COVERAGE_KLINES')):   # 回归跑别的段:不联网
+        return []
+    allk = json.load(open(inj)) if inj else None
+    out = []
+    for sym, (step, _) in MACRO.items():
+        if allk is not None:
+            k = allk.get(sym)
+        else:
+            j = _curl(f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=6mo&interval=1d')
+            try:
+                r = j['chart']['result'][0]; q = r['indicators']['quote'][0]
+                k = [[t * 1000, q['open'][i], q['high'][i], q['low'][i], q['close'][i]] for i, t in enumerate(r['timestamp'])
+                     if q['low'][i] and q['high'][i] and q['close'][i]]
+            except Exception:
+                k = None
+        if not isinstance(k, list) or len(k) < days + 3:
+            if allk is None:
+                BLIND.append(f'{sym} 日线取数失败(关口新高低未核)')
+            continue
+        recent, prior, ref = k[-2:], k[-(days + 2):-2], float(k[-3][4])
+        lo, hi = min(float(x[3]) for x in recent), max(float(x[2]) for x in recent)
+        plo, phi = min(float(x[3]) for x in prior), max(float(x[2]) for x in prior)
+        since = datetime.datetime.fromtimestamp(int(prior[0][0]) / 1000).strftime('%m-%d')
+        import math
+        if lo < plo:
+            lv = math.floor(ref / step) * step
+            if lo < lv <= ref:
+                out.append((sym, '新低', lv, lo, since))
+        if hi > phi:
+            lv = math.ceil(ref / step) * step
+            if ref <= lv < hi:
+                out.append((sym, '新高', lv, hi, since))
+    return out
+
+
 def _dir(title):
     up, dn = bool(re.search(r'涨|走高|飙', title or '')), bool(re.search(r'跌|走低|下挫', title or ''))
     return 1 if up and not dn else (-1 if dn and not up else 0)
@@ -572,6 +620,9 @@ def main():
         if not any(r[0] == '币' and r[1] == sym for r in rows):   # 幅度已过线的不重复列
             rows.append(('币', sym, -0.001 if kd == '新低' else 0.001, set(MAJOR[sym][1])))
         _ms[sym] = f'{kd} {lvl:g}(对照 {since} 起 {MAJOR_DAYS} 天)'
+    for sym, kd, lv, ext, since in macro_milestones():
+        rows.append(('大宗', sym, -0.001 if kd == '新低' else 0.001, set(MACRO[sym][1])))
+        _ms[sym] = f'{"跌破" if kd == "新低" else "站上"}{lv:g}关口·{kd} {ext:g}(对照 {since} 起 {MAJOR_DAYS} 天)'
     n_t = n_d = n_m = 0
     _cn = created_notes()
     now = int(time.time() * 1000)
@@ -581,7 +632,7 @@ def main():
         _line = (MAJOR[sym][0] if kind == '币' and sym in MAJOR else None) or (HOT_LINE if kind == '币' and qvs.get(sym, 0) >= HOT_VOL else None) \
             or {'股': 10, '币': COIN_LINE}.get(kind) or IDX.get(sym, (None,))[0]
         v, ref = covered(sym, names, _lv, _nt, x, _line, _cn if kind == '股' else None, idx=(kind == '指数'))
-        if sym in _ms and kind == '币':
+        if sym in _ms and kind in ('币', '大宗'):
             ref = ((ref or '') + ' ' + _ms[sym]).strip()
         if not v and kind == '币' and qvs.get(sym, 1e9) < LOWVOL:
             # v3.7.9(10-21 用户定):无诱因的币 24h 合约成交 <1 亿默认弃建,不算漏;有诱因/硬事件的照建(对账看不出诱因,只提示)
