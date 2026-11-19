@@ -90,14 +90,14 @@
   {
    "key": "A1主栈",
    "mode": "both",
-   "call": "Agent haiku dump list 2046422494643687464(刷新10条/首扫15条)",
-   "guard": "W1同波起,禁主进程直调list_tweets。**取数 server 降级梯(v3.3.7,09-09 实证)**:①主用 `followin`;②仅当 followin 返 quota_exceeded 或取数失败时,降级 `followdao-test`——两者 twitter 配额池**相互独立**(09-09 实测 followin 报 used 2500/2500 耗尽的同一时刻,followdao-test 是 used 10/2500),但 followdao-test 是 dev 端点、可能带未发布行为,故只作备选不作主用;③**两个都试过才允许 circuit.sh 判死**——09-09 我只试了 followin 一家就 fused 528h,还在备注里臆断「同族 server 共用配额池」,若不更正会白丢到 10-01 的全部推特定向取样。"
+   "call": "~/.trend-scout/tw-dump.py 2046422494643687464 --pages 4 --n 15(首扫;刷新加 --n 10 --since <last-refresh 末行>)",
+   "guard": "脚本直连,不起模型子进程(11-19 审计:原 haiku 子进程每路约 14 万 token、40 秒,脚本 8 秒 0 token)。server 降级梯写在脚本里:先 followin,配额耗尽或取数失败自动换 followdao-test(两边配额池独立;followdao-test 是 dev 端点,只作备选);末行 TWDUMP: 打印实际用的 server,『server=无』=两个都失败,才允许 circuit.sh 判死。填法=「✅(N:输出 N 条,server=…)」。"
   },
   {
    "key": "A1科技栈",
    "mode": "both",
-   "call": "Agent haiku dump list 2051854001608724654(刷新8条/首扫12条)",
-   "guard": "同 A1主栈的 server 降级梯:followin 优先,配额耗尽/取数失败才降 followdao-test(独立配额池,dev 端点只作备选);两个都试过才允许判死。两条 list 共用 followin 侧同一配额,一条报耗尽即视为两条同时受影响。"
+   "call": "~/.trend-scout/tw-dump.py 2051854001608724654 --pages 3 --n 12(首扫;刷新加 --n 8 --since <last-refresh 末行>)",
+   "guard": "同 A1主栈:脚本直连、降级梯在脚本里。两条 list 共用 followin 侧同一配额,一条报耗尽即视为两条同时受影响。"
   },
   {
    "key": "TG探针或兜底",
@@ -134,7 +134,7 @@
   {
    "key": "漏建对账",
    "mode": "both",
-   "call": "~/.trend-scout/coverage.py（v3.7.1 过线涨跌逐个对账:美股/亚股=板块矩阵+近36h看板题 ticker 中 |日涨跌|≥10%;指数=IDX 线(QQQ±2.5% SPY/DIA±2% SOXX±5% KOSPI/日经/恒指/台股±3%);币=币安永续成交额≥2000万且|24h|≥50%(11-06 用户定由30%上调);BTC/ETH 另按 ±5%/±7% 或 60 天新高新低(11-09);合约成交≥10亿美元且市值≥10亿美元(CoinGecko)的热点主流币 ±10%(11-11,市值取不到按过线报+半盲);只认币安 underlyingType=COIN;美股期货 ES/YM ±2%、NQ ±2.5% 同现货线(11-09);行首「突发」=~/news-alert 强关联入选事件(v3.7.34),指数/大宗/利率/汇率/BTC/ETH 宽标的不认有题,已由别题承接写「弃建|<event_key>|已由<题号>覆盖」;要么有题要么有弃建,否则报漏）",
+   "call": "~/.trend-scout/coverage.py（v3.7.1 过线涨跌逐个对账:美股/亚股=板块矩阵+近36h看板题 ticker 中 |日涨跌|≥10%;指数=IDX 线(QQQ±2.5% SPY/DIA±2% SOXX±5% KOSPI/日经/恒指/台股±3%);币=币安永续成交额≥2000万且|24h|≥50%(11-06 用户定由30%上调);BTC/ETH 另按 ±5%/±7% 或 60 天新高新低(11-09);合约成交≥10亿美元且市值≥10亿美元(CoinGecko)的热点主流币 ±10%(11-11,市值取不到按过线报+半盲);金/银/WTI/布油跌破或站上关口(金每100美元、银每5美元、油每10美元)且创60天新低/新高(11-18,行首「大宗」,单一定义 coverage.py MACRO);只认币安 underlyingType=COIN;美股期货 ES/YM ±2%、NQ ±2.5% 同现货线(11-09);行首「突发」=~/news-alert 强关联入选事件(v3.7.34),指数/大宗/利率/汇率/BTC/ETH 宽标的不认有题,已由别题承接写「弃建|<event_key>|已由<题号>覆盖」;要么有题要么有弃建,否则报漏）",
    "guard": "填法=末行 COVERAGE: 过线=N 有题=a 弃建=b 漏=c;漏≥1 逐条 topic.py create 建或 log-action.sh note - 留档 \"弃建|<标的>|<原因>|<日期>\",重跑到 漏=0 再 mark;**三大指数(SPY/QQQ/DIA)过线只能建,不写弃建(11-06 用户定;coverage 只认读数差 ≤1pp 的旧指数弃建)**;病例 10-15 ASTS 撤了原因写错的系统题后既没按真因(Piper Sandler 下调目标价)另建也没弃建",
    "fallback": "Yahoo/币安取数失败→ 手查板块矩阵过线标的并记 ⚠️半盲"
   },

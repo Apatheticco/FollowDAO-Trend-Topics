@@ -303,6 +303,30 @@ n=$((n+1)); ACTIONS="$TR/a.tsv" RVLOG="$TR/log.tsv" REPORTS_DIR="$TR/reports" CH
 n=$((n+1)); : > "$TR/empty.tsv"; rm -f "$TR/reports/review-$((T0+5)).md"
 ACTIONS="$TR/empty.tsv" RVLOG="$TR/log.tsv" REPORTS_DIR="$TR/reports" CHECKLOG="$TR/cl.tsv" "$D/review-verify.sh" "$((T0+5))" "$TR/ok.txt" >/dev/null 2>&1 \
   && [ -f "$TR/reports/review-$((T0+5)).md" ] || { echo "❌ review-verify[干轮归档]: 0 写操作 PASS 也应 cp 到 REPORTS_DIR/review-<run_ts>.md"; fail=$((fail+1)); }
+# audit1119:零挑战警戒落脚本——此前已连续 ≥2 份复审零「处置有误」,本轮抽样要求从 30% 升到 50%;有一份「处置有误」即恢复 30%
+n=$((n+1)); ZR="$TR/zs"; mkdir -p "$ZR/rep"; TZ=1788700000000
+for i in 0 1 2 3 4 5 6 7 8 9; do printf '%s\tcull\t2100%s\t灌水-KOL观点\tz\t-\n' "$TZ" "$i"; done > "$ZR/a.tsv"
+{ printf 'LEDGER=10|0|'; for i in 0 1 2 3 4 5 6 7 8 9; do printf '2100%s,' "$i"; done; printf '\nAUDITED=10\nSAMPLED=21000,21001,21002,21003\n'
+  for i in 0 1 2 3 4 5 6 7 8 9; do printf '2100%s|处置OK|自检:原句\n' "$i"; done; } > "$ZR/r.txt"
+printf 'x|处置OK|y\n' > "$ZR/rep/review-1.md"; printf 'x|处置OK|y\n' > "$ZR/rep/review-2.md"
+o=$(ACTIONS="$ZR/a.tsv" RVLOG="$ZR/log.tsv" REPORTS_DIR="$ZR/rep" CHECKLOG=/dev/null "$D/review-verify.sh" "$TZ" "$ZR/r.txt" 2>&1); g=$?
+{ [ "$g" = 1 ] && echo "$o" | grep -q '升至 50%'; } || { echo "❌ review-verify[零挑战升抽样]: 连续 2 份零挑战后抽 4/10 应 FAIL 并提示升至 50%"; fail=$((fail+1)); }
+sleep 1; printf 'x|处置有误|y\n' > "$ZR/rep/review-3.md"; rm -f "$ZR/rep/review-$TZ.md"
+ACTIONS="$ZR/a.tsv" RVLOG="$ZR/log.tsv" REPORTS_DIR="$ZR/rep" CHECKLOG=/dev/null "$D/review-verify.sh" "$TZ" "$ZR/r.txt" >/dev/null 2>&1 \
+  || { echo "❌ review-verify[零挑战升抽样·对照]: 最近一份有「处置有误」,抽 4/10(≥30%)应 PASS"; fail=$((fail+1)); }
+# audit1119:tw-dump.py 替代 A1 haiku 子进程——按时间倒序、--since 截断、截断警告原样带出
+n=$((n+1)); TWD=$(mktemp -d)
+cat > "$TWD/p.json" <<'TWJ'
+[{"results":[{"author":{"userName":"aa"},"createdAt":"Thu Nov 19 02:00:00 +0000 2026","likeCount":5,"retweetCount":1,"replyCount":0,"text":"新的一条"},
+             {"author":{"userName":"bb"},"createdAt":"Thu Nov 19 01:00:00 +0000 2026","likeCount":1,"retweetCount":0,"replyCount":2,"text":"旧的一条"}],
+  "meta":{"filters_applied":{"has_next_page":true,"next_cursor":"c1"},"warnings":[{"message":"showing 2/9"}]}},
+ {"results":[{"author":{"userName":"cc"},"createdAt":"Thu Nov 19 03:00:00 +0000 2026","likeCount":0,"retweetCount":0,"replyCount":0,"text":"第二页最新"}],"meta":{}}]
+TWJ
+o=$(TW_FAKE="$TWD/p.json" "$D/tw-dump.py" L1 --n 5)
+{ echo "$o" | head -1 | grep -q '11/19 11:00\] @cc' && echo "$o" | grep -q '截断警告: showing 2/9' && echo "$o" | grep -q 'TWDUMP: list=L1 取到=3 输出=3'; } \
+  || { echo "❌ tw-dump: 应按北京时间倒序输出 3 条并带截断警告"; fail=$((fail+1)); }
+o=$(TW_FAKE="$TWD/p.json" "$D/tw-dump.py" L1 --since 1795050000000)
+{ echo "$o" | grep -q '@aa' && ! echo "$o" | grep -q '@bb'; } || { echo "❌ tw-dump: --since 应滤掉早于时间戳的推"; fail=$((fail+1)); }
 # v3.7.20(11-02):event.sh defer——未到时点延后:状态仍待办(不带 --since 照列),due --since <run_ts> 扣出并报 DEFERRED
 n=$((n+1)); EVD=$(mktemp -d); td=$(date +%F)
 for k in 事件甲 事件乙; do EV_DIR="$EVD" "$D/event.sh" add "$td" review "$k" 23:00 - 测试 >/dev/null; done

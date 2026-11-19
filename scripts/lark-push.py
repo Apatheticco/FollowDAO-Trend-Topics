@@ -644,7 +644,7 @@ def render_main(r, cap=None):
         for b in bad_rv:
             prob.append('🚨 复审不合格：' + _clip(b, 100))
         if v['zero_streak'] >= 2:
-            prob.append('⚠️ 零挑战已连续 %d 轮（v2.9.81 警戒：2 轮升抽样、3 轮进周报）'
+            prob.append('⚠️ 零挑战已连续 %d 轮（review-verify 已把抽样要求升至 50%%；3 轮及以上进周报）'
                         % v['zero_streak'])
     for c in v['challenges'][:3]:
         prob.append('挑战 %s %s%s' % (c['id'], _clip(c['reason'], 78),
@@ -764,7 +764,7 @@ def render_review_thread(r):
             '✔' if len(v['sampled_valid']) >= v['need'] else '🚨'))
         L.append('· 审毕声明 AUDITED=%d' % v['audited'])
         if v['zero_streak'] >= 2:
-            L.append('· ⚠️ 零挑战连续 %d 轮——按 v2.9.81 警戒，抽样应升至 50%%；'
+            L.append('· ⚠️ 零挑战连续 %d 轮——review-verify 已把本轮抽样要求升至 50%%；'
                      '连续 3 轮进周报置顶' % v['zero_streak'])
         for b in bad_rv:
             L.append('· 🚨 ' + b)

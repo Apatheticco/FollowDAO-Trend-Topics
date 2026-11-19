@@ -24,20 +24,10 @@
 - 准入红线（地址级链上流水整体剔除，金额≠信息价值）以 `gate.sh A闸`「撤因闸的优先级」条为唯一口径（v3.5.1 已扩到单一地址/巨鲸/大户/机构的买入扫货、持仓、浮盈浮亏）。
 - 旧版「可识别身份＋叙事」白名单（知名实体财库增减持、官方地址异动、有身份玩家动作）10-24 用户定删除，一律按红线判；解锁、抛售公告等走事件日历／预告题路径，财库周报类另过 `gate.sh 时效` 内容时效。
 
-## 推特双栈（A1 子进程）
+## 推特双栈（A1）
 
-- **主进程粗排双轨**（子进程只 dump 不算分）：Velocity 轨 `(likes + 2×rt + 0.5×reply) / max(发帖小时数, 0.25)` 取前 7 ＋ Recency 轨按时间取前 3 ＋ **30 分钟内的新推无条件保留**，合并去重约 10 条。纯按互动排在 4h 窗里会压死新推、刷新和首扫大面积重叠。
-- **子进程 prompt 模板**（N 值、list ID、server 降级梯以 json「A1主栈／A1科技栈」为准；`model=haiku`）：
-
-```
-调用 followin.twitter(action="list_timeline", list_id="<LIST_ID>", limit=20)，用返回的 cursor 继续翻页，直到某页最新一条早于 <LAST_REFRESH_TS>（首扫按 24h）或达到页数上限（主栈 4 页／科技栈 3 页）。每页只显示约 20/60~85 条（服务端截断、cursor 不回补），把返回里的截断警告原样写进 dump 末行。
-若报 session initialization / session not found：等约 10 秒重试，最多 3 次；followin 报配额耗尽或取数失败再换 followdao-test 同参重试。
-时间过滤：createdAt 晚于 <LAST_REFRESH_TS> 的才留（该值取自 last-refresh.txt 末行，文件存毫秒，换成与 createdAt 相同的单位再比；首扫不滤）。
-按 createdAt 倒序输出最新 <N> 条，每条一行：
-[MM/DD HH:MM] @author | 👍likes 🔁rt 💬reply | text前130字
-不要计算分数，不要返回 full_content / 媒体链接 / 原始 json。
-```
-
+- **取数**：`~/.trend-scout/tw-dump.py <list_id> --pages N --n N [--since <ms>]`，list ID 与 N 值以 channels.json「A1主栈／A1科技栈」为准。脚本直连 followin，配额耗尽或失败自动换 followdao-test；每条一行 `[MM/DD HH:MM] @author | 👍 🔁 💬 | 正文前130字`（北京时间、倒序），末尾原样带服务端截断警告和 `TWDUMP:` 汇总行。刷新传 `--since` 为 last-refresh 末行（毫秒）。
+- **主进程粗排双轨**（脚本只 dump 不算分）：Velocity 轨 `(likes + 2×rt + 0.5×reply) / max(发帖小时数, 0.25)` 取前 7 ＋ Recency 轨按时间取前 3 ＋ **30 分钟内的新推无条件保留**，合并去重约 10 条。纯按互动排在 4h 窗里会压死新推、刷新和首扫大面积重叠。
 - **增量时间戳只由脚本写**：收尾 `log-snapshot.sh refresh`，禁止手动 echo。
 
 ## crypto 异动（`okx.py` 直连，v3.3.0 起不走 okx MCP）

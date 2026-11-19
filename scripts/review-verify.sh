@@ -79,8 +79,24 @@ for sid in $(echo "${SAMP#SAMPLED=}" | tr ',' ' '); do
   if grep -E "^${sid}\|" "$F" | grep -qE "自检[:：]"; then NS=$((NS+1)); else FAKE="$FAKE $sid"; fi
 done
 [ -n "$FAKE" ] && echo "⚠️ 抽样行无「自检:／自检：」原句,不计入:$FAKE"
-NEED=$(( (TOTAL*3+9)/10 )); [ "$NEED" -lt 3 ] && NEED=3; [ "$NEED" -gt "$TOTAL" ] && NEED=$TOTAL
-[ "$NS" -ge "$NEED" ] || { echo "🚨 抽样不足: 复审员自检 $NS 条 < 要求 $NEED 条(≥30% 且 ≥3)"; log FAIL "抽样 $NS<$NEED"; exit 1; }
+# 11-19 审计:零挑战警戒原先只在群卡片里写「抽样应升至 50%」,没有任何环节执行(11-17~11-19 连续 8 轮警告、抽样仍按 30%)。
+#   改为这里机械执行:本轮之前已归档的复审连续 ≥2 份零「处置有误/挑战」→ 抽样要求升到 50%(≥3 条)。口径同 lark-push.py zero_streak。
+ZS=$(python3 - "$RD" "$TS" <<'PYZ'
+import sys,os,glob
+rd,ts=sys.argv[1],sys.argv[2]
+fs=[f for f in glob.glob(os.path.join(rd,'review-*.md')) if os.path.basename(f)!='review-%s.md'%ts]
+n=0
+for f in sorted(fs,key=os.path.getmtime,reverse=True):
+    t=open(f,encoding='utf-8',errors='replace').read()
+    if any(('|处置有误' in l) or ('|挑战' in l) for l in t.splitlines()): break
+    n+=1
+print(n)
+PYZ
+)
+PCT=3; [ "${ZS:-0}" -ge 2 ] && PCT=5
+NEED=$(( (TOTAL*PCT+9)/10 )); [ "$NEED" -lt 3 ] && NEED=3; [ "$NEED" -gt "$TOTAL" ] && NEED=$TOTAL
+[ "$PCT" -eq 5 ] && echo "ℹ️ 此前复审已连续 $ZS 轮零「处置有误」→ 本轮抽样要求升至 50%(需 $NEED 条)"
+[ "$NS" -ge "$NEED" ] || { echo "🚨 抽样不足: 复审员自检 $NS 条 < 要求 $NEED 条(≥$((PCT*10))% 且 ≥3)"; log FAIL "抽样 $NS<$NEED"; exit 1; }
 # v3.0.9 裁决词歧义哨兵(不阻断):09-04/09-05 连续两轮,复审员把「你撤对了」写成「挑战」。
 #   「挑战」歧义=既可读作挑战这条题、也可读作挑战我的处置,写进 prompt 说明没治住,已在 review-agent.md 换词为「处置有误」。
 #   这里兜底:判否定却通篇肯定词的行捞出来提示复核。存在「撤对了但 rc 贴错」这类合法的部分否定,故只 WARN。

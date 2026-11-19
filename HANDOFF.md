@@ -1,38 +1,11 @@
-# HANDOFF — 会话交接（2026-07-22 更新）
+# HANDOFF — 会话交接
 
-> 新 session 接管指南：规则全在 `skills/create-trending-topic/`（SKILL.md 执行卡 + references 详章 + LESSONS 版本表，当前 v2.9.13），运行状态在 `~/.trend-scout/`（last-refresh.txt / actions.tsv / snapshots.tsv），话题池以 `list_trending_topics` 实查为准。**本文件只装未决事项**，处理完即可删除本文件。
+新会话接管时按这个顺序读：
 
-## ✅ 已结（一行存档，细节见 LESSONS/actions）
+1. `skills/create-trending-topic/SKILL.md`：每轮跑什么、什么顺序、调哪个脚本。
+2. `skills/create-trending-topic/references/gates.md`：判定规则，用 `gate.sh <闸名>` 按需查，不整篇加载。
+3. 本机 `~/.trend-scout/`：运行目录和台账（不入库）。开跑先跑 `retro.py brief` 读最近一次每晚复盘的「今天注意」，再跑 `ask.py sync` 看待定事项。
 
-- **SKHYX tag 已入库**（658686+658687）；**BONK=159920、HYPE=489344 新入库**（07-21/22）
-- **cron 定时器不上、维持手动**（07-08 用户拍板，细节见 actions 2026-07-08）
-- **周复盘已常态化**（每周一首扫后跑，流程 `references/weekly-review.md`）
-- **followin 数组参 -32602 根因已闭环**（v2.9.11c：客户端会话注册表问题，服务端无责，**已从 dev 单撤回**；会话内解法=query 绕参，见 SKILL 分型表）
-- **通道故障分型速查表落地**（v2.9.13：stdio 重 select／SSE 绕参／init 窗口重试／持续死锁熔断，SKILL §1）
+看板上题目的状态以 `list_trending_topics` 实查为准，不以任何文档为准。
 
-## ⏸ 未决事项（按优先级）
-
-| # | 事项 | 细节 | 建议 |
-|---|------|------|------|
-| 1 | 📅 **周复盘 #3** | 下次 7/27（周一首扫后）。**#2 基线（07-20）**：建 13、当前采纳 2/13=15%（曾上线 5/13=38%）、打回 0、误撤 2/75=2.7%（v2.9.7 后 0）、自建自撤 6/13（其中 3 条计划内生命周期、3 条真失误=追单日强动量）。⚠️ 采纳率口径受团队审核停滞污染（5 条滞留 status=2 无人处理），解读时标注 | AUTO 周任务 |
-| 2 | 🟡 **10422 keyword 撞实体** | 「英伟达否认 Kyber 延期」keyword 只有 `Kyber`，撞 DeFi 同名实体 | 改 `英伟达,NVDA,Kyber` 或交团队 |
-| 3 | 📋 **dev 需求单（v2.9.13 修订版）** | ① list API 加 **PV/热度字段**（效果评估最后盲区，最高优先）② `update_trending_topic` 加 **id 参数**（同名多条无法定位；中文弯引号标题易失配）③ 系统批**同名去重**（MSTR ×18 前例）④ tag 库补**韩/日/港主流标的 + IREN/SMCI 等热门美股**⑤ followin **tradfi FMP 403** 间歇 source_dead ⑥ followin **SSE 隔夜重连**两症状：永久死锁（会话级）+ init 窗口（瞬时，已有会话内处置）⑦ **系统建题收盘不回校**（07-21 实测：盘初「AMD涨5%」收盘实际 +1.58%，高开低走定性也错——建议系统批收盘后自动复核盘初数字）⑧ 🚨 **自动打标器（口径修订）**：~~keywords 匹配不到~~ 经 v2.9.11 实证**我方传参问题占一半已自修**；仍成立的部分=**标题错实体**（Circle→OCC/SpaceX→SPC）+ **11 位垃圾占位 tag**，请改①只匹配 keywords ②匹配不到留空 ③ list 输出加 tags 字段 | 用户转发 |
-
-## 📌 本周关键上下文（一句话版，07-22）
-
-- **宏观主线**：美伊冲突第 11 夜、WTI 破 $85/布伦特曾冲 $91（我方 10000002201）；BTC 65-67K 随 CLARITY 法案预期波动（Polymarket 通过概率数周来首破 50%，但参院伦理条款仍卡）；**今晚谷歌/特斯拉财报**（10000002229 预告题，结果落地后按 v2.9.13 生命周期接替）
-- **AI 硬件叙事一周两反转**：Kimi K3 上周被读作"利空内存"→ 存储暴跌；本周改口"2.8 万亿参模型利好 HBM/DRAM"→ 07-21 存储 V 型反弹（MU +12%、费半 +5.2%）、KOSPI 单日 -4.5% → +5.9% 触发首次**因涨**暂停程序化交易
-- **假新闻潮**：两天连环辟谣（SK海力士×英特尔 10000002226、富士康×SpaceX 10000002228）——v2.9.13「假新闻两段式」已固化：单源押后，官方否认后辟谣本身建题
-- **meme/热点小币默认保留**（v2.9.7/9.8）照旧；RH 链轮动（CASHCAT→PONS→INDEX→BRIAN）常驻热点源
-- **OpenAI 模型入侵 Hugging Face** 事件发酵中（OpenAI 官方承认，GLM 5.2 做取证）——AI 安全叙事持续，关联标的看 ZHIPU/ANTHROPIC 代币化
-
-## 🔑 高频踩坑速记（详见 LESSONS）
-
-- 价格：正股优先 followin 直查（韩`.KS`/日`.T`/港`.HK`），代币化不作主锚（v2.8.7）；正股锚话题 domain=tradfi
-- movers：只走 okx（`sortBy:"chg24hPct"`、**方向参数=`sortOrder`**——传 sortType 被静默忽略、v2.9.13）；followin 涨跌榜空货架；tradingview 单源不可信
-- 执行序：扫热点→盘8h池→处置存量→**最后**补题（v2.8.5）；判模式：当天第一轮=首扫（v2.8.8）
-- create 后停 status=2 禁主动上线；**keywords 传逗号字符串禁数组**（v2.9.11 静默失败）；tag 每轮必验（v2.9.5）
-- **多数字标题逐个回溯到源**（v2.9.10）：数字间的"变化关系"也要有源，不能拼接；单源冲突取保守口径
-- **meme/热点小币默认保留**（v2.9.7+9.8）：撤只限「同标的重复/已证伪/事实错误」三类
-- **看不见的漏扫三守卫**：metrics keywords ≤5/批、B0 limit=100+total==limit 必拆、B0 date_range 必含今天
-- **通道故障先分型再处置**（v2.9.13 速查表）：stdio 断开→ToolSearch 重 select；-32602→query 绕参；init 窗口→重试 1 次；持续死锁才熔断
+未决事项不记在本文件：要用户定的走 `ask.py`，每晚复盘的结论写在 `~/.trend-scout/retro/`，周六周报汇总。历史事故与版本演进见 `skills/create-trending-topic/LESSONS.md`。
