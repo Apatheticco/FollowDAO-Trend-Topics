@@ -212,6 +212,9 @@ def prev_from_bars(bars, today, official=None):
         if any(abs(official / c - 1) < 0.0005 for _, c in prior[:-1]):
             return d0, p0, f'官方前收 {official:.4f} 等于更早某天收盘(旧值),弃用,按 {d0} 日线收盘算'
         p1, warn = pick_prev(p0, official)
+        # retro1119:采用官方前收时,日线多半缺了 d0 之后那根(11-19 KOSPI 前收值对、日期却标成 11-17)——日期不再沿用 d0
+        if warn:
+            return f'{d0}之后的上一交易日', p1, warn
         return d0, p1, warn
     return d0, p0, None
 

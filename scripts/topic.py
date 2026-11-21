@@ -59,10 +59,16 @@ WAIVERS = (('射程外仍改', 'out_of_scope'), ('豁免价格腿', 'succession_
            ('仅措辞', 'style_rc'), ('方向不明确', 'price_only'), ('他币关键词仍用', 'token_word_clash'), ('同名代币已核', 'spot_clash'), ('未拉B0仍建', 'b0_stale'), ('撞名已核', 'ds_clash'), ('关键词已核', 'pure_kw_ticker_only'))
 
 
+WAIVER_APPLIES = {   # retro1121:豁免只在该检查真会触发时计数——succession_price_leg 7 次「豁免」全是预告题建题/状态修正,检查本身从未触发
+    'succession_price_leg': lambda a: getattr(a, 'rc', '') == '承接更新',
+    'price_only': lambda a: getattr(a, 'rc', '') != '改数字-定稿' and bool(re.search(r'报\s*\d', getattr(a, 'title', None) or '')),
+}
+
+
 def log_waivers(a, act, tid):
     n = note_of(a)
     for w, chk in WAIVERS:
-        if w in n:
+        if w in n and WAIVER_APPLIES.get(chk, lambda _a: True)(a):
             hit(chk, '豁免', act, tid, a.rc)
     if getattr(a, 'force_system_edit', False):
         hit('system_edit', '豁免', act, tid, a.rc)
@@ -240,6 +246,19 @@ def pure_kw_ticker_only(domain, rc, keywords, note=''):
     return None
 
 
+def split_hint(domain, pcts):
+    """retro1121:SNDK 11-19 收盘后 1 拆 8,系统两次写成「盘前跌88%」(3925/3928)——tradfi 单日 |涨跌|≥50% 先当公司行动查。
+    只提示不拦(真有腰斩/翻倍的个股)。"""
+    if (domain or '') != 'tradfi':
+        return None
+    for q in pcts or []:
+        m = re.search(r'=\s*([\d.]+)\s*/\s*([\d.]+)', q)
+        if m and float(m.group(2)) > 0 and abs(float(m.group(1)) / float(m.group(2)) - 1) >= 0.5:
+            return (f'{q.split("=")[0]} 单日涨跌≥50%——先查长桥 corp_action(拆股/合股/除权),按复权前收重算;'
+                    '确是真实腰斩/翻倍就在备注写「已核非公司行动」')
+    return None
+
+
 def lint_and_pct(title, domain, pcts, act, tid, rc):
     import lint, pct
     res = lint.lint_title(title, domain)
@@ -264,6 +283,9 @@ def lint_and_pct(title, domain, pcts, act, tid, rc):
         r = pct.check(title, pcts)
         for lv, msg in r:
             print(f'  {lv} 涨跌幅: {msg}')
+        _sp = split_hint(domain, pcts)
+        if _sp:
+            print(f'  WARN 拆股: {_sp}')
         bad = [m for lv, m in r if lv == 'FAIL']
         if bad:
             block('涨跌幅不符:' + ';'.join(bad), act, tid, rc, check='pct_check')
@@ -339,6 +361,50 @@ def readback(c, tid, want):
         if str(got).strip() != str(v).strip():
             bad.append(f'{k}: 写入「{v}」回读「{got}」')
     return bad
+
+
+def en_title_warns(zh, en, domain=None):
+    """retro1119:前台英文标题是系统自动翻译的,11-19 两次译错事实——3891『ANT指示开盘价100美元，美光盘中涨5.6%』→
+    『ANT opened at $100, and the price rose 5.6%』(指示价译成已开盘、美光涨幅安到 ANT 头上),改后又把「美光」译成『US stocks』;
+    14167 两件并列被译成因果且称 stock。机械能抓的四类:时态(预示/指示→opened)、「美X」公司被译成美股、crypto 题出现 stock、标题百分数在英文里丢了。"""
+    w = []
+    if not en or en.strip() == (zh or '').strip():
+        return w
+    e = en.lower()
+    if re.search(r'指示|预示|预计|拟', zh or '') and re.search(r'\b(opened|opens|closed) (at|up|down)\b', e):
+        w.append('中文是指示/预计口径,英文成了已发生(opened/closed)')
+    if re.search(r'\bu\.?s\.? stocks?\b', e) and '美股' not in (zh or ''):
+        w.append('中文没写美股,英文出现「US stocks」——「美光/美团」类公司名被拆译,标题里加 ticker 锚定主体')
+    if (domain or '') == 'crypto' and re.search(r'\bstocks?\b|\bshares?\b', e):
+        w.append('crypto 题英文出现 stock/shares')
+    for num in re.findall(r'\d+(?:\.\d+)?%', zh or ''):
+        if num not in en:
+            w.append(f'标题里的 {num} 在英文标题里没有')
+    return w
+
+
+def en_readback(c, tid, zh, domain=None, wait=int(os.environ.get('TOPIC_EN_WAIT', '16'))):
+    """写标题后等系统翻译,打印英文标题;命中 en_title_warns 的给 ⚠️(不拦,翻译是系统侧,人判要不要改中文措辞)。
+    retro1120:原等 40 秒,11-20 三轮 6 次里 5 次超时(系统翻译常要 1 分钟以上),每轮白等 2~4 分钟;改等 16 秒,
+    没等到的由收尾 downstream.py 统一打印英文标题并跑同一套哨兵。"""
+    if os.environ.get('TOPIC_NO_DOWNSTREAM') or os.environ.get('TOPIC_NO_EN'):
+        return
+    en = None
+    for _ in range(max(1, wait // 8)):
+        try:
+            t = c.get(tid, lang='en') or {}
+            en = t.get('title')
+        except Exception:
+            en = None
+        if en and en.strip() != (zh or '').strip():
+            break
+        time.sleep(8)
+    if not en or en.strip() == (zh or '').strip():
+        print(f'  ↳ 英文标题:{wait}秒内未生成,收尾 downstream.py 时看英文标题')
+        return
+    print(f'  ↳ 英文标题:{en}')
+    for x in en_title_warns(zh, en, domain):
+        print(f'  ⚠️ 英文译错嫌疑:{x}——读一遍英文,事实错就改中文措辞(rc 纠错-自纠)')
 
 
 def downstream(ids):
@@ -555,6 +621,15 @@ def cmd_create(a, c):
     _tf = tradfi_floor(a.domain, a.title, note_of(a), a.keywords)
     if _tf:
         block(_tf, 'create', '-', a.rc, check='tradfi_floor')
+    _dg = degraded_nocause(a.rc, a.domain, note_of(a))
+    if _dg:
+        block(_dg, 'create', '-', a.rc, check='degraded_nocause')
+    _ie = intraday_extreme(a.title, note_of(a))
+    if _ie:
+        block(_ie, 'create', '-', a.rc, check='intraday_extreme')
+    _cv = crypto_vol_desc(a.rc, a.domain, a.title, getattr(a, 'desc', None))
+    if _cv:
+        block(_cv, 'create', '-', a.rc, check='crypto_vol_desc')
     _sl = sector_lead(a.rc, a.title)
     if _sl:
         block(_sl, 'create', '-', a.rc, check='sector_lead')
@@ -597,6 +672,8 @@ def cmd_create(a, c):
     args = {'title': a.title, 'keywords': ','.join(kw), 'domain': a.domain, 'score_weight': _w}
     if a.domain == 'crypto':
         args['topic_type'] = a.topic_type
+    if getattr(a, 'desc', None):
+        args['desc'] = a.desc
     r = write_and_log(c, 'create_trending_topic', args, la_args('create', '-', a.rc, a, delta), None, 'create', '-', a.rc)
     tid = str(r['id'])
     log_waivers(a, 'create', tid)
@@ -632,6 +709,7 @@ def cmd_create(a, c):
     auto_review(tid, a.title, ','.join(kw), a.domain, closed_ms=_now() + 24 * 3600 * 1000)
     if not a.no_downstream:
         downstream([tid])
+        en_readback(c, tid, a.title, a.domain)
     if bad:
         sys.exit(6)
 
@@ -715,7 +793,10 @@ def cmd_update(a, c, status=None, act='update'):
             _bt = _pc.bn_title_mismatch(new_title, kw if kw else [k.strip() for k in (t.get('keywords') or '').split(',')])
             if _bt:
                 block(_bt, act, a.id, a.rc, check='bn_title_mismatch')
-        _po = price_only(new_title, note_of(a))
+        _ie = intraday_extreme(new_title, note_of(a))
+        if _ie:
+            block(_ie, act, a.id, a.rc, check='intraday_extreme')
+        _po = None if a.rc == '改数字-定稿' else price_only(new_title, note_of(a))   # retro1121:定稿改数字误触发(13827/13857)
         if _po:
             block(_po, act, a.id, a.rc, check='price_only')
         _sr = style_rc(a.rc, t.get('title'), new_title, t.get('domain'), note_of(a))
@@ -781,6 +862,8 @@ def cmd_update(a, c, status=None, act='update'):
         auto_review(a.id, new_title, t.get('keywords') or '', t.get('domain'), closed_ms=t.get('closed_ts'))
     if not a.no_downstream and (kw is not None or getattr(a, 'tags', None) is not None or act == 'restore'):
         downstream([a.id])
+    if new_title and not a.no_downstream:
+        en_readback(c, a.id, new_title, t.get('domain'))
     if bad:
         sys.exit(6)
 
@@ -836,7 +919,7 @@ def vol_only_exempt(note):
 
 def meme_rc(rc, note):
     """10-19 复盘(13335 TRUMP):备注写了四查全空,却记成「缺价格腿」;gates A闸 meme 行四查全空的规范撤因是「缺诱因-未达线」。"""
-    if rc == '缺价格腿' and re.search(r'四查[:：]\s*幅度✗\s*成交额✗\s*市值关口✗\s*硬事件✗', note or ''):
+    if rc == '缺价格腿' and re.search(r'四查[:：]\s*幅度✗\s*成交额[✗✓]\s*市值关口✗\s*硬事件✗', note or ''):   # v3.7.38 成交额格只记录不放行
         return '备注是 meme 四查全空,规范撤因是「缺诱因-未达线」(gates 闸:A闸 meme 行),不是「缺价格腿」——改 --rc 再撤'
     return None
 
@@ -912,14 +995,14 @@ def sicha_auto(t, rc, note, reader=_meme_24h):
         vol = False
     if re.search(r'市值[^，,]{0,8}(突破|站上|升破|涨破|首破)', title):
         return 'block', '题面主张了市值关口,四查③须人核「本轮首次突破」——人工写四查行'
-    if amp or vol:
-        return 'block', f'四查{"①幅度✓" if amp else ""}{"②成交额✓" if vol else ""}({src} 24h {x:+.1f}%{f"、合约成交{qv:.1f}亿" if qv is not None else ""})——豁免成立,这道题该留,不撤'
+    if amp:   # v3.7.38(11-21 用户批同步包):成交额格只记录、不放行——三格(幅度/市值关口/硬事件)任一 ✓ 才留
+        return 'block', f'四查{"①幅度✓" if amp else ""}{"(②成交额✓只记录)" if vol else ""}({src} 24h {x:+.1f}%{f"、合约成交{qv:.1f}亿" if qv is not None else ""})——豁免成立,这道题该留,不撤'
     if '硬事件✓' in n:
         return 'block', '备注写了硬事件✓——有硬事件该留,不撤'
     if '硬事件✗' not in n:
         return 'block', (f'工具已算前三格:幅度✗({src} 24h {x:+.1f}%) 成交额✗(题面未主张或未达线) 市值关口✗(题面未主张);'
                          '硬事件只能人判——确认没有被盗/上大所/大机构合作/官方重大事件,在 --note 加「硬事件✗」重跑,工具自动写四查行')
-    return 'fill', f'四查:幅度✗ 成交额✗ 市值关口✗ 硬事件✗(工具算前三格:{src} 24h {x:+.1f}%,题面未主张成交额与市值关口;硬事件人判) '
+    return 'fill', f'四查:幅度✗ 成交额{"✓" if vol else "✗"} 市值关口✗ 硬事件✗(工具算前三格:{src} 24h {x:+.1f}%,题面未主张成交额与市值关口;硬事件人判) '
 
 
 def dup_target(rc, note, self_id, getter):
@@ -927,6 +1010,9 @@ def dup_target(rc, note, self_id, getter):
     备注须写留存题 id;引用的 id 都查得到且都不在线(status≠0)→拦,提示换真因码。查不到的 id(超 7 天)不拦。"""
     if rc != '重复-同标的':
         return None
+    if re.search(r'发布时效|内容时效|枚举无时效', note or ''):   # retro1120 14195:时效问题凑留存题 id 记成重复
+        return ('备注说的是时效(发布时效/内容时效),撤因码用「过期-窗口题」(时间窗已过);「重复-同标的」只用于同一事件已有在线题承接'
+                '——别为过留存题校验去引一条不同事件的题(retro1120 14195 引了 BTC 新低题 14183)')
     ids = [i for i in re.findall(r'(?<!\d)(1000000\d{4}|1\d{4})(?!\d)', note or '') if i != str(self_id)]
     if not ids:
         return '「重复-同标的」须在备注写明留存的那条题 id(重复的对象是谁)'
@@ -1212,6 +1298,48 @@ def sector_lead(rc, title):
 CRYPTO_LINE = float(os.environ.get('TS_CRYPTO_LINE', '50'))   # 11-06 用户定:crypto 纯行情(rc 纯行情-A定则)与 meme 豁免①幅度线 30%→50%;与 lint.CRYPTO_LINE 同值
 
 
+INTRA_EXT = re.compile(r'(?:一度|曾)(?:大)?(?:涨|跌)(?:超|逾|近)?\d+(?:\.\d+)?%')
+INTRA_EXT_NOTE = re.compile(r'盘中高|盘中低|日内高|日内低|最高|最低|高点|低点|high24h|low24h|\bhigh\b|\blow\b', re.I)
+
+
+def intraday_extreme(title, note):
+    """retro1120:3916 标题写「Anthropic首日收涨17%，盘中曾涨34%」,34% 其实是开盘价 111.5/83(ET『shares opening at 111.50』),
+    盘中最高是 115.1(+38.7%),复审员挑出。「一度/曾涨跌X%」说的是盘中极值,备注须写明所用的盘中高/低价;
+    用的是开盘价就写「高开/低开X%」。"""
+    if not INTRA_EXT.search(title or ''):
+        return None
+    if INTRA_EXT_NOTE.search(note or ''):
+        return None
+    return ('标题写「一度/曾涨跌X%」=盘中极值,备注没写所用的盘中高/低价——在备注写「盘中高 <价>」或「盘中低 <价>」(长桥 quote 的 high/low、'
+            '币安 high24h/low24h);若数字其实是开盘价,改写「高开/低开X%」(retro1120 3916 把开盘涨幅写成盘中曾涨)')
+
+
+def crypto_vol_desc(rc, domain, title, desc):
+    """11-21 用户定 C:crypto 纯行情「24小时涨跌X%」题,标题带「币安合约成交X亿美元」,并用 --desc 补市值与背景
+    (desc 实测前台详情页标题下显示、英文自动翻译;改题接口不收 desc,只写建题时的数字)。BTC/ETH 关口新低题不在此列。"""
+    if rc != '纯行情-A定则' or (domain or '') != 'crypto' or not re.search(r'24小时(?:涨|跌)\d', title or ''):
+        return None
+    miss = []
+    if '成交' not in (title or ''):
+        miss.append('标题带「币安合约成交X亿美元」(pct.py bn 末尾给的数)')
+    if not (desc or '').strip():
+        miss.append('--desc 写一段:现价、24h 涨跌、币安合约成交额、CoinGecko 市值、同期大盘背景(只写建题时数字)')
+    return ('crypto 纯行情题(11-21 用户定 C):' + ';'.join(miss)) if miss else None
+
+
+def degraded_nocause(rc, domain, note):
+    """retro1119:INSM +19% 我按「无诱因纯行情」建,备注写 followin news『degraded』0 条——降级返回空不等于没报道,
+    12 分钟前 Bloomberg 已发『Sanofi Weighs Takeover of US Drugmaker Insmed』,复审员一搜就有。
+    tradfi 纯行情题备注引了 degraded 作「无诱因」依据,须另换一个源复查(长桥 news_search / jin10 / WebSearch)并写「复查:<源> <结果>」。"""
+    if rc != '纯行情-A定则':   # retro1121:扩到 crypto(原只管 tradfi)
+        return None
+    n = note or ''
+    if re.search(r'degraded|检索降级', n, re.I) and '复查:' not in n:   # 不认单独的「降级」:板块题备注常写「降级板块播报」
+        return ('备注把检索降级(degraded)当「无相关报道」——降级是没搜到不是没有;换源复查(长桥 news_search/jin10/WebSearch,按标的名+公司名)'
+                '并在备注写「复查:<源> <结果>」再建(retro1119 INSM 漏了彭博并购报道)')
+    return None
+
+
 def crypto_amp(rc, domain, title, note, kws=''):
     """11-06 用户定:「山寨妖币纯行情波动的话题太多」——crypto 纯行情题 24h 涨跌须 ≥±50%(原 30%)。
     11-09 用户定:BTC/ETH 不走 50% 线——24h 须 ≥ coverage.MAJOR 线(BTC 5%/ETH 7%),或写「关口+阶段新高/新低」
@@ -1466,7 +1594,10 @@ def _main():
     p.add_argument('--dry', action='store_true')
     p.add_argument('--tier', help='v3.7.30 人工指定排序权重档 A/B/C/D(仅 create);须带 --tier-why')
     p.add_argument('--tier-why')
+    p.add_argument('--desc', help='11-21 用户定实测:建题时写描述(≤1023 字,console 只在建题时收);默认不传')
     a = p.parse_args()
+    if getattr(a, 'desc', None) and len(a.desc) > 1023:
+        p.error('--desc 超过 1023 字')
     if a.cmd != 'get' and a.cmd != 'publish' and not a.rc:
         p.error('--rc 必填')
     if a.cmd not in ('get', 'publish') and not (a.note or a.T):

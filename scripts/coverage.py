@@ -468,12 +468,14 @@ def macro_milestones(days=None):
         plo, phi = min(float(x[3]) for x in prior), max(float(x[2]) for x in prior)
         since = datetime.datetime.fromtimestamp(int(prior[0][0]) / 1000).strftime('%m-%d')
         import math
+        # retro1119:报「击穿的最深一档」而非 ref 下方第一档——11-19 金价从 3853 跌到 3694 同时破 3800/3700,
+        # 原写法报「跌破3800」,对上了已过期的 3859(3800 题),3700 新题靠人工补
         if lo < plo:
-            lv = math.floor(ref / step) * step
+            lv = (math.floor(lo / step) + 1) * step
             if lo < lv <= ref:
                 out.append((sym, '新低', lv, lo, since))
         if hi > phi:
-            lv = math.ceil(ref / step) * step
+            lv = (math.ceil(hi / step) - 1) * step
             if ref <= lv < hi:
                 out.append((sym, '新高', lv, hi, since))
     return out
@@ -620,8 +622,10 @@ def main():
         if not any(r[0] == '币' and r[1] == sym for r in rows):   # 幅度已过线的不重复列
             rows.append(('币', sym, -0.001 if kd == '新低' else 0.001, set(MAJOR[sym][1])))
         _ms[sym] = f'{kd} {lvl:g}(对照 {since} 起 {MAJOR_DAYS} 天)'
+    _mlv = {}
     for sym, kd, lv, ext, since in macro_milestones():
         rows.append(('大宗', sym, -0.001 if kd == '新低' else 0.001, set(MACRO[sym][1])))
+        _mlv[sym] = lv
         _ms[sym] = f'{"跌破" if kd == "新低" else "站上"}{lv:g}关口·{kd} {ext:g}(对照 {since} 起 {MAJOR_DAYS} 天)'
     n_t = n_d = n_m = 0
     _cn = created_notes()
@@ -629,6 +633,11 @@ def main():
     out = []
     for kind, sym, x, names in sorted(rows, key=lambda r: -abs(r[2])):
         _lv, _nt = (live, notes) if kind == '币' else (live_s, notes_s)
+        if kind == '大宗' and sym in _mlv:
+            # retro1119:大宗关口行只认标题写了这一档的题——旧关口题(3859 跌破3800)不算覆盖新关口 3700。
+            # 不排除已过期题:recent 窗含昨天,昨天破关口建的题今天过期了仍算已处置(试过排除,11-18 白银 3869 被误报漏)
+            _lvs = f'{_mlv[sym]:g}'
+            _lv = [t for t in _lv if _lvs in ((t.get('title') or '') + (t.get('original_title') or ''))]
         _line = (MAJOR[sym][0] if kind == '币' and sym in MAJOR else None) or (HOT_LINE if kind == '币' and qvs.get(sym, 0) >= HOT_VOL else None) \
             or {'股': 10, '币': COIN_LINE}.get(kind) or IDX.get(sym, (None,))[0]
         v, ref = covered(sym, names, _lv, _nt, x, _line, _cn if kind == '股' else None, idx=(kind == '指数'))

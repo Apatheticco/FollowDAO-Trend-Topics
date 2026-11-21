@@ -1,17 +1,26 @@
 # 扫描详章（参考件）
 
-> **v3.7.15 精简**：跑哪些通道、参数、兜底＝`~/.trend-scout/channels.json`（`checklist.sh channels` 查看；`checklist.sh start→mark→verify` 打勾，verify 拒未填／✅ 不带计数／❌ 不写兜底）。并发＝`gate.sh 并发编排`；调用硬约束＝`gate.sh 调用约束`；故障分型、熔断、降级梯、半盲＝`gate.sh 通道故障`；判模式（跨天＝首扫／同日＝刷新）与时间校准＝SKILL §0 ＋ `gate.sh 开跑铁律`。本文件只留这些地方装不下的细节。v2.x 原文（TG exploit 词探针、3×10 板块批、油 `CLUSD`、不跑 signal、候选池扩窗兜底、手拍 `last-refresh.txt` 等已作废口径）在 git `0deeaa3` 版本。
+> **v3.7.15 精简**：跑哪些通道、参数、兜底＝`~/.trend-scout/channels.json`（`checklist.sh channels` 查看；`checklist.sh start→mark→verify` 打勾，verify 拒未填／✅ 不带计数／❌ 不写兜底）。并发编排＝本文件「并发编排」节（v3.7.38 由 gates 沉入）；调用硬约束＝`gate.sh 调用约束`；故障分型、熔断、降级梯、半盲＝`gate.sh 通道故障`；判模式（跨天＝首扫／同日＝刷新）与时间校准＝SKILL §0 ＋ `gate.sh 开跑铁律`。本文件只留这些地方装不下的细节。v2.x 原文（TG exploit 词探针、3×10 板块批、油 `CLUSD`、不跑 signal、候选池扩窗兜底、手拍 `last-refresh.txt` 等已作废口径）在 git `0deeaa3` 版本。
+
+## 并发编排（v3.7.38 由 gates 闸:并发编排、闸:调用约束「单 turn 齐发」沉入；通道存在性与参数以 channels.json 为准）
+
+- **刷新**：B0 console＋B1/B2 followin（每批塞满 ≤5 槽）＋`okx.py movers`/`oi`（直连）＋A1 双栈**同一 turn 齐发**；油 `yahoo_price CL=F` 与 W-HL 不占 followin 槽。
+- **首扫**：4 波 followin **每波严格塞满 5 槽**（v2.5.1——别欠装、别为 1 个 call 单开一波；spx 必 fail→SPY/QQQ/DIA 兜底预判直塞 W1（DIA 11-06 进 IDX 对账表））：W1 价格核心（＋B0＋A1＋油同波起）→ W2 事件/链上 → W3 板块前半＋econ 日历 → W4 板块后半＋国债＋涨跌榜。板块矩阵 6 批×5 受**美股时段闸**：休市/盘前＝上一收盘陈旧，跳过标注、开盘后再拉。
+- **A1 双栈走 `tw-dump.py` 直连（约 8 秒，不起子进程）**，W1 波就起；list ID 与参数见 channels.json。
+- **单 turn 齐发**（v2.8.9）：刷新模式**全部批次（B0 console + B1/B2 followin + okx.py movers/oi + A1 tw-dump.py）同一条消息齐发**——各批无数据依赖，分波纯浪费；墙钟=最慢一路（全轮 4-5min）。三大违规：① 单 call 单 turn 逐个调、call 间夹叙述；② A1 长杆放末尾（必须第一波起）；③ 首扫 W2-W4 只等 followin 前一波返回即续发，不等其他通道（B0/A1/okx/TG 与 W1 同发）。
+- **W-HL 条件触发三选一**（json guard 同步）：①美股非 regular 时段轮 ②followin `no_match`（A股/pre-IPO/韩指，quirk⑯）③需 OI/成交额判资金流向。铁律：`dex="xyz"` 不可省（xyz 标的不在主 universe，直查 `allMids` 会误判"不存在"）；**主锚仍是正股**、文案必标口径（盘后/24h）；`prevDayPx`＝滚动 24h 与当日涨跌幅**口径不同不得混写同一句**（v2.9.10 同族）；薄盘先看 OI/成交额再用价；**拿得到盘后价 ≠ 该改题**（v2.7.8 例外才改）。UNITREE 误判／`11513` 三源对齐／点差实测全文沉 LESSONS v2.9.78。
+- **⚠️ 首扫完整性（08-20 复盘）**：跨天首轮不因「对话驱动/上轮刚扫过」缩水——判据：至少覆盖 W1 全通道＋event-watch 全部到期项；只有用户点名的定向轮可轻扫（黄金 4500 漏建／BitMart missed 实证沉 LESSONS）。
 
 ## Followin 调用细节（10-24 对 schema 实测）
 
 - **news**：没有 `categories`；`sort_by` 有（带 query：time 默认／relevance；空 query 热榜：hot 默认／time）。生产用 `verbosity="concise"`（每字段 200 字；standard 是 600）＋ `limit≤15`。
-- **news TG**（`sources=["telegram"]`）：返回字段 `tg_category / author_name / content / _source_quality / published_ts`，**没有 username**，按 `author_name` 过滤去重。query 必须是具体币种/资产词（泛词返回 degraded 0 条）；**11-07 起 TG 通道主路改为从全源 news 返回里抽 TG 条目**（用户定 Q14：单拉对 BTC/ETH 也间歇性 0 条），单拉只作可选试探，填法见 json「TG探针或兜底」。
+- **news TG**（`sources=["telegram"]`）：返回字段 `tg_category / author_name / content / _source_quality / published_ts`，**没有 username**，按 `author_name` 过滤去重。query 必须是具体币种/资产词（泛词返回 degraded 0 条）；**TG 通道主路与填法见 json「TG探针或兜底」**（11-07 Q14：从全源 news 抽 TG 条目）。
 - **tradfi 新闻**：`news(asset_type="tradfi")` 几乎每轮返 0，已从批次砍掉；美股新闻用 `news(query=<当周热点词>, 不传 asset_type)`，词按当周热点自拟（例：`"NVIDIA chip export China"`、`"earnings beat miss guidance"`）。
 - **metrics 价格调用一律加 `categories=["market"]`**——不加会扇出 macro＋fundamentals，tradfi 几只股就溢出上下文。keywords ≤5／批的硬约束 → `gate.sh 调用约束`。
 - **大宗裸词会解析成同名股票**（`gold`→Barrick、`CL`→Colgate）：金用 `XAUT`／`PAXG`@crypto，油用 `yahoo_price CL=F`（`CLUSD` 已废，返回 FRED 历史错值），美元 `DXY`。
 - **美股涨跌榜**：metrics 的 movers 只覆盖美股（`query="biggest gainers"`，默认去掉 <$1 股）；**crypto 涨跌榜不走 metrics**，走 `okx.py`（见下）。
 - **econ 日历**：传 `date_from=今天`、`date_to=+5d` 才有前瞻（`actual=null`＋`estimate` 有值＝未公布）；`sort_by="hot"` 把高影响的排前；不传 keywords（每个 keyword 各回一堆 JP/KR 噪音）。
-- **twitter list_timeline**：只收 `list_id`／`cursor`／`limit`（≤20），没有时间窗参数——增量过滤由子进程按 `createdAt` 自己做。
+- **twitter list_timeline**：只收 `list_id`／`cursor`／`limit`（≤20），没有时间窗参数——增量由 `tw-dump.py --since` 处理。
 - **脚本直连**（v3.3.3）：followin 是 SSE 型 MCP，`news-fetch.py` 已封装（GET `/sse` 拿 endpoint → POST `initialize` → POST `tools/call`，结果从 SSE 流回）；`hot-scan.py` 的 L2 层用它。
 
 ## 取价

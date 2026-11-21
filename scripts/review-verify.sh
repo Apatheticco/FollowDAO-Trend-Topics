@@ -81,15 +81,29 @@ done
 [ -n "$FAKE" ] && echo "⚠️ 抽样行无「自检:／自检：」原句,不计入:$FAKE"
 # 11-19 审计:零挑战警戒原先只在群卡片里写「抽样应升至 50%」,没有任何环节执行(11-17~11-19 连续 8 轮警告、抽样仍按 30%)。
 #   改为这里机械执行:本轮之前已归档的复审连续 ≥2 份零「处置有误/挑战」→ 抽样要求升到 50%(≥3 条)。口径同 lark-push.py zero_streak。
-ZS=$(python3 - "$RD" "$TS" <<'PYZ'
-import sys,os,glob
-rd,ts=sys.argv[1],sys.argv[2]
+ZS=$(python3 - "$RD" "$TS" "$A" <<'PYZ'
+import sys,os,glob,re
+rd,ts,af=sys.argv[1],sys.argv[2],sys.argv[3]
 fs=[f for f in glob.glob(os.path.join(rd,'review-*.md')) if os.path.basename(f)!='review-%s.md'%ts]
-n=0
-for f in sorted(fs,key=os.path.getmtime,reverse=True):
+# retro1119:补审会整份重写复审文件,首审判的「处置有误」在归档里变成「处置OK」(11-19 17:38 3876 挑战成立,却被算进连续零挑战)。
+# 台账里主进程按约定落的「复审员挑战」note 也算一次挑战:落在该份复审的 run_ts 与下一份(更新的)复审 run_ts 之间。
+notes=[]
+try:
+    for ln in open(af,encoding='utf-8',errors='replace'):
+        c=ln.rstrip('\n').split('\t')
+        if len(c)>=4 and c[1]=='note' and c[3]=='复审员挑战' and c[0].isdigit(): notes.append(int(c[0]))
+except Exception: pass
+def rts(f):
+    m=re.match(r'review-(\d{10,})\.md$',os.path.basename(f))
+    return int(m.group(1)) if m else None
+fs=sorted(fs,key=lambda f:(rts(f) or 0, os.path.getmtime(f)),reverse=True)
+n=0; upper=int(ts) if ts.isdigit() else None
+for f in fs:
     t=open(f,encoding='utf-8',errors='replace').read()
     if any(('|处置有误' in l) or ('|挑战' in l) for l in t.splitlines()): break
-    n+=1
+    lo=rts(f)
+    if lo is not None and any(lo<=x and (upper is None or x<upper) for x in notes): break
+    n+=1; upper=lo if lo is not None else upper
 print(n)
 PYZ
 )

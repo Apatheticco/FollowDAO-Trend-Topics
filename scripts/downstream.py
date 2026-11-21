@@ -287,6 +287,19 @@ def run(ids, show_all=False):
         print(f"{mark} {i} {title.get(str(i), '')} | {verdict}: {detail}")
     for msg in learned:
         print('   ' + msg)
+    try:   # retro1120:建题时 en_readback 只等 16 秒,英文标题统一在这里回读并跑同一套哨兵
+        from topic import en_title_warns
+        for i in ids:
+            t = tp.get(str(i)) or {}
+            en, zh = t.get('title') or '', t.get('original_title') or ''
+            if not en or en.strip() == zh.strip():
+                print(f"   EN {i}: (英文标题尚未生成)")
+                continue
+            print(f"   EN {i}: {en}")
+            for x in en_title_warns(zh, en, t.get('domain')):
+                print(f"   ⚠️ EN {i} 译错嫌疑:{x}——事实错就改中文措辞(rc 纠错-自纠)")
+    except Exception as e:
+        print(f'   ⚠️ 英文标题回读失败:{type(e).__name__}: {e}')
     if bad_ids:
         print("   修法: topic.py update --id <id> --rc tag修正 --keywords \"<去掉误导词>\" 或 --tags '[]'(宁空不错标),改完重跑")
     print(f"DOWNSTREAM: 回读={len(ids)} 匹配={n_match} 错标={n_bad} 正文不符={n_txt} 未见={n_miss}")

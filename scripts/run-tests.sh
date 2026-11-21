@@ -314,6 +314,65 @@ o=$(ACTIONS="$ZR/a.tsv" RVLOG="$ZR/log.tsv" REPORTS_DIR="$ZR/rep" CHECKLOG=/dev/
 sleep 1; printf 'x|处置有误|y\n' > "$ZR/rep/review-3.md"; rm -f "$ZR/rep/review-$TZ.md"
 ACTIONS="$ZR/a.tsv" RVLOG="$ZR/log.tsv" REPORTS_DIR="$ZR/rep" CHECKLOG=/dev/null "$D/review-verify.sh" "$TZ" "$ZR/r.txt" >/dev/null 2>&1 \
   || { echo "❌ review-verify[零挑战升抽样·对照]: 最近一份有「处置有误」,抽 4/10(≥30%)应 PASS"; fail=$((fail+1)); }
+# retro1119:补审重写复审文件后首审的「处置有误」丢失(11-19 17:38 3876)——台账「复审员挑战」note 落在该份复审 run_ts 之后也算挑战,不升 50%
+n=$((n+1)); ZR2="$TR/zs2"; mkdir -p "$ZR2/rep"; TZ2=1788800000000
+cp "$ZR/r.txt" "$ZR2/r.txt"; sed "s/^$TZ/$TZ2/" "$ZR/a.tsv" > "$ZR2/a.tsv"
+printf 'x|处置OK|y\n' > "$ZR2/rep/review-1788600000000.md"; printf 'x|处置OK|y\n' > "$ZR2/rep/review-1788700000000.md"
+printf '1788700000500\tnote\t3876\t复审员挑战\t成立:撤因码不对\t-\n' >> "$ZR2/a.tsv"
+ACTIONS="$ZR2/a.tsv" RVLOG="$ZR2/log.tsv" REPORTS_DIR="$ZR2/rep" CHECKLOG=/dev/null "$D/review-verify.sh" "$TZ2" "$ZR2/r.txt" >/dev/null 2>&1 \
+  || { echo "❌ review-verify[零挑战·台账挑战note]: 上一份复审归档全OK但台账有「复审员挑战」note,不该算零挑战,抽 4/10 应 PASS"; fail=$((fail+1)); }
+n=$((n+1)); grep -v '复审员挑战' "$ZR2/a.tsv" > "$ZR2/a2.tsv"; rm -f "$ZR2/rep/review-$TZ2.md"
+ACTIONS="$ZR2/a2.tsv" RVLOG="$ZR2/log.tsv" REPORTS_DIR="$ZR2/rep" CHECKLOG=/dev/null "$D/review-verify.sh" "$TZ2" "$ZR2/r.txt" >/dev/null 2>&1 \
+  && { echo "❌ review-verify[零挑战·台账挑战note·对照]: 去掉挑战 note 后两份全OK,应升 50% 并 FAIL"; fail=$((fail+1)); }
+# retro1119:①前台英文标题自动翻译译错事实(3891 指示价→opened、美光→US stocks;14167 crypto 题称 stock)②tradfi 纯行情题拿 degraded 当无诱因(INSM 漏彭博并购报道)
+_en=$(cd "$D" && python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('t','topic.py');t=u.module_from_spec(s);s.loader.exec_module(t)
+f=lambda *a:len(t.en_title_warns(*a))
+print(f('ANT指示开盘价100美元，美光盘中涨5.6%','ANT opened at \$100, and the price rose 5.6% intraday.'),
+      f('美光盘中涨5.6%，Anthropic预示开盘价100美元','US stocks rose 5.6% mid-day, with Anthropic indicating an opening price of \$100.'),
+      f('MU盘中涨5.6%，Anthropic预示开盘价100美元','MU rose 5.6% intraday, with Anthropic indicating an opening price of \$100.'),
+      f('Sky池子无法提款且被指涉朝鲜资金，24小时跌17%','Sky Pools is unable to process withdrawals; its stock price has fallen 17% in 24 hours.','crypto'),
+      f('拼多多Q3利润超预期，PDD盘中涨12%','Pinduoduo Q3 profits beat; PDD rose 12% intraday.'),
+      bool(t.degraded_nocause('纯行情-A定则','tradfi','news 无相关报道(degraded)')), t.degraded_nocause('纯行情-A定则','tradfi','degraded;复查:长桥news 无'),
+      t.degraded_nocause('纯行情-A定则','tradfi','查不到诱因,降级板块播报'))")
+n=$((n+1)); [ "$_en" = "1 1 0 1 0 True None None" ] || { echo "❌ retro1119: 英文标题译错哨兵/降级当无诱因拦截判定不对,得 $_en"; fail=$((fail+1)); }
+# retro1120:①3916「盘中曾涨34%」用的是开盘价→「一度/曾涨跌X%」备注须写盘中高/低价 ②14195 时效问题记成「重复-同标的」并凑了不同事件的留存题 id
+_r20=$(cd "$D" && python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('t','topic.py');t=u.module_from_spec(s);s.loader.exec_module(t)
+b=lambda x:x is not None
+g=lambda i:{'status':0}
+print(b(t.intraday_extreme('Anthropic首日收涨17%，盘中曾涨34%','盘中=111.5/83;ET『shares opening at 111.50』')),
+      b(t.intraday_extreme('Intuit下调全年营收指引，INTU盘中一度跌8.4%','长桥开盘284.34、盘中低284.06/前收310.02')),
+      b(t.intraday_extreme('比特币一度跌破6.2万美元，创2个月新低','币安合约最低61375.2')),
+      b(t.intraday_extreme('Anthropic首日高开34%，收涨17%','开盘111.5')),
+      b(t.dup_target('重复-同标的','判据=闸:时效(发布时效:刷新超4h不建);BTC跌势由14183承接',14195,g)),
+      b(t.dup_target('重复-同标的','判据=闸:去重+时效:同标的系统题10000003922承接',14187,g)),
+      t.en_readback.__defaults__[-1])")
+n=$((n+1)); [ "$_r20" = "True False False False True False 16" ] || { echo "❌ retro1120: 一度/曾极值须写盘中高低价、时效撤题不得记重复、英文回读等待 16 秒,得 $_r20"; fail=$((fail+1)); }
+# retro1121:①degraded_nocause 扩到 crypto ②成交额格只记录不放行(log-action 放行 成交额✓) ③豁免只在检查真触发时计数 ④tradfi 单日≥50% 提示查拆股
+_r21=$(cd "$D" && python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('t','topic.py');t=u.module_from_spec(s);s.loader.exec_module(t)
+class A: pass
+a=A();a.rc='预告题';a.title='美国10月CPI将于周二公布'
+b=A();b.rc='承接更新';b.title='X报5美元'
+c=A();c.rc='改数字-定稿';c.title='X报5美元'
+W=t.WAIVER_APPLIES
+print(bool(t.degraded_nocause('纯行情-A定则','crypto','news degraded 0条')), t.degraded_nocause('纯行情-A定则','crypto','degraded;复查:长桥 无'),
+      W['succession_price_leg'](a), W['succession_price_leg'](b), W['price_only'](c),
+      bool(t.split_hint('tradfi',['SNDK=88.55/755.16'])), t.split_hint('tradfi',['SNDK=79.24/94.395']), t.split_hint('crypto',['AKE=0.0048/0.0097']),
+      bool(t.meme_rc('缺价格腿','四查:幅度✗ 成交额✓ 市值关口✗ 硬事件✗ x')))")
+n=$((n+1)); [ "$_r21" = "True None False True False True None None True" ] || { echo "❌ retro1121: crypto降级拦、豁免计数口径、拆股提示、成交额只记录 判定不对,得 $_r21"; fail=$((fail+1)); }
+# retro1121b:用户定 C——crypto 纯行情「24小时涨跌」题标题带成交额、建题带 desc;BTC/ETH 关口题与 tradfi 不受此限
+_r21b=$(cd "$D" && python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('t','topic.py');t=u.module_from_spec(s);s.loader.exec_module(t)
+b=lambda x:x is not None
+print(b(t.crypto_vol_desc('纯行情-A定则','crypto','ZEC 24小时跌16%','')),
+      b(t.crypto_vol_desc('纯行情-A定则','crypto','ZEC 24小时跌16%，币安合约成交20亿美元','')),
+      b(t.crypto_vol_desc('纯行情-A定则','crypto','ZEC 24小时跌16%，币安合约成交20亿美元','现价728…')),
+      b(t.crypto_vol_desc('纯行情-A定则','crypto','比特币一度跌破5.8万美元，创26个月新低','')),
+      b(t.crypto_vol_desc('纯行情-A定则','tradfi','MARA收跌19%','')),
+      b(t.crypto_vol_desc('有诱因-多源','crypto','X上线币安，24小时涨60%','')))")
+n=$((n+1)); [ "$_r21b" = "True True False False False False" ] || { echo "❌ retro1121b: crypto 纯行情题标题成交额+desc 检查判定不对,得 $_r21b"; fail=$((fail+1)); }
 # audit1119:tw-dump.py 替代 A1 haiku 子进程——按时间倒序、--since 截断、截断警告原样带出
 n=$((n+1)); TWD=$(mktemp -d)
 cat > "$TWD/p.json" <<'TWJ'
@@ -1217,7 +1276,7 @@ n=$((n+1)); [ "$(CONSOLE_FAKE_RAISE=update _tp create --domain tradfi --title '�
   && [ $(wc -l < "$_V/ta.tsv") -eq $((_n0+1)) ] && grep -q '上线调用失败' "$_V/tu.tsv" || { echo "❌ topic.py(pubfold1105): 上线抛异常应退 5、create 行已落、unlogged 有行: $(cat "$_V/tu.tsv" | cut -c1-120)"; fail=$((fail+1)); }
 : > "$_V/tu.tsv"
 _n0=$(wc -l < "$_V/ta.tsv")
-n=$((n+1)); [ "$(CONSOLE_FAKE_FAIL=create _tp create --domain crypto --title 'WAL 24小时涨48%，币安合约成交额7亿美元' --keywords 'WAL' --rc 纯行情-A定则 --note '回归:写失败不落账')" = "3" ] && [ "$(wc -l < "$_V/ta.tsv")" = "$_n0" ] || { echo "❌ topic.py(v3.7.0): 看板写失败应退出 3 且不落账"; fail=$((fail+1)); }
+n=$((n+1)); [ "$(CONSOLE_FAKE_FAIL=create _tp create --domain crypto --title 'WAL 24小时涨48%，币安合约成交额7亿美元' --keywords 'WAL' --rc 纯行情-A定则 --desc '回归:WAL现价与市值' --note '回归:写失败不落账')" = "3" ] && [ "$(wc -l < "$_V/ta.tsv")" = "$_n0" ] || { echo "❌ topic.py(v3.7.0): 看板写失败应退出 3 且不落账"; fail=$((fail+1)); }
 # retro1030:写看板后客户端抛异常(服务端已写)→退出 5、不落台账、actions-unlogged 有行(3377/3378 台账漏行且无回显)
 _n0=$(wc -l < "$_V/ta.tsv")
 n=$((n+1)); [ "$(CONSOLE_FAKE_RAISE=update _tp update --id 10000090001 --keywords 'RKLB,Rocket Lab' --rc tag修正 --note '回归:写后抛异常')" = "5" ] && [ "$(wc -l < "$_V/ta.tsv")" = "$_n0" ] && grep -q '写看板调用异常' "$_V/tu.tsv" 2>/dev/null || { echo "❌ topic.py(retro1030): 写看板调用抛异常应退出 5、记 actions-unlogged、不落台账"; fail=$((fail+1)); }
@@ -1995,7 +2054,7 @@ print(a(t.sicha_auto(T('AKE 24小时跌12%'),'缺价格腿','',R(-12))),
       a(t.sicha_auto(T('AKE 24小时跌10%，币安合约成交3亿美元'),'缺价格腿','硬事件✗',R(-10,3.2))),
       a(t.sicha_auto(T('AKE 24小时跌12%'),'缺价格腿','硬事件✓',R(-12))),
       a(t.sicha_auto(T('AKE 24小时跌12%'),'缺价格腿','硬事件✗',lambda s:None)))")
-n=$((n+1)); [ "$_sc" = "block fill True block skip skip block fill block block" ] || { echo "❌ topic.py(sicha1105): 四查自动算应为 block fill True block skip skip block fill block block,得 $_sc"; fail=$((fail+1)); }
+n=$((n+1)); [ "$_sc" = "block fill True block skip skip fill fill block block" ] || { echo "❌ topic.py(sicha1105): 四查自动算应为 block fill True block skip skip fill fill block block(v3.7.38 成交额格只记录不放行,第7条由 block 改 fill),得 $_sc"; fail=$((fail+1)); }
 
 # retro1104:跌幅收窄至X%算价格腿;--pct 标签去时段前缀再找;crypto 关键词首词是他币拦;拦截错类去题号/数字
 _r4=$(cd "$D" && python3 -W ignore -c "
@@ -2081,7 +2140,7 @@ n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import importlib.util
 b=[('2026-11-13',43675.1),('2026-11-16',41040.1),('2026-11-17',40092.1)]
 d,v,w=p.prev_from_bars(b,'2026-11-18',43675.1); assert (d,v)==('2026-11-17',40092.1) and w and '旧值' in w,(d,v,w)
 d,v,w=p.prev_from_bars(b,'2026-11-17',None); assert (d,v)==('2026-11-16',41040.1),(d,v)
-d,v,w=p.prev_from_bars(b,'2026-11-18',40500.0); assert v==40500.0 and w and '不一致' in w,(d,v,w)" 2>/dev/null || { echo "❌ pct.py(retro1118a): 亚洲指数前收取法不对"; fail=$((fail+1)); }
+d,v,w=p.prev_from_bars(b,'2026-11-18',40500.0); assert v==40500.0 and w and '不一致' in w and d!='2026-11-17' and '之后' in d,(d,v,w)" 2>/dev/null || { echo "❌ pct.py(retro1118a): 亚洲指数前收取法不对"; fail=$((fail+1)); }
 # retro1118b:near_line 不把「10%线/准入线」当读数(09:40 轮误拦 11 条),真实读数 +8.5% 仍拦
 n=$((n+1)); python3 -c "import sys;sys.path.insert(0,'$D');import topic as t
 assert t.near_line('缺诱因-未达线','tradfi','DELL +6.25%未过tradfi无诱因10%线') is None
@@ -2253,6 +2312,19 @@ _mc=$(cd "$D" && COVERAGE_MACRO_KLINES="$_MK" python3 -W ignore -c "
 import importlib.util as u;s=u.spec_from_file_location('c','coverage.py');c=u.module_from_spec(s);s.loader.exec_module(c)
 print([(a,b,int(lv)) for a,b,lv,_,_ in c.macro_milestones()])")
 n=$((n+1)); [ "$_mc" = "[('GC=F', '新低', 3800), ('BZ=F', '新高', 100)]" ] || { echo "❌ macro1118: 大宗破关口+60天新低/新高判定不对,得 $_mc"; fail=$((fail+1)); }
+# retro1119:一次击穿两档(11-19 金价 3853→3694 同破 3800/3700)报最深一档 3700;站上同理报最高一档
+python3 - "$_MK" <<'PYEOF'
+import json,sys
+def k(n,base_lo,base_hi,ref_close,last_lo,last_hi):
+    r=[[1790000000000+i*86400000,'0',str(base_hi),str(base_lo),str((base_lo+base_hi)/2)] for i in range(n)]
+    r[-3][4]=str(ref_close); r[-1][3]=str(last_lo); r[-1][2]=str(last_hi); return r
+json.dump({'GC=F':k(63,3835,4200,3853,3694.5,3860),'SI=F':k(63,40,52,47.2,46.9,47.5),
+           'CL=F':k(63,60,80,79.0,78.5,91.2),'BZ=F':k(63,80,99,98.0,97.0,98.5)},open(sys.argv[1],'w'))
+PYEOF
+_mc2=$(cd "$D" && COVERAGE_MACRO_KLINES="$_MK" python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('c','coverage.py');c=u.module_from_spec(s);s.loader.exec_module(c)
+print([(a,b,int(lv)) for a,b,lv,_,_ in c.macro_milestones()])")
+n=$((n+1)); [ "$_mc2" = "[('GC=F', '新低', 3700), ('CL=F', '新高', 90)]" ] || { echo "❌ retro1119: 一次击穿多档应报最深一档(金 3700、油 90),得 $_mc2"; fail=$((fail+1)); }
 rm -f "$_MK"
 
 # hot1111(用户 11-11 定「ZEC这种热点主流币大跌，可以留」):币安合约 24h 成交 ≥10 亿美元的加密币纯行情线 ±10%;非 COIN 永续(韩股/商品)不进币侧对账
@@ -2335,7 +2407,7 @@ for d,t,k,n in [('tradfi','Black Rifle Coffee收跌23%','BRCC',''),('tradfi','�
   ('tradfi','美国商业收入未达高预期，PLTR盘前跌8.1%','PLTR',''),('tradfi','金价创历史新高，报4200美元','黄金',''),
   ('tradfi','日本央行加息25基点，日经跌2%','日本央行',''),('tradfi','国家统计局公布10月CPI同比0.7%，沪深300跌1%','CPI',''),
   ('tradfi','InP激光器产能售罄且客户订单延至远期，Coherent, Inc.涨12%','COHR',''),('tradfi','LS Power据报提议每股2美元收购，EVGO收涨47%','EVGO',''),
-  ('crypto','SUI 24小时涨55%，币安合约成交3亿美元','SUI',''),('crypto','参议员索要TETHER调查材料，合作期限至2027年1月4日','TETHER',''),
+  ('crypto','SOL 24小时涨55%，币安合约成交3亿美元','SOL',''),('crypto','参议员索要TETHER调查材料，合作期限至2027年1月4日','TETHER',''),
   ('crypto','币安Alpha上线XYZ，24小时涨80%','XYZ',''),('tradfi','特朗普将于周三公布对华关税新政','关税',''),
   ('tradfi','日本央行干预汇市，日元急涨2%','日元',''),('tradfi','欧元兑美元跌破1.05，创两年新低','欧元',''),('tradfi','韩国国会通过加密法案，KOSPI涨1%','KOSPI','')]:
     print(weight.classify(d,t,k,n)[0],end='')")

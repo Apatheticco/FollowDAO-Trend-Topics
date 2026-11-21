@@ -58,7 +58,7 @@
 - **A 股**：主＝长桥 `quote`（`.SH/.SZ`）；followin `metrics` 用 `.SS` 也能直查（10-24 复核 `688836.SS` 返回 fmp 现价与前收，旧版「followin 不覆盖 A 股」已过时）。韩 `.KS/.KQ`、日 `.T`、港 `.HK` 同样直查（正股优先，`gate.sh 通道故障`）。
 - **followin `volume`／`volume_24h` 是币数不是美元**：美元成交额＝`volume_24h × 现价`，低价币会错 3 个数量级；`history[].volume` 是单根 K 线的量不是 24h。合约美元成交额直接用 `pct.py bn`。写金额前过量级自洽闸（`gate.sh 数字`：成交额÷市值 >20 倍先当自己算错）。HL 的 `dayNtlVlm` 确为美元。
 
-## Hyperliquid / Trade.xyz（W-HL 条件通道；触发条件与口径边界 → `gate.sh 并发编排` W-HL 条）
+## Hyperliquid / Trade.xyz（W-HL 条件通道；触发条件与口径边界 → `scan-playbook.md`「并发编排」W-HL 条）
 
 ```
 curl -s -X POST https://api.hyperliquid.xyz/info -H "Content-Type: application/json" -d '{"type":"metaAndAssetCtxs","dex":"xyz"}'
@@ -80,7 +80,7 @@ curl -s -X POST https://api.hyperliquid.xyz/info -H "Content-Type: application/j
 
 ## 已知 tag id
 
-- **打标规律**：系统打标器解析的是**标题**不是 keywords——① 错实体（标题里的机构/监管缩写被当标的：「获 OCC 批准」→ OCC、SpaceX→SPC）；② ≥7 位（尤其 11 位）是匹配不到时自造的垃圾占位 tag（`topic.py` 已自动标出）。干净单 token 的 crypto 题自动标对；公司名＋机构缩写的 tradfi 题最易出错。下游错实体由 `downstream.py` 回读，改关键词才生效（`gate.sh 建题核实`）。
+- **打标规律**：console 建题按 **keywords** 自动匹配 tag；下游资讯的 asset_types 则被关键词／标题／英文标题三项一起带偏（`downstream.py` 比对源），误导词要从关键词和标题里一起去掉——① 错实体（标题里的机构/监管缩写被当标的：「获 OCC 批准」→ OCC、SpaceX→SPC）；② ≥7 位（尤其 11 位）是匹配不到时自造的垃圾占位 tag（`topic.py` 已自动标出）。干净单 token 的 crypto 题自动标对；公司名＋机构缩写的 tradfi 题最易出错。下游错实体由 `downstream.py` 回读，改关键词才生效（`gate.sh 建题核实`）。
 - **找新美股 tag**：`topic.py update --id X --keywords "XXX,XXXX,XXXon" --rc tag修正 …` 加代币化后缀试一次，看回读的自动打标结果，命中即用，否则原 ticker。
 
 **加密原生**
@@ -128,5 +128,4 @@ curl -s -X POST https://api.hyperliquid.xyz/info -H "Content-Type: application/j
 | SK 海力士 | 658686 + 658687 | keyword 含 `SKHYX` 自动命中双标 |
 | NASDAQ 指数 | 10646 | 手动绑；keywords 重匹配会顶掉，需以 tags 显式传回 |
 
-- **待核（勿当已知用）**：`489344`——08-20 传 `HYPE,Hyperliquid,特朗普,白宫` 返回 489344＋416160，416160 已确认是 Hyperliquid，489344 是 HYPE／特朗普／白宫之一（最可能 HYPE）｜`148592`——Binance／代币化美股／永续合约之一｜`161127`——SEC／加密监管／Atkins 之一（最可能 SEC）。下次单 keyword 建题时分辨再入表。
 - **实测无 tag（勿重复探）**：IREN、HUT8、SMCI、KOSPI、ZHIPU、Multicoin；日韩正股（`6976.T`、`005930.KS`，三星只能手动绑 SK 的 658686/658687）。
