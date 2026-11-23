@@ -627,6 +627,9 @@ def cmd_create(a, c):
     _ie = intraday_extreme(a.title, note_of(a))
     if _ie:
         block(_ie, 'create', '-', a.rc, check='intraday_extreme')
+    _dw = desc_wording(getattr(a, 'desc', None))
+    if _dw:
+        block(_dw, 'create', '-', a.rc, check='desc_wording')
     _cv = crypto_vol_desc(a.rc, a.domain, a.title, getattr(a, 'desc', None))
     if _cv:
         block(_cv, 'create', '-', a.rc, check='crypto_vol_desc')
@@ -1323,8 +1326,18 @@ def crypto_vol_desc(rc, domain, title, desc):
     if '成交' not in (title or ''):
         miss.append('标题带「币安合约成交X亿美元」(pct.py bn 末尾给的数)')
     if not (desc or '').strip():
-        miss.append('--desc 写一段:现价、24h 涨跌、币安合约成交额、CoinGecko 市值、同期大盘背景(只写建题时数字)')
+        miss.append('--desc 写一段:现价、24h 涨跌、币安合约成交额、CoinGecko 市值、同期大盘背景(只写此刻数字,开头写「发布时数据:」)')
     return ('crypto 纯行情题(11-21 用户定 C):' + ';'.join(miss)) if miss else None
+
+
+DESC_INTERNAL = re.compile(r'建题|撤题|台账|判据|过线|权重档|纯行情-A定则|runTS|run_ts')
+
+
+def desc_wording(desc):
+    """retro1122:desc 是读者在详情页看到的正文。14233/14234 写了「建题时数据」,英文被译成
+    『Data at the time of question creation』——内部用语不进 desc。"""
+    hit = DESC_INTERNAL.findall(desc or '')
+    return (f"--desc 是读者看得到的正文,不写内部用语「{'、'.join(sorted(set(hit)))}」——时间口径写「发布时数据:…」或「截至北京时间HH:MM」") if hit else None
 
 
 def degraded_nocause(rc, domain, note):

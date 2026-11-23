@@ -27,6 +27,7 @@ TK = re.compile(r'^(?:[A-Z]{1,5}(?:\.[A-Z]{1,2})?|\d{4,6}\.(?:KS|KQ|T|TW|HK|SS|S
 NOT_TICKER = {'AI', 'CPI', 'PPI', 'GDP', 'ETF', 'IPO', 'WTI', 'USD', 'KOSPI', 'HBM', 'DRAM', 'CEO', 'SEC', 'FED', 'OI', 'TVL', 'RWA', 'NFT'}
 CORP = re.compile(r'\b(inc|corp|corporation|ltd|limited|holdings|co|plc|class a|ordinary shares)\b\.?', re.I)
 BLIND = []
+REJECT_WHY = {}   # retro1123:弃建被读数闸拒收时的原因,报漏时带出
 # 10-30 retro:费半ETF -7.4%、纳指 -3% 无题无弃建,复审员才抓到——个股池按 |x|≥10% 对账,指数级大跌永远进不了线。
 # 这是对账线(过线=要么建、要么写弃建理由),不是建题线;建题仍按 gates 双要素/诱因质量判
 IDX = {'QQQ': (2.5, {'纳指', '纳斯达克', 'nasdaq'}), 'SPY': (2.0, {'标普', 's&p'}), 'DIA': (2.0, {'道指', '道琼斯', 'dow'}), 'SOXX': (5.0, {'费半', '费城半导体', 'soxx'}),
@@ -552,6 +553,8 @@ def covered(sym, names, live, notes, pct=None, line=None, cnotes=None, idx=False
             # 弃建理由(未达线)已不成立,须重判;弃建时就已过线的(AKE -30.6% 弃建、现 -35%)照算已处置
             _nums = [abs(float(x)) for x in re.findall(r'(?<![<>≥≤＜＞\d.])[-+]?\d+(?:\.\d+)?(?=%)', n)]   # 「<10%」是线不是读数
             if line and pct is not None and _nums and max(_nums) < line <= abs(pct):
+                # retro1123:矿企/TSLA 弃建备注里引的是 BTC +4.5%、纳指 +5.9%(别的标的),被当成本标的「弃建时未过线」静默不认,重写两趟——报漏时说明原因
+                REJECT_WHY[sym] = f'有弃建但备注里最大读数 {max(_nums):g}% < 线 {line:g}%,按「弃建时未过线」不认;若那是别的标的的数,补写本标的现读数'
                 continue
             # 11-06 用户点名(美股指数大跌是重点题,不要漏):SPY 收跌 4.4% 被前晚盘中 -2.7% 写的『弃建|SPY』盖住——
             # 指数的弃建只在当时读数与现读数相差 ≤1 个百分点时算数,行情明显扩大就得重判(多半该建)
@@ -652,7 +655,7 @@ def main():
             n_d += 1
         else:
             n_m += 1
-        out.append((kind, sym, x, v or '漏', ref or ''))
+        out.append((kind, sym, x, v or '漏', ref or ('' if v else REJECT_WHY.get(sym, ''))))
     _lr = ledger.rows()
     for ek, t0, syms, hl in news_events(hours):
         v, ref = news_covered(ek, t0, syms, tp, _lr)

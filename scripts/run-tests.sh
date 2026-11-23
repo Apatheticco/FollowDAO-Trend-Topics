@@ -373,6 +373,34 @@ print(b(t.crypto_vol_desc('纯行情-A定则','crypto','ZEC 24小时跌16%',''))
       b(t.crypto_vol_desc('纯行情-A定则','tradfi','MARA收跌19%','')),
       b(t.crypto_vol_desc('有诱因-多源','crypto','X上线币安，24小时涨60%','')))")
 n=$((n+1)); [ "$_r21b" = "True True False False False False" ] || { echo "❌ retro1121b: crypto 纯行情题标题成交额+desc 检查判定不对,得 $_r21b"; fail=$((fail+1)); }
+# retro1122:①错标改对后 72h 内每轮回看(14216 被系统改回)②已知休市日不许挂开盘复查 ③desc 不写内部用语
+_R22=$(mktemp -d); _n22=$(($(date +%s)*1000))
+printf '%s\n' "$((_n22-3600000))	r	1	错标	下游挂到 FLP" "$((_n22-3500000))	r	2	错标	误报" "$((_n22-3400000))		2	误报更正	检测器" "$((_n22-400000000))	r	3	错标	超72h" "$((_n22-3600000))	r	4	OK	正常" > "$_R22/ds.log"
+printf '%s' '[{"title":"Chainflip theft","asset_type":"crypto","asset_types":["FLP"],"content":"x"}]' > "$_R22/feed.json"
+printf '%s' '[{"id":1,"domain":"crypto","status":0,"title":"Chainflip被盗，代币FLIP","title_en":"Chainflip theft","keywords":"FLIP"}]' > "$_R22/tps.json"
+: > "$_R22/a.tsv"
+_o22=$(ACTIONS="$_R22/a.tsv" DOWNSTREAM_FEED="$_R22/feed.json" DOWNSTREAM_TOPICS="$_R22/tps.json" DOWNSTREAM_LOG="$_R22/ds.log" DS_CLASH="$_R22/c.tsv" python3 "$D/downstream.py" "$_n22" 2>&1); _rc22=$?
+n=$((n+1)); { [ "$_rc22" = 2 ] && echo "$_o22" | grep -q '错标回看.*: 1$' && echo "$_o22" | grep -q '回读=1 匹配=1 错标=1'; } || { echo "❌ retro1122①: 近72h错标题(扣误报/超时)应回看且复发退出2: $_o22"; fail=$((fail+1)); }
+_e22(){ EV_DIR="$_R22" "$D/event.sh" add "$@" >/dev/null; echo -n "$? "; }
+_h22="$(_e22 2026-11-23 review 日韩开盘反应 09:40 — 看9984)$(_e22 2026-11-23 review 韩股开盘 09:40 — 日本休市不看日股)$(_e22 2026-11-24 review 东京开盘 09:40 — 看9984.T)$(_e22 2026-11-23 review 台股开盘 09:40 — 看TWII)$(_e22 2026-11-26 review NVDA盘前 17:30 — 复查)"
+n=$((n+1)); [ "$_h22" = "1 0 0 0 1 " ] || { echo "❌ retro1122②: 休市日开盘复查应拦(期望 1 0 0 0 1): $_h22"; fail=$((fail+1)); }
+_d22=$(cd "$D" && python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('t','topic.py');t=u.module_from_spec(s);s.loader.exec_module(t)
+print(t.desc_wording('建题时数据：ZEC现价764美元') is not None, t.desc_wording('发布时数据：ZEC现价764美元') is None, t.desc_wording('') is None)")
+n=$((n+1)); [ "$_d22" = "True True True" ] || { echo "❌ retro1122③: desc 内部用语应拦,得 $_d22"; fail=$((fail+1)); }
+rm -rf "$_R22"
+# retro1123:相对日期词(今晚/明晚)过零点错位——lint 提示;「周X+N点」认作预告形态不报缺价格
+_l23=$(cd "$D" && python3 -W ignore -c "
+import lint
+f=lambda t:[x[1] for x in lint.lint_title(t,'crypto')]
+print('相对日期词' in f('OKX与ICE代币化证券平台今晚上线，首批仅6只股票'), '相对日期词' in f('Monad明晚22点解锁166亿枚MON，为流通量1.4倍'), '相对日期词' not in f('Monad周二22点解锁166亿枚MON，为流通量1.4倍'), '双要素-缺价格' not in f('Monad周二22点解锁166亿枚MON，为流通量1.4倍'))")
+n=$((n+1)); [ "$_l23" = "True True True True" ] || { echo "❌ retro1123: 相对日期词应提示、周X+N点应认作预告,得 $_l23"; fail=$((fail+1)); }
+_c23=$(cd "$D" && python3 -W ignore -c "
+import coverage as c
+v,_=c.covered('MARA',set(),[],['弃建|MARA|矿企普涨;BTC 24h +4.5%|2026-11-23'],17.2,10)
+w,_=c.covered('MARA',set(),[],['弃建|MARA|盘中+17.2%,矿企普涨|2026-11-23'],17.2,10)
+print(v is None and '4.5%' in c.REJECT_WHY.get('MARA',''), w=='弃建')")
+n=$((n+1)); [ "$_c23" = "True True" ] || { echo "❌ retro1123②: 弃建因别的标的读数被拒时应给原因、写本标的读数应认,得 $_c23"; fail=$((fail+1)); }
 # audit1119:tw-dump.py 替代 A1 haiku 子进程——按时间倒序、--since 截断、截断警告原样带出
 n=$((n+1)); TWD=$(mktemp -d)
 cat > "$TWD/p.json" <<'TWJ'

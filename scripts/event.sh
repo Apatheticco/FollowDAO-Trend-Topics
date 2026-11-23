@@ -10,6 +10,17 @@ add)
   [ -n "$N" ] || { echo "用法: event.sh add <YYYY-MM-DD> <type> <主题> <时点> <关联id|—> <备注>"; exit 1; }
   echo "$D" | grep -qE '^20[0-9]{2}-[0-9]{2}-[0-9]{2}$' || { echo "🚨 日期格式 YYYY-MM-DD"; exit 1; }
   case "$T" in earnings|macro|policy|listing|unlock|review) ;; *) echo "🚨 type 枚举: earnings|macro|policy|listing|unlock|review"; exit 1;; esac
+  # retro1122:11-22 给软银挂了「11-23 日韩开盘」复查,没核 11-23 日本劳动感谢日休市。只列核实过的休市日,核到新的就加一行
+  if [ "$T" = review ]; then
+    HOL=""
+    case "$D" in
+      2026-11-23) HM='日股|东京|日韩|日经|9984|\.T([^A-Za-z]|$)'; HOL='日本(劳动感谢日)' ;;   # 金十 11-22 20:10 下周预告
+      2026-11-26) HM='美股|盘前|盘后|纳指|标普|道指'; HOL='美股(感恩节)' ;;                     # 金十 11-22 20:10 下周预告
+    esac
+    if [ -n "$HOL" ] && printf '%s %s' "$K" "$N" | grep -qE "$HM" && ! printf '%s %s' "$K" "$N" | grep -q '休市'; then
+      echo "🚨 $D $HOL 休市——改到下一交易日再挂;确实只是提醒,备注里写明「休市」"; exit 1
+    fi
+  fi
   printf '%s\t%s\t%s\t%s\t—\t%s\tpending\t%s\n' "$D" "$T" "$K" "$W" "$R" "$N" >> "$F"
   echo "✔ 入册: $D [$T] $K";;
 due)

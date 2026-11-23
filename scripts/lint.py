@@ -36,7 +36,8 @@ RELATION = re.compile(r'连涨|连跌|新高|新低|首次|最长|最大|以来|
 CAUSAL   = re.compile(r'压涨幅|推升|拖累|抵消|受.{1,8}(影响|提振|拖累)|带动|提振|引发|推动|导致|因.{1,10}而')
 PAIR_LEAD = re.compile(r'财报|指引|业绩|营收|调查|诉讼|起诉|罚款|下调|上调|评级|收购|并购|合作|获批|批准|遭|辞任|离任|增发|融资|回购')
 PAIR_TAIL = re.compile(r'、\s*[A-Za-z][A-Za-z0-9.\-]{0,9}\s*(?:盘中|盘前|盘后|夜盘|收)?(?:涨|跌)')
-FORECAST = re.compile(r'将于|拟于|将公布|待公布|即将|今晚|明日|定于|本周将|下周|本月将|将进行|待揭晓')   # 10-23 补:13473「本月将进行链上表决」、13495「规则待揭晓」
+RELDAY = re.compile(r'今晚|明晚|今夜|明日|明天|明早|今早|昨晚|昨日')   # retro1123 相对日期词
+FORECAST = re.compile(r'周[一二三四五六日天][0-9]{1,2}点|将于|拟于|将公布|待公布|即将|今晚|明日|定于|本周将|下周|本月将|将进行|待揭晓')   # 10-23 补:13473「本月将进行链上表决」、13495「规则待揭晓」
 
 
 def preview_misfiled(rc, title):
@@ -257,6 +258,10 @@ def lint_title(t, domain='crypto'):
     if d: out.append(('WARN','同标的重复',f'{",".join(d)} 在标题出现>1次,同一标的只出现一次','v2.9.43'))
     if DOLLAR.search(t): out.append(('INFO','样式','去掉 $ 前缀,直接写 ticker','样式'))
     if QUESTION.search(t): out.append(('FAIL','疑问句','去掉问号/悬念后不是「可核事件+标的」→撤;是硬事件→改陈述句','v2.9.68'))
+    # retro1123:14254『今晚上线』、14250『明晚22点』17:55 建,题有效期 24h 必跨零点,过零点后读者看到的是错位日期(当晚 23:00 才自纠)。
+    # gates 闸:时效「时间词按读者看到时写」——工具只提示不拦:相对日期词建议改写成「周X」或「X月X日」
+    m=RELDAY.search(t)
+    if m: out.append(('WARN','相对日期词',f'「{m.group(0)}」过零点后错位(题有效期24h必跨零点);写成「周X」或「X月X日」','retro1123 gates 闸:时效'))
     m=PSEUDO.search(t)
     if m: out.append(('WARN','伪诱因',f'「{m.group(0)}」只复述价格不是原因;板块普跌类仅板块级(≥4标的同向窄带)可作A定则播报,单标的=伪诱因','v2.9.35/48/53'))
     if domain=='tradfi' and PCT.search(t) and not SESSION.search(t) and not (H24.search(t) and ALLDAY.search(t)):

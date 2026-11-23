@@ -18,7 +18,7 @@
 修法:topic.py update --id X --rc tag修正 --keywords "<去掉误导词>" 或 --tags '[]'(宁空不错标),改完重跑本脚本。
 
 用法:
-  downstream.py <run_ts>        本轮建过/改过标题或关键词/上线/恢复的题(台账 ts≥run_ts)
+  downstream.py <run_ts>        本轮建过/改过标题或关键词/上线/恢复的题(台账 ts≥run_ts)＋近 72h 错标过仍在线的题(retro1122 回看)
   downstream.py --ids 1,2,3     指定题
   downstream.py --all           近 2 天全部在线题(体检)
   downstream.py equiv <下游符号> <本题符号> "<理由>"   登记等效(下游 ROBINHOOD = 本题 HOOD),之后不再报错标
@@ -245,10 +245,32 @@ def judge(t, art):
     return v or [('OK', f"下游标的 {','.join(syms) or '无标签'}" + ('(同名代币化股票/股票永续,等效)' if equiv else ''))]
 
 
-def run(ids, show_all=False):
+def recent_bad(now, hours=72, rows=None):
+    """retro1122:近 72h 判过「错标/域不符」的题(扣掉登记过误报的)——改对了也再看,系统会把关键词改回来。
+    由来:14216 FLP→FLIP 11-21 当轮改到错标=0,11-22 晚发现系统改回 CHAINFLIP,FLIP、又挂 FLP;原来只回读本轮动过的题,没人看得见。"""
+    if rows is None:
+        if not os.path.exists(LOG):
+            return []
+        rows = [l.rstrip('\n').split('\t') for l in open(LOG, encoding='utf-8')]
+    fa, out = false_alarms(rows), []
+    for x in rows:
+        if len(x) >= 4 and x[3] in MUST_FIX and x[0].isdigit() and int(x[0]) >= now - hours * 3600000:
+            if int(x[0]) > fa.get(x[2], 0) and x[2] not in out:
+                out.append(x[2])
+    return out
+
+
+def run(ids, show_all=False, watch=()):
     arts = feed()
     by = {norm(a.get('title')): a for a in arts if a.get('title')}
     tp = topics_en()
+    extra = [i for i in watch if i not in ids and (tp.get(str(i)) or {}).get('status') == 0]
+    if extra:
+        print(f"↺ 错标回看(近72h改过的错标题,防系统改回): {','.join(extra)}")
+        ids = list(ids) + extra
+    if not ids and not show_all:
+        print('DOWNSTREAM: 回读=0 匹配=0 错标=0 正文不符=0 未见=0(本轮没有建/改标题/上线的题)')
+        return 0
     if show_all:
         ids = [i for i, t in tp.items() if t.get('status') == 0]
     rows, n_match, n_bad, n_txt, n_miss = [], 0, 0, 0, 0
@@ -342,10 +364,11 @@ def main():
     else:
         os.environ.setdefault('RUN_TS', a[0])
         ids = targets(a[0])
-        if not ids:
+        watch = recent_bad(int(time.time() * 1000))
+        if not ids and not watch:
             print('DOWNSTREAM: 回读=0 匹配=0 错标=0 正文不符=0 未见=0(本轮没有建/改标题/上线的题)')
             sys.exit(0)
-        bad = run(ids)
+        bad = run(ids, watch=watch)
     sys.exit(2 if bad else 0)
 
 
