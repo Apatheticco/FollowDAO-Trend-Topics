@@ -245,6 +245,19 @@ def _yahoo(sym):
         print('  ⚠️ 没取到官方前收(range=1d chartPreviousClose),日线可能缺天——别用 60m 末根(不含收盘竞价),改用 fmp previousClose 核')
 
 
+# retro1124:14:48 读 KOSPI 得 5000.08(+6.2%),收盘最终定格是 5006.03(+6.3%)——收盘后 20 分钟内的读数可能还没定格。
+# 北京时间收盘时刻(分钟):韩/日 14:30、台 13:30、港 16:10。只提示不拦。
+SETTLE = [((r'^\^KS11$', r'\.K[SQ]$'), 14 * 60 + 30), ((r'^\^N225$', r'\.T$'), 14 * 60 + 30),
+          ((r'^\^TWII$', r'\.TWO?$'), 13 * 60 + 30), ((r'^\^HSI$', r'\.HK$'), 16 * 60 + 10)]
+
+
+def settle_warn(sym, hhmm_cst):
+    """sym 在收盘后 20 分钟内(含收盘那一刻)被读 → 返回提示文字,否则 None。hhmm_cst=北京时间当日分钟数。"""
+    for pats, close in SETTLE:
+        if any(re.search(p, sym) for p in pats) and close <= hhmm_cst < close + 20:
+            return f'⚠️ {sym} 收盘后 {hhmm_cst - close} 分钟内读数,收盘价可能尚未定格(retro1124 KOSPI 5000.08→5006.03),定稿前过 20 分钟再读一次'
+    return None
+
 def main():
     a = sys.argv[1:]
     if not a:
@@ -257,6 +270,11 @@ def main():
         _bn(a[1])
     elif a[0] == 'yahoo' and len(a) == 2:
         _yahoo(a[1])
+        import time as _t
+        _lt = _t.gmtime(_t.time() + 8 * 3600)
+        _w = settle_warn(a[1], _lt.tm_hour * 60 + _lt.tm_min)
+        if _w:
+            print(_w)
     elif a[0] == 'check' and len(a) >= 3:
         res = check(a[1], a[2:])
         for lv, msg in res:

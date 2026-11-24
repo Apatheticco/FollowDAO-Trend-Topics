@@ -922,6 +922,10 @@ def vol_only_exempt(note):
 
 def meme_rc(rc, note):
     """10-19 复盘(13335 TRUMP):备注写了四查全空,却记成「缺价格腿」;gates A闸 meme 行四查全空的规范撤因是「缺诱因-未达线」。"""
+    # retro1124:14252/14260/14258 都是非 meme(Visa 钱包、PUMP 空投指控、ADA 治理投票)写了四查行就被自动改成「缺诱因-未达线」,
+    # 复审员三次挑出撤因码错——备注写明「非meme」时不改码
+    if re.search(r'非\s*meme', note or '', re.I):
+        return None
     if rc == '缺价格腿' and re.search(r'四查[:：]\s*幅度✗\s*成交额[✗✓]\s*市值关口✗\s*硬事件✗', note or ''):   # v3.7.38 成交额格只记录不放行
         return '备注是 meme 四查全空,规范撤因是「缺诱因-未达线」(gates 闸:A闸 meme 行),不是「缺价格腿」——改 --rc 再撤'
     return None

@@ -401,6 +401,14 @@ v,_=c.covered('MARA',set(),[],['弃建|MARA|矿企普涨;BTC 24h +4.5%|2026-11-2
 w,_=c.covered('MARA',set(),[],['弃建|MARA|盘中+17.2%,矿企普涨|2026-11-23'],17.2,10)
 print(v is None and '4.5%' in c.REJECT_WHY.get('MARA',''), w=='弃建')")
 n=$((n+1)); [ "$_c23" = "True True" ] || { echo "❌ retro1123②: 弃建因别的标的读数被拒时应给原因、写本标的读数应认,得 $_c23"; fail=$((fail+1)); }
+# retro1124:①非meme写四查行不自动改撤因码 ②亚股收盘后20分钟内读数提示未定格
+_m24=$(cd "$D" && python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('t','topic.py');t=u.module_from_spec(s);s.loader.exec_module(t)
+q='四查: 幅度✗ 成交额✗ 市值关口✗ 硬事件✗'
+print(t.meme_rc_fix('缺价格腿', q+';非meme,治理投票无价格反应')[0]=='缺价格腿', t.meme_rc_fix('缺价格腿', q)[0]=='缺诱因-未达线')
+import pct
+print(pct.settle_warn('^KS11',14*60+48) is not None, pct.settle_warn('^KS11',14*60+50) is None, pct.settle_warn('2330.TW',13*60+35) is not None, pct.settle_warn('NVDA',14*60+35) is None)" | tr '\n' ' ')
+n=$((n+1)); [ "$_m24" = "True True True True True True " ] || { echo "❌ retro1124: 非meme不改码/收盘定格提示,得 $_m24"; fail=$((fail+1)); }
 # audit1119:tw-dump.py 替代 A1 haiku 子进程——按时间倒序、--since 截断、截断警告原样带出
 n=$((n+1)); TWD=$(mktemp -d)
 cat > "$TWD/p.json" <<'TWJ'
