@@ -409,6 +409,11 @@ print(t.meme_rc_fix('缺价格腿', q+';非meme,治理投票无价格反应')[0]
 import pct
 print(pct.settle_warn('^KS11',14*60+48) is not None, pct.settle_warn('^KS11',14*60+50) is None, pct.settle_warn('2330.TW',13*60+35) is not None, pct.settle_warn('NVDA',14*60+35) is None)" | tr '\n' ' ')
 n=$((n+1)); [ "$_m24" = "True True True True True True " ] || { echo "❌ retro1124: 非meme不改码/收盘定格提示,得 $_m24"; fail=$((fail+1)); }
+# retro1125:「23:00轮自审七查:…」带轮次前缀的例行留痕被 retro 误记成「自审发现·价格腿」错误
+_r25=$(cd "$D" && python3 -W ignore -c "
+import importlib.util as u;s=u.spec_from_file_location('r','retro.py');r=u.module_from_spec(s);s.loader.exec_module(r)
+print(r.routine_self('自审七查:①横向…'), r.routine_self('23:00轮自审七查:①横向…④价格腿:新建均有'), r.routine_self('b0 视野缺口(本轮自审七查撞见):缺价格腿'), r.routine_self(''))" | tr '\n' ' ')
+n=$((n+1)); [ "$_r25" = "True True False False " ] || { echo "❌ retro1125: 带轮次前缀的自审七查留痕应认作例行、正文提到七查的真发现照算,得 $_r25"; fail=$((fail+1)); }
 # audit1119:tw-dump.py 替代 A1 haiku 子进程——按时间倒序、--since 截断、截断警告原样带出
 n=$((n+1)); TWD=$(mktemp -d)
 cat > "$TWD/p.json" <<'TWJ'

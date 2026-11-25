@@ -84,7 +84,7 @@ def gather():
         ts, act, tid, rc, note = r[0], r[1], r[2], r[3], r[4]
         if rc == '复审员挑战' and re.search(r'成立', note) and not re.search(r'不成立', note):
             out.append((ts, _eid('rv', ts, tid), '复审挑战·' + _sub(note), tid, note[:160], '复审员'))
-        elif rc == '自审发现' and not note.startswith('自审七查'):   # 10-15 retro:七查例行留痕不是错误,曾被误归「价格腿」
+        elif rc == '自审发现' and not routine_self(note):   # 10-15 retro:七查例行留痕不是错误,曾被误归「价格腿」;11-25 带轮次前缀(「23:00轮自审七查」)也认
             out.append((ts, _eid('self', ts, tid), '自审发现·' + _sub(note), tid, note[:160], '自审'))
         elif act == 'update' and rc == '纠错-自纠':
             out.append((ts, _eid('fix', ts, tid), '纠错·' + _sub(note + r[5]), tid, (r[5] or note)[:160], '纠错-自纠'))
@@ -117,6 +117,8 @@ def load_errors():
         if len(r) >= 3 and r[1] == 'TAG':
             tags[r[2]] = r[3]
         elif len(r) >= 7:
+            if r[5] == '自审' and routine_self(r[4]):   # 11-25:已入册的例行七查留痕(旧筛漏掉的)读时剔除,errors.tsv 仍 append-only
+                continue
             errs[r[1]] = dict(ts=int(r[0]), eid=r[1], cls=r[2], tid=r[3], text=r[4], src=r[5], day=r[6])
     for e, c in tags.items():
         if e in errs:
@@ -161,6 +163,11 @@ def cmd_fix(a):
     with open(FIX, 'a', encoding='utf-8') as f:
         f.write(f'{int(time.time() * 1000)}\t{a[0]}\t{a[1]}\t{a[2]}\n')
     print(f'✔ 已登记修复:{a[0]} → {a[1]}')
+
+
+def routine_self(note):
+    """11-25 retro:自审七查例行留痕(可带「23:00轮」这类轮次前缀)不是错误;只看开头 12 字内,正文里提到七查的真发现照算"""
+    return '自审七查' in (note or '')[:12]
 
 
 def cmd_tag(a):
