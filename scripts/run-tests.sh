@@ -1832,6 +1832,9 @@ assert not lint.us_close({'title':'全球AI股抛售拖累科技股，创业板�
 assert not lint.us_close({'title':'售价下滑且警惕客户提前下单，村田制作所收跌7.7%','keywords':'6981,村田制作所,Murata'})
 assert not lint.us_close({'title':'村田收跌7.7%','keywords':'6981.T'})
 assert lint.us_close({'title':'财报后遭抛售，闪迪SNDK收跌13%','keywords':'SNDK,Sandisk,闪迪'})
+# retro1126:标题无市场词、关键词含「日经」的日股收盘题也要排除(10000004064)
+assert not lint.us_close({'title':'AI芯片股反弹，铠侠收涨13%、软银涨7.3%','keywords':'软银,铠侠,日经'})
+assert lint.us_close({'title':'中东冲突威胁原油出口，布油收涨3.5%、美油涨2%','keywords':'原油,布油,美油,WTI'})
 EOF
 
 # retro1031:crypto「24小时涨跌X%」标题与币安现读差>1pp 拦(13732 写41%、现读-42.18%)

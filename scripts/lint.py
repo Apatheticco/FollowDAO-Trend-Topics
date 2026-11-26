@@ -313,7 +313,9 @@ def us_close(t):
     if NON_US.search(t.get('title') or ''):
         return False
     kws = [k.strip() for k in re.split(r'[,，]', t.get('keywords') or '') if k.strip()]
-    return not any(NON_US_KW.search(k) for k in kws)
+    # retro1126:关键词里的市场词(日经/KOSPI/恒指…)也要认——10000004064「AI芯片股反弹，铠侠收涨13%、软银涨7.3%」
+    #   标题无市场词、关键词「软银,铠侠,日经」无交易所后缀,混进了美股 🔔 盘中复查名单。
+    return not any(NON_US_KW.search(k) or NON_US.search(k) for k in kws)
 
 
 def bell_fresh(age_h_, now_utc=None):
