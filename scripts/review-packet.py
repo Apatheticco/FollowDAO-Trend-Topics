@@ -127,6 +127,13 @@ def main():
     bad = [k for k in keeps if k.count('|') < 2]
     if bad:
         sys.exit('🚨 --keep 须三段「id|标题|为什么留」: ' + ' / '.join(bad))
+    # retro1127:10000004073「美股盘前软件板块集体走高，NBIS…CRWV…ORCL」把 GPU 算力云标成软件板块,
+    #   18:45 轮 --keep 只核了 ≥4 只同向和涨幅,没核板块名与成分股对不对得上,用户点名后才撤。
+    #   留板块/概念股题时理由里必须写「成分:」列出核过的成分股,逼自己把板块名和成分对一遍。
+    nosect = [k for k in keeps if re.search(r'板块|概念股', k.split('|', 2)[1]) and '成分:' not in k.split('|', 2)[2]]
+    if nosect:
+        sys.exit('🚨 留板块/概念股题须在理由里写「成分:<核过的成分股>」并确认板块名对得上(retro1127 4073「软件板块」实为AI云): '
+                 + ' / '.join(k.split('|', 2)[0] for k in nosect))
     drift = title_drift(rs)
     if drift and not a.ack_drift:
         sys.exit('🚨 本轮建/改的币题标题与币安现读差 ≥10 个百分点(纯行情题只拦跌破50%线(11-06 由30%上调)或方向反转,11-03用户定同向过线不动),送审前先处置'

@@ -259,9 +259,10 @@ def lint_title(t, domain='crypto'):
     if DOLLAR.search(t): out.append(('INFO','样式','去掉 $ 前缀,直接写 ticker','样式'))
     if QUESTION.search(t): out.append(('FAIL','疑问句','去掉问号/悬念后不是「可核事件+标的」→撤;是硬事件→改陈述句','v2.9.68'))
     # retro1123:14254『今晚上线』、14250『明晚22点』17:55 建,题有效期 24h 必跨零点,过零点后读者看到的是错位日期(当晚 23:00 才自纠)。
-    # gates 闸:时效「时间词按读者看到时写」——工具只提示不拦:相对日期词建议改写成「周X」或「X月X日」
+    # gates 闸:时效「时间词按读者看到时写」。11-27 Q21 用户定由提示升为拦截:WARN 期间 10000004068「美股今晚半日市」照写上线又自纠,
+    #   相对日期词一律写成「周X」或「X月X日」才放行(预告题同样写具体日期)。
     m=RELDAY.search(t)
-    if m: out.append(('WARN','相对日期词',f'「{m.group(0)}」过零点后错位(题有效期24h必跨零点);写成「周X」或「X月X日」','retro1123 gates 闸:时效'))
+    if m: out.append(('FAIL','相对日期词',f'「{m.group(0)}」过零点后错位(题有效期24h必跨零点);写成「周X」或「X月X日」','retro1123/Q21 gates 闸:时效'))
     m=PSEUDO.search(t)
     if m: out.append(('WARN','伪诱因',f'「{m.group(0)}」只复述价格不是原因;板块普跌类仅板块级(≥4标的同向窄带)可作A定则播报,单标的=伪诱因','v2.9.35/48/53'))
     if domain=='tradfi' and PCT.search(t) and not SESSION.search(t) and not (H24.search(t) and ALLDAY.search(t)):

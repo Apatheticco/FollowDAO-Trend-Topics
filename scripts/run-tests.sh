@@ -395,6 +395,12 @@ import lint
 f=lambda t:[x[1] for x in lint.lint_title(t,'crypto')]
 print('相对日期词' in f('OKX与ICE代币化证券平台今晚上线，首批仅6只股票'), '相对日期词' in f('Monad明晚22点解锁166亿枚MON，为流通量1.4倍'), '相对日期词' not in f('Monad周二22点解锁166亿枚MON，为流通量1.4倍'), '双要素-缺价格' not in f('Monad周二22点解锁166亿枚MON，为流通量1.4倍'))")
 n=$((n+1)); [ "$_l23" = "True True True True" ] || { echo "❌ retro1123: 相对日期词应提示、周X+N点应认作预告,得 $_l23"; fail=$((fail+1)); }
+# Q21(11-27 用户定):相对日期词由提示升为拦截——10000004068「纳指期货较周三收盘涨2.9%，美股今晚半日市」WARN 期间照写上线
+_q21=$(cd "$D" && python3 -W ignore -c "
+import lint
+g=lambda t:[x[0] for x in lint.lint_title(t,'tradfi') if x[1]=='相对日期词']
+print(g('纳指期货较周三收盘涨2.9%，美股今晚半日市')==['FAIL'], g('纳指期货较周三收盘涨2.9%，美股周五半日市')==[])")
+n=$((n+1)); [ "$_q21" = "True True" ] || { echo "❌ Q21: 相对日期词应 FAIL 拦截、写周X应放行,得 $_q21"; fail=$((fail+1)); }
 _c23=$(cd "$D" && python3 -W ignore -c "
 import coverage as c
 v,_=c.covered('MARA',set(),[],['弃建|MARA|矿企普涨;BTC 24h +4.5%|2026-11-23'],17.2,10)
@@ -1349,6 +1355,9 @@ printf '%s\n' $'1795000000000\tcreate\t9101\t有诱因-多源\t回归:建\t-→�
   $'1795000001000\tcull\t9102\t反转错向\t『乙』回归:撤\t' $'1795000002000\tupdate\t9103\t改数字-定稿\t回归:改\t丙1→丙2' $'1795000003000\tnote\t-\t留档\t回归:弃建\t' > "$_V/rp.tsv"
 n=$((n+1)); ACTIONS="$_V/rp.tsv" CHECKLOG=/dev/null B0JSON="$_V/tb0.json" python3 "$D/review-packet.py" 1795000000000 >/dev/null 2>&1 && { echo "❌ review-packet(v3.7.0): 有撤题没给 --keep 应拒出"; fail=$((fail+1)); }
 _rp=$(ACTIONS="$_V/rp.tsv" CHECKLOG=/dev/null B0JSON="$_V/tb0.json" python3 "$D/review-packet.py" 1795000000000 --keep '9104|丁|同型留')
+# retro1127:留板块/概念股题理由须写「成分:」(10000004073「软件板块」实为AI云,18:45 --keep 没核板块名)
+n=$((n+1)); ACTIONS="$_V/rp.tsv" CHECKLOG=/dev/null B0JSON="$_V/tb0.json" python3 "$D/review-packet.py" 1795000000000 --keep '9104|美股盘前软件板块集体走高，NBIS涨7.8%|≥4只同向' >/dev/null 2>&1 && { echo "❌ review-packet(retro1127): 留板块题理由没写「成分:」应拒出"; fail=$((fail+1)); }
+n=$((n+1)); ACTIONS="$_V/rp.tsv" CHECKLOG=/dev/null B0JSON="$_V/tb0.json" python3 "$D/review-packet.py" 1795000000000 --keep '9104|AI云服务板块走高|成分:NBIS/CRWV/IREN/ORCL 均为AI云' >/dev/null 2>&1 || { echo "❌ review-packet(retro1127): 留板块题写了「成分:」应放行"; fail=$((fail+1)); }
 n=$((n+1)); echo "$_rp" | grep -q '建 1(其中 1 条同轮自推上线)/ 撤 1 / 改 1 / note 1(共 5 行)' && echo "$_rp" | grep -q '9102「乙」' || { echo "❌ review-packet(v3.7.0): 计数/撤时标题不对: $(echo "$_rp" | sed -n 3p)"; fail=$((fail+1)); }
 printf '%s\n' $'1795000000000\tcreate\t9105\t有诱因-多源\t回归:建｜建后自推上线(发布三问已核)\t-→戊' $'1795000001000\tnote\t-\t留档\t回归:弃建\t' > "$_V/rp2.tsv"
 _rp2=$(ACTIONS="$_V/rp2.tsv" CHECKLOG=/dev/null B0JSON="$_V/tb0.json" python3 "$D/review-packet.py" 1795000000000)
