@@ -1045,11 +1045,15 @@ def _ts(x):
         return None
 
 
+def _utc_day(ts):
+    return time.strftime('%Y-%m-%d', time.gmtime(ts))
+
+
 def cross_day_dup(rc, note, t, getter, gap_h=16):
     """10-21／10-22 复盘(13357 AGT、13358 ARIA 两天被 Evose 以「重复-同标的」撤了两次):备注引用的留存题 13427/13426 是隔天的新一段行情、
     方向相同。过期题处置表:与同一天的题重复才撤;跨交易日同标的、方向一致的两条并存,方向相反撤老题。dup_target 只查留存题在不在线,管不到这种。
-    「同一交易日」按两题建题时刻相隔 <16 小时算:单个交易时段不超过 8 小时、相邻两个时段相隔约 24 小时,16 小时把两者分开;
-    盘前题与同一时段的收盘题相隔约 12 小时,仍算同一天。备注引用的在线留存题里只要有一条与本题同一天、或方向不同／看不出方向就不拦;
+    「同一天」按两题建题时刻的 UTC+0 日期是否相同判(11-28 周报 Q23 用户定;原「相隔<16小时」近似作废,gap_h 参数保留只为兼容调用)。
+    美股盘前(北京 17:00 起=UTC 09:00)、盘中、收盘(UTC 21:00)、盘后在同一个 UTC 日内。备注引用的在线留存题里只要有一条与本题同一天、或方向不同／看不出方向就不拦;
     全部是隔天且同向才拦。查不到的 id 不拦(同 dup_target),不在线的交给 dup_target。"""
     if rc != '重复-同标的' or not t:
         return None
@@ -1068,12 +1072,14 @@ def cross_day_dup(rc, note, t, getter, gap_h=16):
         if o.get('status') != 0:
             continue
         t1 = _ts(o.get('created_at'))
-        if t1 is None or abs(t1 - t0) < gap_h * 3600 or _dir(o.get('title')) != me:
+        # 11-28 周报 Q23(用户定):「同一天」按建题时刻的 UTC+0 日期判,取代原「相隔<16小时」近似
+        #   (17:30 建盘前题与次日 09:40 定稿相隔 16h10m 被判跨日;10000004075 撤不掉即此)。
+        if t1 is None or _utc_day(t1) == _utc_day(t0) or _dir(o.get('title')) != me:
             return None
-        hits.append(f'{i}(相隔{abs(t1 - t0) / 3600:.0f}小时)')
+        hits.append(f'{i}(UTC {_utc_day(t1)} vs {_utc_day(t0)})')
     if not hits:
         return None
-    return (f'备注引用的留存题 {"、".join(hits)} 与本题不是同一交易日、方向相同——过期题处置表:跨交易日同标的、方向一致的两条并存,不算重复'
+    return (f'备注引用的留存题 {"、".join(hits)} 与本题不是同一天(按 UTC+0 日期,Q23)、方向相同——过期题处置表:跨日同标的、方向一致的两条并存,不算重复'
             f'(10-21／10-22 13357、13358 两次误撤)。本题确有错就按真因换码(事实错误-数字/反转错向/归因-借源造因),否则留着')
 
 

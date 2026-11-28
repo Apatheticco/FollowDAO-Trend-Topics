@@ -1,8 +1,8 @@
 {
   "_doc": "超大盘股名单(11-09 用户定):市值前10的个股,有实在直接诱因时单名门槛 3%(其余单名 5%)。topic.tradfi_floor 读本文件;as_of 超 14 天 topic.py 提示复核,周六周报时按实测市值刷新。",
-  "as_of": "2026-11-20",
-  "source": "followin metrics fundamentals(fmp marketCap TTM)按11-20收盘价折算(11-21周报刷新)",
-  "cut": "市值前10;第10名 TSLA 约1.45万亿(META 约1.50万亿、AVGO 约1.63万亿),第11名 LLY 约1.27万亿、BRK-B 约1.23万亿、ANT(Anthropic,11-19上市)约1.16万亿;名单与11-13相同",
+  "as_of": "2026-11-27",
+  "source": "followin metrics market(fmp marketCap)按11-27(周五半日市)收盘(11-28周报刷新)",
+  "cut": "市值前10:AAPL 5.21万亿、MSFT 3.66、NVDA 3.63、GOOGL 3.34、AMZN 2.75、TSM 1.83、SPCX 1.75、META 1.61、TSLA 1.58、AVGO 1.49(第10);第11名 LLY 1.31万亿、ANT(Anthropic)1.24万亿、WMT 1.06万亿;名单与11-20相同",
   "floor_pct": 3,
   "names": {
     "AAPL": [

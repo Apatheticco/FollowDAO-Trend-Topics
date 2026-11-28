@@ -193,7 +193,15 @@ def main():
 第一行 LEDGER=<本轮台账行数>|<note 行数>|<涉及 id 逗号分隔>(自己从 actions.tsv 里 run_ts≥{a.run_ts} 的行数出来,不要抄本清单)
 第二行 AUDITED=<你审了几行>
 第三行 SAMPLED=<你实测价格的 id>
-之后每个 id 一行:<id>|处置OK 或 处置有误|<理由;实测的写「自检:」+ 当前价>""")
+之后每个 id 一行:<id>|处置OK 或 处置有误|<理由;实测的写「自检:」+ 检索源名(如 长桥/币安/followin news/金十)+ 检索时刻 HH:MM + 检索到的原句或现价>""")
+    # 11-28 周报 Q24:此前连续 ≥3 份复审零「处置有误」→ 混入 4 条历史回放题(2 判错 2 判对,答案只存哈希)
+    try:
+        import replay
+        _rp = replay.plant(a.run_ts)
+        if _rp:
+            L.append(_rp.rstrip('\n') + '\n回放题每条一行:R<k>|处置OK 或 处置有误|<理由>(R 行不计入 LEDGER/AUDITED)')
+    except Exception as e:
+        L.append(f'\n(回放题生成失败:{e})')
     txt = '\n'.join(L) + '\n'
     if a.out:
         open(a.out, 'w', encoding='utf-8').write(txt)

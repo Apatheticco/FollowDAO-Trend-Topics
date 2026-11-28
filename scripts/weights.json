@@ -21,7 +21,7 @@
     }
   },
   "default_weight": 1,
-  "major_coins_as_of": "2026-11-21 CoinGecko 市值前 35 去掉稳定币/平台币/RWA(LEO/WBT/FIGR_HELOC/XAUT)后的前 20,另加 USDT/USDC;较11-14:GRAM(Toncoin改名,第19)进、SUI(第22)出",
+  "major_coins_as_of": "2026-11-28 CoinGecko 市值前 35 去掉稳定币(USDT/USDC/USDS/USDE/DAI/RLUSD/USD1/USDG/USDY)/平台币(LEO/WBT)/RWA(FIGR_HELOC/XAUT)后的前 20,另加 USDT/USDC;与11-21名单相同(第20名 GRAM 2.80B、第21名 SUI 2.74B 差距很小,下周再看)",
   "major_coins": [
     "BTC",
     "ETH",

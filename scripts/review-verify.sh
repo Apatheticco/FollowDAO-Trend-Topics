@@ -76,9 +76,19 @@ NS=0; FAKE=""
 for sid in $(echo "${SAMP#SAMPLED=}" | tr ',' ' '); do
   sid=${sid%%(*}; sid=${sid%%（*}   # 11-03:复审员写「10000003452(EVGO)」,括号进 grep -E 报 parentheses not balanced、该条被误判无自检
   [ -n "$sid" ] || continue
-  if grep -E "^${sid}\|" "$F" | grep -qE "自检[:：]"; then NS=$((NS+1)); else FAKE="$FAKE $sid"; fi
+  # 11-28 周报 Q24:「自检:」行须带检索源名与检索时刻 HH:MM,只写「自检:」+复述送审备注不再计数
+  #   (11-27 23:00 轮 7 次工具调用却报抽样 7 条;此前只查「自检:」字样)
+  _ln=$(grep -E "^${sid}\|" "$F" | head -1)
+  if printf '%s' "$_ln" | grep -qE "自检[:：]" \
+     && printf '%s' "$_ln" | grep -qiE "长桥|longbridge|币安|binance|bybit|okx|yahoo|followin|news|metrics|金十|jin10|pct\.py|coingecko|tradingview|WebSearch|twitter|lark" \
+     && printf '%s' "$_ln" | grep -qE "[0-9]{1,2}:[0-9]{2}"; then NS=$((NS+1)); else FAKE="$FAKE $sid"; fi
 done
-[ -n "$FAKE" ] && echo "⚠️ 抽样行无「自检:／自检：」原句,不计入:$FAKE"
+[ -n "$FAKE" ] && echo "⚠️ 抽样行缺「自检:」或缺检索源名/检索时刻 HH:MM(Q24),不计入:$FAKE"
+# Q24:主进程终验时传 REVIEW_TOOL_USES=<复审员实际工具调用次数>,少于 4+⌈抽样/2⌉ 视为抽样没真检索
+if [ -n "${REVIEW_TOOL_USES:-}" ]; then
+  _min=$(( 4 + (NS+1)/2 ))
+  [ "$REVIEW_TOOL_USES" -ge "$_min" ] || { echo "🚨 复审员工具调用 $REVIEW_TOOL_USES 次 < $_min(4 次固定动作+抽样 $NS 条的一半)——抽样自检没真检索(Q24),重起复审员"; log FAIL "工具调用不足 $REVIEW_TOOL_USES<$_min"; exit 1; }
+fi
 # 11-19 审计:零挑战警戒原先只在群卡片里写「抽样应升至 50%」,没有任何环节执行(11-17~11-19 连续 8 轮警告、抽样仍按 30%)。
 #   改为这里机械执行:本轮之前已归档的复审连续 ≥2 份零「处置有误/挑战」→ 抽样要求升到 50%(≥3 条)。口径同 lark-push.py zero_streak。
 ZS=$(python3 - "$RD" "$TS" "$A" <<'PYZ'
@@ -116,6 +126,10 @@ NEED=$(( (TOTAL*PCT+9)/10 )); [ "$NEED" -lt 3 ] && NEED=3; [ "$NEED" -gt "$TOTAL
 #   这里兜底:判否定却通篇肯定词的行捞出来提示复核。存在「撤对了但 rc 贴错」这类合法的部分否定,故只 WARN。
 SUS=$(grep -E "^[0-9]+\|(挑战|处置有误)\|" "$F" | grep -cE "准确|贴切|成立|确实|正确|无误" || true)
 [ "${SUS:-0}" -gt 0 ] && echo "⚠️ 裁决词存疑 $SUS 行:判「挑战/处置有误」但理由含肯定词(准确/贴切/成立/确实/正确)——逐行复核它到底反对什么,别当成真分歧落账(v3.0.9)"
+# Q24:有回放题答案就核召回——已知判错一条没抓到或缺 R 行 → FAIL
+_RP=$(REPORTS_DIR="$RD" python3 "$(dirname "$0")/replay.py" check "$TS" "$F" 2>&1); _rc=$?
+echo "$_RP"
+[ "$_rc" -eq 0 ] || { log FAIL "埋雷回放不过"; exit 1; }
 echo "✅ 复审覆盖完整($TOTAL/$TOTAL)｜台账自取 $L_TOT 行(note $L_NOTE)✔｜抽样自检 $NS 条 ✔"; log PASS "覆盖 $TOTAL 台账 $L_TOT/note$L_NOTE 抽样 $NS"
 # v3.3.9 PASS 即归档:lark-push.py 只认 reports/review-* 作复审产物,而复审员输出常落在 /tmp。
 #   09-03 16:41 之后 reports/ 再无 review-* 文件,于是**每张卡片都写「🚨 复审 未跑」**,而实际每轮都审了、这里都 PASS 了——

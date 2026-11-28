@@ -20,12 +20,13 @@
 | 板块 | 代表股 |
 |------|--------|
 | AI 算力 / GPU | `NVDA,AMD,AVGO,TSM`（TSLA 同批拉取） |
-| AI 应用 / 大科技 | `MSFT,GOOGL,META,AAPL,AMZN` |
+| AI 应用 / 大科技 / 软件 | `MSFT,GOOGL,META,AAPL,AMZN`、`PLTR`（PLTR 在 B5 批拉取） |
 | 存储 / 内存 | `MU,SNDK,WDC,STX`（MRVL 同批拉取） |
 | 光通信 / 网络 | `LITE,AAOI,GLW,COHR` |
 | 半导体设备 | `ASML,AMAT,LRCX,KLAC` |
 | 加密概念股 | `CRCL,COIN,MSTR`（GEMI 按需） |
-| 量化交易 / Fintech | `HOOD,PLTR`（SOFI、IBKR 按需） |
+| AI 云 / 算力租赁 | `NBIS,CRWV,ORCL,IREN`（按需，不在 29 槽） |
+| 量化交易 / Fintech | `HOOD`（SOFI、IBKR 按需） |
 | 航天 / 国防 | `SPCX`（RKLB、LMT、RTX、BA 按需） |
 
 ## 宏观 / 大宗
@@ -35,7 +36,7 @@
 | 金 | `XAUT`／`PAXG` @crypto | `yahoo_price GC=F`／`GLD` |
 | 油 | `yahoo_price CL=F`（WTI）／`BZ=F`（Brent） | followin `USO/BNO/OIL` ETF（追踪期货，标题须写「油价 ETF」） |
 | 美元 | followin `DXY` @tradfi | Yahoo `DX-Y.NYB`（11-07 实测 fmp 限流时可用）→ `DTWEXBGS`@macro／followin `DXUSD` |
-| 美股大盘 | followin `SPY/QQQ/DIA` @tradfi（`spx` 必失败，不再先调） | 长桥 `quote` SPY.US/QQQ.US/DIA.US（指数 .SPX.US/.DJI.US/.NDX.US）；VIX 用 Yahoo `^VIX`，偶返空、无兜底记 ⚠️ |
+| 美股大盘 | followin `SPY/QQQ/DIA` @tradfi（`spx` 必失败，不再先调） | 长桥 `quote` SPY.US/QQQ.US/DIA.US（指数 .SPX.US/.DJI.US/.NDX.US）；VIX 以 channels.json「美元DXY+SPY/QQQ」行为准：主调 followin tradfi 同批，fmp 限流时走 Yahoo `^VIX`，偶返空、无兜底记 ⚠️ |
 | 国债 | followin macro `DGS10/DGS2`（首扫） | yahoo `^TNX/^TYX` → FRED 直连 `curl https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10`（滞后 1–2 个交易日，只作收盘值，不写「盘中」） |
 | econ 日历 | metrics macro-calendar `date_from=今天 date_to=+5d`（首扫） | — |
 
@@ -72,7 +73,7 @@ curl -s -X POST https://api.hyperliquid.xyz/info -H "Content-Type: application/j
 
 ## 写看板
 
-- 一律 `~/.trend-scout/topic.py create|update|publish|cull|restore|get --id`（用法 `topic.py -h`）；keywords 只收逗号分隔字符串、≤4 个；不写 desc。按标题定位的老坑随入口一起作废（案例见 LESSONS）。
+- 一律 `~/.trend-scout/topic.py create|update|publish|cull|restore|get --id`（用法 `topic.py -h`）；keywords 只收逗号分隔字符串、≤4 个；desc 默认不传，crypto 纯行情 24h 题必传 `--desc`、标题带币安合约成交额（11-21 C，topic.py 拦）。按标题定位的老坑随入口一起作废（案例见 LESSONS）。
 - **系统建题会自己改标题**（行情题数字随行情滚动、已隐藏题也会被改写）：`topic.py cull` 已把撤时标题写进备注。
 - **系统 keywords 自动切词缺陷**：`ETHERFI` 被切成 `ETHER,FI`，`FI` 命中 Fiserv——处置系统 crypto 题时顺手核有没有被切出两字母噪音段，有就 `topic.py update --keywords` 改掉。
 - **端点 500**：`topic.py create` 整体报 500 而 list/update 正常 → 先 list 探服务在线、再用短标题 create 探一次排除内容；仍 500 就本轮放弃建题，用 `log-action.sh note - 留档 "弃建|<标的>|端点500待补|<日期>"` 留档、下轮补建（11-07 Q16：coverage 只认「弃建|」，写「待建|」会被当漏建卡住 漏=0），不要反复重试。

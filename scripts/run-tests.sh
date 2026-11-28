@@ -259,32 +259,50 @@ TR="/tmp/rv.$$"; mkdir -p "$TR"; T0=1788600000000
 { printf '%s\tcreate\t11001\t有诱因-多源\tx\t-\n' "$T0"
   printf '%s\tcull\t11002\t灌水-KOL观点\ty\t-\n' "$T0"
   printf '%s\tnote\t-\t自审发现\t七查\t-\n' "$T0"; } > "$TR/a.tsv"
-mk(){ printf '%s\nAUDITED=2\nSAMPLED=11001,11002\n11001|通过|自检:原句A\n11002|通过|自检:原句B\n' "$1" > "$TR/$2"; }
+mk(){ printf '%s\nAUDITED=2\nSAMPLED=11001,11002\n11001|通过|自检:长桥 10:01 原句A\n11002|通过|自检:长桥 10:02 原句B\n' "$1" > "$TR/$2"; }
 mk 'LEDGER=3|1|11001,11002' ok.txt            # 齐全
 mk 'LEDGER=999|1|11001,11002' win.txt         # 窗口错(报 999 行,实 3 行)
 mk 'X=1'                    noled.txt          # 无 LEDGER
 mk 'LEDGER=3|1|11001'       missid.txt         # 漏写操作 id 11002
 mk 'LEDGER=3|0|11001,11002' note0.txt          # 台账有 note 却报 0
-printf 'LEDGER=4|1|11001,11002,19999\nAUDITED=2\nSAMPLED=11001,11002\n11001|通过|自检:A\n11002|通过|自检:B\n' > "$TR/unaudited.txt"  # 自取到 19999 却无裁决行
+printf 'LEDGER=4|1|11001,11002,19999\nAUDITED=2\nSAMPLED=11001,11002\n11001|通过|自检:长桥 10:01 A\n11002|通过|自检:长桥 10:02 B\n' > "$TR/unaudited.txt"  # 自取到 19999 却无裁决行
 # v3.0.8:全角冒号「自检：」必须与半角等价——中文输出天然写全角,09-04 实跑 5 条真自检被判 0 条,判据形状歧视了正确行为
-printf 'LEDGER=3|1|11001,11002\nAUDITED=2\nSAMPLED=11001,11002\n11001|通过|自检：原句A\n11002|通过|自检：原句B\n' > "$TR/fullwidth.txt"
+printf 'LEDGER=3|1|11001,11002\nAUDITED=2\nSAMPLED=11001,11002\n11001|通过|自检：币安 10:01 原句A\n11002|通过|自检：币安 10:02 原句B\n' > "$TR/fullwidth.txt"
 # v3.0.9:裁决词歧义哨兵——判「挑战」却通篇肯定词=它其实在支持我的处置,须 WARN 但不阻断(exit 仍 0)
-printf 'LEDGER=3|1|11001,11002\nAUDITED=2\nSAMPLED=11001,11002\n11001|挑战|自检：张冠李戴确实,撤得准确\n11002|通过|自检：原句B\n' > "$TR/susverb.txt"
+printf 'LEDGER=3|1|11001,11002\nAUDITED=2\nSAMPLED=11001,11002\n11001|挑战|自检：followin news 10:03 张冠李戴确实,撤得准确\n11002|通过|自检：币安 10:02 原句B\n' > "$TR/susverb.txt"
 # v3.4.1:SAMPLED= 取末条——复审员 append-only,首条清单漏 id 而末条补齐时必须以末条为准(09-10 实证 head -1 逼出 2 趟纯格式重跑)
-printf 'LEDGER=3|1|11001,11002\nAUDITED=2\nSAMPLED=11001\n11001|处置OK|自检:原句A\n11002|处置OK|自检:原句B\nSAMPLED=11001,11002\n' > "$TR/sampdup.txt"
+printf 'LEDGER=3|1|11001,11002\nAUDITED=2\nSAMPLED=11001\n11001|处置OK|自检:长桥 10:01 原句A\n11002|处置OK|自检:长桥 10:02 原句B\nSAMPLED=11001,11002\n' > "$TR/sampdup.txt"
 # v3.3.9:REPORTS_DIR/CHECKLOG 注入,否则回归会把假复审文件 cp 进真 reports/、把真 checklists.log 当上界
 printf 'ts=%s\n' "$((T0+1000))" > "$TR/cl.tsv"                        # 假「下一轮」起点=T0+1s
 printf '%s\tcreate\t11003\t有诱因-多源\t下一轮的题\t-\n' "$((T0+2000))" >> "$TR/a.tsv"   # 下一轮的写操作,不该算进本轮
 # retro1103:SAMPLED 带括号注释(10000003452(EVGO))须剥掉再匹配,否则 grep 报错、自检被少计
-printf 'LEDGER=3|1|11001,11002\nAUDITED=2\nSAMPLED=11001(甲),11002（乙）\n11001|处置OK|自检:原句A\n11002|处置OK|自检:原句B\n' > "$TR/sampnote.txt"
+printf 'LEDGER=3|1|11001,11002\nAUDITED=2\nSAMPLED=11001(甲),11002（乙）\n11001|处置OK|自检:长桥 10:01 原句A\n11002|处置OK|自检:长桥 10:02 原句B\n' > "$TR/sampnote.txt"
 for c in "sampnote.txt:0" "ok.txt:0" "noled.txt:1" "missid.txt:1" "note0.txt:1" "unaudited.txt:1" "win.txt:1" "fullwidth.txt:0" "susverb.txt:0" "sampdup.txt:0"; do
   f="${c%%:*}"; want="${c##*:}"
   ACTIONS="$TR/a.tsv" RVLOG="$TR/log.tsv" REPORTS_DIR="$TR/reports" CHECKLOG="$TR/cl.tsv" "$D/review-verify.sh" "$T0" "$TR/$f" >/dev/null 2>&1; got=$?
   [ "$got" = "$want" ] || { echo "❌ review-verify[$f]: 期望 exit $want 得到 $got"; fail=$((fail+1)); }
 done
+# Q24(11-28 用户定):「自检:」须带检索源名+时刻,否则不计数;REVIEW_TOOL_USES 少于 4+⌈抽样/2⌉ 拒;埋雷回放漏判已知判错拒
+printf 'LEDGER=3|1|11001,11002\nAUDITED=2\nSAMPLED=11001,11002\n11001|处置OK|自检:原句A\n11002|处置OK|自检:原句B\n' > "$TR/q24nosrc.txt"
+n=$((n+1)); ACTIONS="$TR/a.tsv" RVLOG="$TR/log.tsv" REPORTS_DIR="$TR/reports" CHECKLOG="$TR/cl.tsv" REPLAY_DIR="$TR/rp" "$D/review-verify.sh" "$T0" "$TR/q24nosrc.txt" >/dev/null 2>&1 && { echo "❌ review-verify(Q24): 自检无检索源/时刻应不计数而 FAIL"; fail=$((fail+1)); }
+n=$((n+1)); REVIEW_TOOL_USES=3 ACTIONS="$TR/a.tsv" RVLOG="$TR/log.tsv" REPORTS_DIR="$TR/reports" CHECKLOG="$TR/cl.tsv" REPLAY_DIR="$TR/rp" "$D/review-verify.sh" "$T0" "$TR/ok.txt" >/dev/null 2>&1 && { echo "❌ review-verify(Q24): 工具调用 3 次 < 4+1 应 FAIL"; fail=$((fail+1)); }
+n=$((n+1)); REVIEW_TOOL_USES=9 ACTIONS="$TR/a.tsv" RVLOG="$TR/log.tsv" REPORTS_DIR="$TR/reports" CHECKLOG="$TR/cl.tsv" REPLAY_DIR="$TR/rp" "$D/review-verify.sh" "$T0" "$TR/ok.txt" >/dev/null 2>&1 || { echo "❌ review-verify(Q24): 工具调用 9 次应 PASS"; fail=$((fail+1)); }
+# 埋雷:题库 2 判错(复审员挑战 成立)+2 判对(盲审一致),强制埋后,全判对 PASS、判错全放过 FAIL、缺 R 行 FAIL
+RPD="$TR/rpbank"; mkdir -p "$RPD"
+{ printf '1700000000001\tcull\t90001\t归因-伪诱因\t撤甲\t-\n1700000000002\tnote\t90001\t复审员挑战\t成立:甲撤错\t-\n'
+  printf '1700000000003\tcull\t90002\t重复-同标的\t撤乙\t-\n1700000000004\tnote\t90002\t复审员挑战\t成立:乙撤错\t-\n'
+  printf '1700000000005\tcull\t90003\t疑问句-悬念\t撤丙\t-\n1700000000006\tcreate\t90004\t有诱因-多源\t建丁\t-→丁涨5%%\n'; } > "$RPD/a.tsv"
+printf '1\tW1\t90003\t撤\t撤\t1\n1\tW1\t90004\t留\t留\t1\n' > "$RPD/b.tsv"
+RT=1799999999999
+n=$((n+1)); _pl=$(ACTIONS="$RPD/a.tsv" BLIND="$RPD/b.tsv" REPORTS_DIR="$RPD/rep" REPLAY_DIR="$RPD/k" REPLAY_FORCE=1 python3 "$D/replay.py" plant "$RT"); echo "$_pl" | grep -q 'R4' || { echo "❌ replay(Q24): 强制埋应出 R1~R4"; fail=$((fail+1)); }
+_ans(){ for k in R1 R2 R3 R4; do id=$(echo "$_pl" | grep -oE "^- $k\(历史题 [0-9]+" | grep -oE '[0-9]+$'); case "$id" in 90001|90002) v="$1";; *) v="$2";; esac; echo "$k|$v|x"; done; }
+_ans 处置有误 处置OK > "$RPD/good.txt"; _ans 处置OK 处置OK > "$RPD/blind.txt"; head -2 "$RPD/good.txt" > "$RPD/short.txt"
+n=$((n+1)); ACTIONS="$RPD/a.tsv" REPLAY_DIR="$RPD/k" python3 "$D/replay.py" check "$RT" "$RPD/good.txt" >/dev/null || { echo "❌ replay(Q24): 已知判错全抓到应 PASS"; fail=$((fail+1)); }
+n=$((n+1)); ACTIONS="$RPD/a.tsv" REPLAY_DIR="$RPD/k" python3 "$D/replay.py" check "$RT" "$RPD/blind.txt" >/dev/null && { echo "❌ replay(Q24): 已知判错一条没抓到应 FAIL"; fail=$((fail+1)); }
+n=$((n+1)); ACTIONS="$RPD/a.tsv" REPLAY_DIR="$RPD/k" python3 "$D/replay.py" check "$RT" "$RPD/short.txt" >/dev/null && { echo "❌ replay(Q24): 缺 R 行应 FAIL"; fail=$((fail+1)); }
 # v3.6.1:演练新建题占位题号 NEW-<k> 必须能过台账自取契约(第 44 轮卡在 tr -dc 0-9 把 NEW-1 截成 1)
 mkdir -p "$TR/drill"; printf '%s\tcreate\tNEW-1\t有诱因-多源\t演练\t→x\n%s\tupdate\t11001\t改数字-定稿\t演练\ta→b\n' "$T0" "$T0" > "$TR/drill/a.tsv"
-printf 'LEDGER=2|0|11001,NEW-1\nAUDITED=2\nSAMPLED=11001,NEW-1\n11001|处置OK|自检:A\nNEW-1|处置OK|自检:B\n' > "$TR/drill/r.txt"
+printf 'LEDGER=2|0|11001,NEW-1\nAUDITED=2\nSAMPLED=11001,NEW-1\n11001|处置OK|自检:长桥 10:01 A\nNEW-1|处置OK|自检:长桥 10:02 B\n' > "$TR/drill/r.txt"
 ACTIONS="$TR/drill/a.tsv" RVLOG="$TR/log.tsv" REPORTS_DIR="$TR/reports" CHECKLOG="$TR/cl.tsv" "$D/review-verify.sh" "$T0" "$TR/drill/r.txt" >/dev/null 2>&1 \
   || { echo "❌ review-verify: 演练占位题号 NEW-1 应能过台账自取契约(v3.6.1)"; fail=$((fail+1)); }
 ACTIONS="$TR/a.tsv" RVLOG="$TR/log.tsv" REPORTS_DIR="$TR/reports" CHECKLOG="$TR/cl.tsv" "$D/review-verify.sh" "$T0" "$TR/win.txt" 2>&1 | grep -q '窗口错' \
@@ -307,7 +325,7 @@ ACTIONS="$TR/empty.tsv" RVLOG="$TR/log.tsv" REPORTS_DIR="$TR/reports" CHECKLOG="
 n=$((n+1)); ZR="$TR/zs"; mkdir -p "$ZR/rep"; TZ=1788700000000
 for i in 0 1 2 3 4 5 6 7 8 9; do printf '%s\tcull\t2100%s\t灌水-KOL观点\tz\t-\n' "$TZ" "$i"; done > "$ZR/a.tsv"
 { printf 'LEDGER=10|0|'; for i in 0 1 2 3 4 5 6 7 8 9; do printf '2100%s,' "$i"; done; printf '\nAUDITED=10\nSAMPLED=21000,21001,21002,21003\n'
-  for i in 0 1 2 3 4 5 6 7 8 9; do printf '2100%s|处置OK|自检:原句\n' "$i"; done; } > "$ZR/r.txt"
+  for i in 0 1 2 3 4 5 6 7 8 9; do printf '2100%s|处置OK|自检:长桥 10:04 原句\n' "$i"; done; } > "$ZR/r.txt"
 printf 'x|处置OK|y\n' > "$ZR/rep/review-1.md"; printf 'x|处置OK|y\n' > "$ZR/rep/review-2.md"
 o=$(ACTIONS="$ZR/a.tsv" RVLOG="$ZR/log.tsv" REPORTS_DIR="$ZR/rep" CHECKLOG=/dev/null "$D/review-verify.sh" "$TZ" "$ZR/r.txt" 2>&1); g=$?
 { [ "$g" = 1 ] && echo "$o" | grep -q '升至 50%'; } || { echo "❌ review-verify[零挑战升抽样]: 连续 2 份零挑战后抽 4/10 应 FAIL 并提示升至 50%"; fail=$((fail+1)); }
@@ -1295,6 +1313,14 @@ n=$((n+1)); [ "$(LA_CHECK=1 _lv "$D/log-action.sh" create - 有诱因-多源 "�
 n=$((n+1)); [ "$(_lv "$D/log-action.sh" update 9811 纠错-自纠 "回归:纠错缺标题变更" -)" != "0" ] || { echo "❌ log-action(v3.7.0): 纠错-自纠 不带标题变更应拒"; fail=$((fail+1)); }
 n=$((n+1)); [ "$(awk -F'\t' 'END{print NF}' "$_V/lr.tsv")" = "5" ] || { echo "❌ log-action(v3.7.0): 拒写行应带 动作/id/rc 三列结构(共5列)"; fail=$((fail+1)); }
 n=$((n+1)); [ "$(_lv "$D/log-action.sh" update 9811 纠错-自纠 "回归:二次舍入改正" "X收跌7.9%→X收跌7.8%")" = "0" ] || { echo "❌ log-action(v3.7.0): 纠错-自纠 带标题变更应放行"; fail=$((fail+1)); }
+# retro1128:为下游英文翻译改中文措辞记纠错-自纠应拒(10000004084/10000004087),改样式-命名放行,注明中文原题有误放行
+n=$((n+1)); [ "$(_lv "$D/log-action.sh" update 9811 纠错-自纠 "回归:下游英文标题把半日市机翻成上午场,改用感恩节后" "A半日市→A感恩节后")" != "0" ] || { echo "❌ log-action(retro1128): 译名改措辞记纠错-自纠应拒"; fail=$((fail+1)); }
+n=$((n+1)); [ "$(_lv "$D/log-action.sh" update 9811 改样式-命名 "回归:下游英文标题把半日市机翻成上午场,改用感恩节后" "A半日市→A感恩节后")" = "0" ] || { echo "❌ log-action(retro1128): 译名改措辞记改样式-命名应放行"; fail=$((fail+1)); }
+n=$((n+1)); [ "$(_lv "$D/log-action.sh" update 9811 纠错-自纠 "回归:中文原题有误:人名写错,英文翻译随之错" "A特拉布克→A特拉布科")" = "0" ] || { echo "❌ log-action(retro1128): 注明中文原题有误应放行"; fail=$((fail+1)); }
+# Q22(11-28 用户定):项目方/团队/国库钱包动作套链上红线应拒,缺价格腿放行,注明非项目方放行
+n=$((n+1)); [ "$(_lv "$D/log-action.sh" cull 9812 链上红线-托管流水/多空对赌 "回归:WLFI战略储备钱包卖出1.2万枚ETH,无价格腿" -)" != "0" ] || { echo "❌ log-action(Q22): 项目方钱包套红线应拒"; fail=$((fail+1)); }
+n=$((n+1)); [ "$(_lv "$D/log-action.sh" cull 9812 缺价格腿 "回归:WLFI战略储备钱包卖出1.2万枚ETH,标题无价格腿,已挂复查" -)" = "0" ] || { echo "❌ log-action(Q22): 项目方钱包记缺价格腿应放行"; fail=$((fail+1)); }
+n=$((n+1)); [ "$(_lv "$D/log-action.sh" cull 9812 链上红线-托管流水/多空对赌 "回归:巨鲸经FalconX卖出52.8万SOL,非项目方:个人地址OTC流水" -)" = "0" ] || { echo "❌ log-action(Q22): 注明非项目方应放行"; fail=$((fail+1)); }
 n=$((n+1)); [ "$(_lv "$D/log-action.sh" update 9812 纠错-自纠 "回归:过期题纠错应拒" "Y收跌5%→Y收跌6%")" != "0" ] || { echo "❌ log-action(v3.7.0): 过期题 纠错-自纠 应按 v3.6.0 拒(事实错误走撤题)"; fail=$((fail+1)); }
 _un=$(ACTIONS="$_V/la.tsv" REJ="$_V/lr.tsv" REJ_OK="$_V/lok.tsv" UNLOGGED="$_V/lu.tsv" python3 "$D/ledger.py" unresolved 0)
 n=$((n+1)); [ "$(echo "$_un" | grep -c .)" = "1" ] && echo "$_un" | grep -q 9812 || { echo "❌ ledger(v3.7.0): 9811 拒后已落账应自动处理、只剩 9812 未处理,得到: $_un"; fail=$((fail+1)); }
@@ -1752,6 +1778,10 @@ assert not T.cross_day_dup('缺诱因-未达线','与13427',me,g)
 pre={'id':10000003300,'title':'X盘前涨5%','created_at':'2026-10-21 16:00:00'}
 assert not T.cross_day_dup('重复-同标的','被10000003301覆盖',pre,{10000003301:{'status':0,'title':'X收涨6%','created_at':'2026-10-22 04:05:00'}}.get)   # 盘前对同一时段收盘
 assert not T.cross_day_dup('重复-同标的','与13427',{'id':1,'title':'AGT报0.04美元','created_at':'2026-10-19 10:00:00'},g)                               # 看不出方向不拦
+# Q23(11-28 用户定):同一天按建题时刻 UTC+0 日期判——17:30 盘前题(UTC 09:30)对次日 05:30 系统收盘题(UTC 21:30 同日)不拦;相隔 14h 但跨 UTC 零点要拦
+p2={'id':10000004075,'title':'RKLB盘前涨5.6%','created_at':'2026-11-27 17:31:00'}
+assert not T.cross_day_dup('重复-同标的','被10000004092覆盖',p2,{10000004092:{'status':0,'title':'RKLB收涨8.2%','created_at':'2026-11-28 05:30:00'}}.get)
+assert T.cross_day_dup('重复-同标的','被10000004093覆盖',{'id':9,'title':'X涨5%','created_at':'2026-11-27 07:00:00'},{10000004093:{'status':0,'title':'X涨6%','created_at':'2026-11-27 09:00:00'}}.get)
 EOF
 
 # ── v3.7.12 10-22:coverage 前收在 Yahoo 缺当日 K 线时不得取到前天 ──────────────
